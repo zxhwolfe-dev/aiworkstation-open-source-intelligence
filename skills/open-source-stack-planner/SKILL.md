@@ -11,6 +11,31 @@ open-source AI projects rather than a single-project recommendation.
 The generated architecture is a recommendation. Individual project facts may be
 verified, but cross-project compatibility remains unknown until tested.
 
+## Live-tool availability gate
+
+Before naming current projects as architecture components, confirm that these
+companion tools are available:
+
+- `compose_ai_stack`;
+- `get_project_facts`;
+- `get_license_evidence` when license matters;
+- `find_alternatives` and `compare_ai_projects` when selection requires them.
+
+The plugin can be installed as Skills-only. If the tools are unavailable:
+
+1. do not invent a current component list or license status;
+2. state that live project evidence is unavailable in this session;
+3. produce a vendor-neutral reference architecture using component roles rather
+   than project names;
+4. provide the exact facts, interfaces and compatibility tests required before
+   selecting each role;
+5. label any user-supplied project examples as unverified;
+6. direct the user to connect the companion read-only MCP server or use the AI
+   Open Source Radar before requesting a verified project stack.
+
+A generic architecture may still be useful, but it must not imply that any named
+project currently satisfies the requirements.
+
 ## Step 1: define the operating context
 
 Collect the minimum decision inputs:
@@ -51,8 +76,8 @@ clear job in the proposed system.
 
 ## Step 3: compose candidate components
 
-Call `compose_ai_stack` with the business goal, structured constraints and
-existing stack. For every proposed component:
+When available, call `compose_ai_stack` with the business goal, structured
+constraints and existing stack. For every proposed component:
 
 1. call `get_project_facts` for decision-critical facts;
 2. call `get_license_evidence` when licensing affects adoption;
@@ -64,11 +89,14 @@ Do not claim that two projects integrate successfully merely because each
 project is individually valid. Mark the integration as unverified unless current
 evidence or a controlled test supports it.
 
+When live tools are unavailable, stop at the role-level architecture and
+verification plan. Do not populate the roles with remembered project names.
+
 ## Step 4: design the architecture
 
 Describe:
 
-- components and their responsibilities;
+- components or component roles and their responsibilities;
 - data flow and trust boundaries;
 - deployment topology;
 - persistent data and backup needs;
@@ -103,17 +131,22 @@ List what is known, assumed and still missing.
 ### Recommended architecture
 
 Show a readable component and data-flow diagram in text or Mermaid, followed by
-a short explanation.
+a short explanation. If live tools are unavailable, use neutral role names such
+as `orchestrator`, `vector store` and `document parser` rather than named
+projects.
 
 ### Component table
 
-For each role include:
+When live tools returned verified candidates, include for each role:
 
 - primary project and stable ID;
 - verified facts and evidence;
 - why it was selected;
 - alternative;
 - unresolved compatibility or license issue.
+
+Without live tools, replace this with a role-selection table containing required
+interfaces, evidence and acceptance tests.
 
 ### Implementation plan
 
@@ -127,7 +160,8 @@ migration and project-maintenance risk.
 ### Recommendation
 
 State whether the user should prototype, gather more evidence or avoid the
-proposed stack under the current constraints.
+proposed stack under the current constraints. Do not recommend named components
+without live verification.
 
 ## Safety and quality rules
 
@@ -136,4 +170,5 @@ proposed stack under the current constraints.
 - Never present estimated compatibility as verified compatibility.
 - Never hide missing evidence behind an architecture diagram.
 - Never treat a license observation as legal advice.
+- Never claim a current named-project stack when the companion MCP tools are unavailable.
 - Prefer replaceable interfaces and staged adoption over irreversible coupling.
