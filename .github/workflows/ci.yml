@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package
+        run: python -m pip install --upgrade pip && python -m pip install -e .
+
+      - name: Validate JSON artifacts
+        run: |
+          python -m json.tool schemas/tool-manifest.json >/dev/null
+          python -m json.tool schemas/tool-result.schema.json >/dev/null
+          python -m json.tool evals/cases.json >/dev/null
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Smoke test CLI
+        run: |
+          osi-m0 list-tools >/dev/null
+          osi-m0 invoke search_ai_projects --arguments '{"query":"self-hosted RAG"}' >/dev/null
