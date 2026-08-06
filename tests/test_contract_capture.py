@@ -79,6 +79,53 @@ class FixtureTransport:
         )
 
 
+class EncodedRouteTransport:
+    def __init__(self) -> None:
+        self.paths: list[str] = []
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        query: Mapping[str, Any] | None = None,
+        body: Mapping[str, Any] | None = None,
+        timeout: float = 30.0,
+    ) -> JsonResponse:
+        self.paths.append(path)
+        if path.endswith("/projects"):
+            payload: dict[str, Any] = {
+                "snapshot_id": "snapshot-1",
+                "items": [
+                    {
+                        "owner": "owner",
+                        "repo": "repo",
+                        "full_name": "owner/repo",
+                    }
+                ],
+            }
+        elif path.endswith("/projects/owner%2Frepo"):
+            payload = {
+                "snapshot_id": "snapshot-1",
+                "item": {"owner": "owner", "repo": "repo", "full_name": "owner/repo"},
+            }
+        elif path.endswith("/selector"):
+            payload = {
+                "evidence_status": "available",
+                "items": [],
+                "no_match_reason": "No exact match.",
+            }
+        else:
+            raise AssertionError((method, path, query, body, timeout))
+        return JsonResponse(
+            status=200,
+            headers={"content-type": "application/json"},
+            payload=payload,
+            url="https://example.test" + path,
+            observed_at="2026-08-06T14:00:00Z",
+        )
+
+
 def collect_keys(value: Any) -> set[str]:
     if isinstance(value, dict):
         keys = {str(key).lower() for key in value}
@@ -139,6 +186,43 @@ class ContractCaptureTests(unittest.TestCase):
             self.assertIn("<truncated", detail["payload"]["item"]["summary"])
             formal = json.loads((output_dir / "selector-formal.json").read_text(encoding="utf-8"))
             self.assertTrue(formal["request_fingerprint"].startswith("sha256:"))
+
+    def test_full_name_route_is_url_encoded(self) -> None:
+        transport = EncodedRouteTransport()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            capture_public_contracts(
+                transport=transport,
+                output_dir=Path(temp_dir),
+                locale="en",
+                project_id="owner/repo",
+                formal_query="Find a project.",
+                no_match_query="Find an impossible project.",
+            )
+        self.assertIn("/api/v1/ai/githubai/projects/owner%2Frepo", transport.paths)
+        self.assertNotIn("/api/v1/ai/githubai/projects/owner/repo", transport.paths)
+
+    def test_capture_rejects_invalid_timeout_and_empty_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+            with self.assertRaises(ValueError):
+                capture_public_contracts(
+                    transport=FixtureTransport(),
+                    output_dir=output_dir,
+                    locale="en",
+                    project_id="infiniflow/ragflow",
+                    formal_query="Find a project.",
+                    no_match_query="Find an impossible project.",
+                    timeout=0,
+                )
+            with self.assertRaises(ValueError):
+                capture_public_contracts(
+                    transport=FixtureTransport(),
+                    output_dir=output_dir,
+                    locale="en",
+                    project_id="",
+                    formal_query="Find a project.",
+                    no_match_query="Find an impossible project.",
+                )
 
 
 if __name__ == "__main__":
