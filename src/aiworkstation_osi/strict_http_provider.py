@@ -207,12 +207,16 @@ class AIWorkstationHttpProvider(BaseAIWorkstationHttpProvider):
             candidate_id = _project_id(project)
             if not candidate_id:
                 raise UpstreamContractError("Selector near match is missing a stable project ID")
+            if candidate_id in near_ids:
+                raise UpstreamContractError("Selector returned a duplicate near match")
             near_ids.add(candidate_id)
-        overlap = sorted(formal_ids.intersection(near_ids))
-        if overlap:
+        if near_matches and formal_ids:
             raise UpstreamContractError(
                 "Selector mixed near matches with formal recommendations",
-                details={"project_ids": overlap},
+                details={
+                    "formal_project_ids": sorted(formal_ids),
+                    "near_project_ids": sorted(near_ids),
+                },
             )
         return response
 
