@@ -115,14 +115,15 @@ jobs:
               --output "$VALIDATION_ROOT/replay-$locale.json"
           done
 
-      - name: Scan artifacts for forbidden keys
+      - name: Scan artifacts for forbidden JSON keys
         run: |
           set -euo pipefail
+          forbidden_key_pattern='"(authorization|cookie|cookies|api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|bearer[_-]?token|password|secret|email|client_id|request_id|query|prompt|raw|raw_content|source_hash|evidence_ids|claim_refs|publication_version|validated_version|assignment_version|prompt_version)"[[:space:]]*:'
           if grep -RniE \
-            'authorization|cookie|api[_-]?key|access[_-]?token|refresh[_-]?token|password|email|source_hash|evidence_ids|claim_refs|publication_version|validated_version|assignment_version|prompt_version|"query"[[:space:]]*:' \
+            "$forbidden_key_pattern" \
             "$VALIDATION_ROOT/contracts-en" \
             "$VALIDATION_ROOT/contracts-zh"; then
-            echo "Forbidden or unsanitized field found in captured artifacts." >&2
+            echo "Forbidden or unsanitized JSON key found in captured artifacts." >&2
             exit 1
           fi
 
