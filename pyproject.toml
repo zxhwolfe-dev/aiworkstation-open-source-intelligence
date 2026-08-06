@@ -18,6 +18,7 @@ mcp = ["mcp>=2,<3"]
 [project.scripts]
 osi-m0 = "aiworkstation_osi.cli:main"
 osi-mcp = "aiworkstation_osi.mcp_server:main"
+osi-probe = "aiworkstation_osi.probe:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
