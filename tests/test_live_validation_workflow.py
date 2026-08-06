@@ -35,7 +35,7 @@ class LiveValidationWorkflowTests(unittest.TestCase):
         self.assertIn('os.environ["PROJECT_ID"]', self.content)
 
     def test_validation_precedes_artifact_upload(self) -> None:
-        scan_position = self.content.index("Scan artifacts for forbidden keys")
+        scan_position = self.content.index("Scan artifacts for forbidden JSON keys")
         summary_position = self.content.index("Write validation summary")
         upload_position = self.content.index("Upload sanitized validation bundle")
         self.assertLess(scan_position, summary_position)
@@ -54,7 +54,9 @@ class LiveValidationWorkflowTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIn(command, self.content)
 
-    def test_forbidden_key_scan_covers_sensitive_and_internal_fields(self) -> None:
+    def test_forbidden_key_scan_targets_json_keys_not_free_text(self) -> None:
+        self.assertIn("forbidden_key_pattern", self.content)
+        self.assertIn('"[[:space:]]*:', self.content)
         for marker in (
             "authorization",
             "cookie",
