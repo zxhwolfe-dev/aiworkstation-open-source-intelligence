@@ -22,6 +22,29 @@ Keep four layers separate:
 
 Do not convert popularity, marketing language or model preference into a fact.
 
+## Live-tool availability gate
+
+Before presenting a current comparison or winner, confirm that these companion
+tools are available:
+
+- `compare_ai_projects`;
+- `get_project_facts`;
+- `get_license_evidence` when license affects the decision.
+
+The plugin can be installed as Skills-only. If the tools are unavailable:
+
+1. do not fill the matrix with remembered or assumed project facts;
+2. state that live evidence is unavailable in this session;
+3. provide the decision context, criteria, weights, blank verification matrix
+   and proof-of-concept plan;
+4. mark all project-specific cells as `unknown` unless the user supplied a fact
+   with a source, and keep user-supplied claims unverified;
+5. direct the user to connect the companion read-only MCP server or use the AI
+   Open Source Radar before requesting a winner.
+
+Do not recommend one project over another solely from general model memory when
+the live tools are absent.
+
 ## Step 1: define the decision
 
 Collect or infer:
@@ -42,9 +65,10 @@ operational complexity and evidence coverage.
 
 ## Step 2: collect comparable facts
 
-Call `compare_ai_projects` with two to five unique project IDs and explicit
-criteria. Verify decision-critical fields with `get_project_facts`. Call
-`get_license_evidence` for every candidate when license affects adoption.
+When available, call `compare_ai_projects` with two to five unique project IDs
+and explicit criteria. Verify decision-critical fields with
+`get_project_facts`. Call `get_license_evidence` for every candidate when
+license affects adoption.
 
 All compared records must come from one current snapshot or explicitly
 compatible snapshots. If snapshot identity cannot be established, add a high
@@ -87,8 +111,9 @@ Explain:
 - unknowns requiring a proof of concept or manual verification;
 - what facts would reverse the recommendation.
 
-Do not declare a winner when a blocking requirement remains unknown. Recommend a
-verification step instead.
+Do not declare a winner when a blocking requirement remains unknown. When live
+tools are unavailable, recommend the verification sequence rather than a
+project.
 
 ## Output structure
 
@@ -98,15 +123,19 @@ Summarize use case, hard constraints, criteria and assumptions.
 
 ### Comparison matrix
 
-Use a compact table. Keep factual cells separate from commentary.
+Use a compact table. Keep factual cells separate from commentary. Without live
+tools, leave project-specific cells `unknown` and show the source needed to
+resolve each cell.
 
 ### Key trade-offs
 
-Explain only the differences that materially affect this user.
+Explain only differences supported by evidence. If none are verified, describe
+which differences must be investigated.
 
 ### Recommendation
 
-Give a conditional first choice, fallback and reasons.
+Give a conditional first choice, fallback and reasons only when blocking facts
+are verified. Otherwise provide a verification plan.
 
 ### Unknowns, risks and verification plan
 
@@ -121,3 +150,4 @@ proof-of-concept plan.
 - Never compare stale and current records as though they were simultaneous.
 - Never penalize a project for a fact that is merely unknown.
 - Never hide a hard conflict behind an aggregate score.
+- Never claim a current comparison when the companion MCP tools are unavailable.
