@@ -10,27 +10,30 @@ The distributable product is intentionally narrower than AI Workstation. It does
 not reproduce the full website, data-production pipeline, administration system
 or user account layer.
 
-## Layered design
+## Current layered design
 
 ```text
-User / ChatGPT / Codex / future client
-                  |
-                  v
+User / ChatGPT desktop / Codex CLI / Codex IDE / MCP client
+                            |
+                            v
 Skills: trigger rules, workflow, tool ordering, output policy
-                  |
-                  v
-MCP transport adapter (M1; no business logic)
-                  |
-                  v
-ToolRegistry: validation and unified result envelope
-                  |
-                  v
+                            |
+                            v
+MCP Python SDK v2 stdio server: protocol and server instructions only
+                            |
+                            v
+ToolRegistry: strict validation and unified result envelope
+                            |
+                            v
 ProjectIntelligenceProvider protocol
-           /                         \
-M0 deterministic mock       M1 AI Workstation HTTP adapter
-                                      |
-                                      v
-Current healthy public Radar release
+                 /                              \
+M0 deterministic mock              M1 hardened public HTTP provider
+                                                     |
+                                                     v
+AI Workstation public project list, detail and selector endpoints
+                                                     |
+                                                     v
+Current healthy validated Radar release
 ```
 
 ## Responsibilities
@@ -47,33 +50,64 @@ First Skills:
 - `open-source-project-comparison`
 - `open-source-stack-planner`
 
+### MCP server
+
+`src/aiworkstation_osi/mcp_server.py` exposes exactly six read-only tools through
+the MCP Python SDK v2 stdio transport.
+
+It owns:
+
+- MCP tool registration;
+- typed MCP input schemas derived from Python signatures;
+- server-wide workflow and safety instructions;
+- conversion of stable product errors into model-readable tool failures.
+
+It does not own project search, comparison, evidence, recommendation or provider
+logic.
+
 ### Tool core
 
 `src/aiworkstation_osi/` owns:
 
 - stable tool names;
-- input validation;
+- strict input validation;
 - error normalization;
 - the provider boundary;
 - the unified result envelope;
 - deterministic mock behavior for tests.
 
-It has no implicit network access. A provider must be injected explicitly.
+It has no implicit network access. The HTTP provider is selected only when
+`OSI_PROVIDER=http` is explicitly configured.
 
-### Provider adapter
+### Provider adapters
 
-The provider is responsible for reading project intelligence. The production
-provider must use public AI Workstation contracts and must not import private
-`akaiagents` modules.
+The provider protocol permits multiple read-only data sources without changing
+Skills or MCP definitions.
 
-It must fail closed when snapshot identity, evidence references or required
-fields are missing or inconsistent.
+#### Mock provider
 
-### MCP transport
+- deterministic;
+- offline;
+- clearly marked `MOCK_DATA`;
+- suitable only for development and protocol tests.
 
-The future MCP layer will expose the six registered tools and translate protocol
-requests and errors. It must not duplicate search, comparison or recommendation
-logic.
+#### Public HTTP provider
+
+- calls public AI Workstation Radar endpoints only;
+- does not import private `akaiagents` modules;
+- requires matching public snapshot identity;
+- validates selector evidence state and near-match boundaries;
+- converts missing or sentinel licenses to explicit unknowns;
+- rejects malformed, oversized or mixed-generation responses.
+
+### Probe and contract capture
+
+`osi-probe` validates one live project, license boundary and constrained search
+without writing data.
+
+`osi-capture-contracts` records sanitized public response shapes for regression
+fixtures. It removes queries, credentials and internal publication fields,
+bounds strings and arrays, and stores only query fingerprints.
 
 ## Unified result contract
 
@@ -101,9 +135,26 @@ This structure prevents model analysis from being presented as source truth.
 
 ## Snapshot rule
 
-Time-sensitive comparisons must use one current public snapshot or explicitly
-compatible snapshots. A result must expose uncertainty rather than combine
-incompatible project generations.
+Time-sensitive comparisons and hydrated search candidates must use one current
+public snapshot. The system fails closed rather than combining incompatible
+project generations.
+
+A project-detail response may use the snapshot identity from its matching public
+list result only when both records resolve to the same stable project identity.
+
+## Evidence rule
+
+A public endpoint response is not automatically a verified fact. The adapter
+must additionally establish:
+
+- stable project identity;
+- current snapshot identity;
+- an observed public source URL and time;
+- adequate coverage for the stated confidence;
+- no unknown license sentinel or conflicting evidence state.
+
+Recommendations, compatibility claims and architecture choices remain separate
+from verified facts even when every component fact is valid.
 
 ## Trust model
 
@@ -112,41 +163,48 @@ incompatible project generations.
 - provider output is untrusted until validated;
 - third-party code is never executed;
 - a missing license is unknown, not permission;
-- project compatibility is unknown until verified or tested.
+- project compatibility is unknown until verified or tested;
+- near matches are not formal recommendations;
+- raw production responses are sanitized before becoming fixtures.
 
-## M0 scope
+## Current M1 Alpha scope
 
 Included:
 
 - three complete Skill workflows;
 - six tool contracts and registry;
 - deterministic mock provider;
+- hardened public HTTP provider;
+- local MCP stdio server;
+- server-wide MCP instructions;
 - input manifest and result schema;
-- stable errors;
 - bilingual evaluation corpus;
-- local CLI and CI tests;
+- live contract probe;
+- sanitized contract capture;
+- Codex setup guidance;
+- unit, provider and in-memory MCP tests;
 - security, privacy and integration documentation.
 
 Not included:
 
-- live AI Workstation adapter;
-- hosted or local MCP protocol server;
-- authentication, billing or quotas;
+- hosted Streamable HTTP MCP service;
+- OAuth, API keys, billing or quotas;
 - collection, alert or team writes;
 - repository installation or execution;
-- production deployment.
+- public plugin submission;
+- production SLA or compatibility guarantees.
 
-## M1 entry criteria
+## M1 validation gates
 
-M1 begins only after confirming the exact public Radar fields for:
+Before an external alpha is announced:
 
-- snapshot/publication identity;
-- stable project identity;
-- evidence URL and observation time;
-- project update time;
-- license ambiguity;
-- no-match and relaxed-constraint state;
-- public-safe confidence or evidence coverage.
+1. run the full local test suite after pulling `main`;
+2. observe successful GitHub Actions runs for supported Python versions;
+3. run English and Chinese production probes;
+4. capture sanitized list, detail, selector-result and selector-no-match fixtures;
+5. confirm public transparency, update-time and license-evidence field shapes;
+6. adjust only the adapter where real public fields differ;
+7. test the stdio server from Codex using the project-scoped configuration.
 
-Any missing field becomes a documented minimal additive request for
+Any missing upstream field becomes a documented minimal additive request for
 `akaiagents`; this repository does not modify that project's main branch.
