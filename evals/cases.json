@@ -1,0 +1,17 @@
+[
+  {
+    "id": "rag-private-deployment",
+    "locale": "en",
+    "query": "Find open-source AI knowledge base projects suitable for private deployment with Docker."
+  },
+  {
+    "id": "dify-ragflow-comparison",
+    "locale": "en",
+    "query": "Compare Dify and RAGFlow for enterprise knowledge base use cases."
+  },
+  {
+    "id": "license-check",
+    "locale": "zh-CN",
+    "query": "核验某 AI 开源项目是否允许商业使用，需要许可证证据。"
+  }
+]
