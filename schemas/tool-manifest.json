@@ -1,0 +1,114 @@
+{
+  "schema_version": "osi.tool-manifest.v1",
+  "status": "transport-neutral-m0",
+  "tools": [
+    {
+      "name": "search_ai_projects",
+      "description": "Find open-source AI projects from explicit requirements and constraints.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["query"],
+        "properties": {
+          "query": {"type": "string", "minLength": 1, "maxLength": 4000},
+          "constraints": {"type": "object"},
+          "locale": {"enum": ["zh", "en"], "default": "en"},
+          "source_mode": {"enum": ["required", "preferred", "off"], "default": "required"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "get_project_facts",
+      "description": "Return current evidence-backed facts for one project.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_id"],
+        "properties": {
+          "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "get_license_evidence",
+      "description": "Return observed license evidence without legal conclusions.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_id"],
+        "properties": {
+          "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "compare_ai_projects",
+      "description": "Compare two to five projects against explicit criteria.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_ids"],
+        "properties": {
+          "project_ids": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1, "maxLength": 256}
+          },
+          "criteria": {
+            "type": "array",
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "context": {"type": "object"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "find_alternatives",
+      "description": "Find candidate alternatives to a named project.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_id"],
+        "properties": {
+          "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
+          "constraints": {"type": "object"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "compose_ai_stack",
+      "description": "Compose a candidate stack from a business goal and constraints.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["business_goal"],
+        "properties": {
+          "business_goal": {"type": "string", "minLength": 1, "maxLength": 4000},
+          "constraints": {"type": "object"},
+          "existing_stack": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    }
+  ]
+}
