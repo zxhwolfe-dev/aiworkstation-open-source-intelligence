@@ -26,6 +26,7 @@ class AlphaBundleTests(unittest.TestCase):
             self.assertFalse(report["live_mcp_bundled"])
             self.assertIn(".codex-plugin/plugin.json", names)
             self.assertIn(".agents/plugins/marketplace.json", names)
+            self.assertIn("CHANGELOG.md", names)
             self.assertIn("skills/open-source-project-research/SKILL.md", names)
             self.assertIn("skills/open-source-project-comparison/SKILL.md", names)
             self.assertIn("skills/open-source-stack-planner/SKILL.md", names)
@@ -34,6 +35,22 @@ class AlphaBundleTests(unittest.TestCase):
             self.assertNotIn("pyproject.toml", names)
             self.assertEqual(manifest["distribution_mode"], "skills-only")
             self.assertFalse(manifest["live_mcp_bundled"])
+
+    def test_embedded_manifest_matches_every_packaged_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = build_alpha_bundle(self.ROOT, Path(temp_dir))
+            archive = Path(report["archive"])
+            with zipfile.ZipFile(archive) as bundle:
+                manifest = json.loads(bundle.read("BUNDLE-MANIFEST.json"))
+                declared = manifest["files"]
+                declared_paths = {row["path"] for row in declared}
+                actual_paths = set(bundle.namelist()) - {"BUNDLE-MANIFEST.json"}
+                self.assertEqual(declared_paths, actual_paths)
+                for row in declared:
+                    with self.subTest(path=row["path"]):
+                        data = bundle.read(row["path"])
+                        self.assertEqual(row["size"], len(data))
+                        self.assertEqual(row["sha256"], hashlib.sha256(data).hexdigest())
 
     def test_bundle_is_reproducible(self) -> None:
         with tempfile.TemporaryDirectory() as first_dir, tempfile.TemporaryDirectory() as second_dir:
