@@ -1,12 +1,13 @@
-"""Small local CLI for validating M0 contracts before a real MCP transport exists."""
+"""Local CLI for inspecting contracts and invoking mock or HTTP-backed tools."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 from typing import Sequence
 
-from .app import create_default_registry
+from .app import create_registry_from_env
 from .errors import ToolError
 
 
@@ -14,7 +15,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="osi-m0")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("list-tools", help="List the six M0 read-only tools")
+    subparsers.add_parser("list-tools", help="List the six read-only tools")
+    subparsers.add_parser("provider-info", help="Show the selected provider without exposing secrets")
 
     invoke_parser = subparsers.add_parser("invoke", help="Invoke a tool using a JSON object")
     invoke_parser.add_argument("tool")
@@ -24,7 +26,23 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    registry = create_default_registry()
+    try:
+        registry = create_registry_from_env()
+    except ValueError as exc:
+        print(json.dumps({"error": {"code": "INVALID_CONFIGURATION", "message": str(exc)}}, indent=2))
+        return 2
+
+    if args.command == "provider-info":
+        selected = os.getenv("OSI_PROVIDER", "mock").strip().lower()
+        payload = {
+            "provider": selected,
+            "network_enabled": selected == "http",
+            "base_url": os.getenv("AIWORKSTATION_RADAR_BASE_URL", "https://aiworkstation.cn")
+            if selected == "http"
+            else None,
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
 
     if args.command == "list-tools":
         print(
