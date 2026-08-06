@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
@@ -10,6 +11,12 @@ from .errors import InvalidInputError, ProviderUnavailableError, UnknownToolErro
 from .providers import ProjectIntelligenceProvider, ProviderOutput
 
 ToolHandler = Callable[[Mapping[str, Any]], ToolResult]
+
+MAX_STRUCTURED_DEPTH = 6
+MAX_STRUCTURED_NODES = 200
+MAX_STRUCTURED_CONTAINER_ITEMS = 50
+MAX_STRUCTURED_KEY_LENGTH = 128
+MAX_STRUCTURED_STRING_LENGTH = 1_000
 
 
 def _reject_unknown_fields(payload: Mapping[str, Any], allowed: set[str]) -> None:
@@ -87,13 +94,124 @@ def _string_list(
     return values
 
 
+def _structured_value(
+    value: Any,
+    *,
+    field: str,
+    location: str,
+    depth: int,
+    counter: list[int],
+) -> Any:
+    if depth > MAX_STRUCTURED_DEPTH:
+        raise InvalidInputError(
+            f"{field} exceeds the maximum nesting depth of {MAX_STRUCTURED_DEPTH}",
+            details={"field": field, "location": location, "max_depth": MAX_STRUCTURED_DEPTH},
+        )
+    counter[0] += 1
+    if counter[0] > MAX_STRUCTURED_NODES:
+        raise InvalidInputError(
+            f"{field} exceeds the maximum structured value size",
+            details={"field": field, "max_nodes": MAX_STRUCTURED_NODES},
+        )
+
+    if isinstance(value, Mapping):
+        if len(value) > MAX_STRUCTURED_CONTAINER_ITEMS:
+            raise InvalidInputError(
+                f"{field} contains too many object entries",
+                details={
+                    "field": field,
+                    "location": location,
+                    "maximum": MAX_STRUCTURED_CONTAINER_ITEMS,
+                },
+            )
+        result: dict[str, Any] = {}
+        for raw_key, child in value.items():
+            if not isinstance(raw_key, str):
+                raise InvalidInputError(
+                    f"{field} object keys must be strings",
+                    details={"field": field, "location": location},
+                )
+            key = raw_key.strip()
+            if not key or len(key) > MAX_STRUCTURED_KEY_LENGTH or any(ord(char) < 32 for char in key):
+                raise InvalidInputError(
+                    f"{field} contains an invalid object key",
+                    details={
+                        "field": field,
+                        "location": location,
+                        "max_key_length": MAX_STRUCTURED_KEY_LENGTH,
+                    },
+                )
+            result[key] = _structured_value(
+                child,
+                field=field,
+                location=f"{location}.{key}",
+                depth=depth + 1,
+                counter=counter,
+            )
+        return result
+
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        if len(value) > MAX_STRUCTURED_CONTAINER_ITEMS:
+            raise InvalidInputError(
+                f"{field} contains too many array items",
+                details={
+                    "field": field,
+                    "location": location,
+                    "maximum": MAX_STRUCTURED_CONTAINER_ITEMS,
+                },
+            )
+        return [
+            _structured_value(
+                child,
+                field=field,
+                location=f"{location}[{index}]",
+                depth=depth + 1,
+                counter=counter,
+            )
+            for index, child in enumerate(value)
+        ]
+
+    if isinstance(value, str):
+        if len(value) > MAX_STRUCTURED_STRING_LENGTH:
+            raise InvalidInputError(
+                f"{field} contains a string longer than {MAX_STRUCTURED_STRING_LENGTH}",
+                details={
+                    "field": field,
+                    "location": location,
+                    "max_length": MAX_STRUCTURED_STRING_LENGTH,
+                },
+            )
+        return value
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise InvalidInputError(
+                f"{field} contains a non-finite number",
+                details={"field": field, "location": location},
+            )
+        return value
+    raise InvalidInputError(
+        f"{field} must contain only JSON-compatible values",
+        details={"field": field, "location": location, "type": type(value).__name__},
+    )
+
+
 def _mapping(payload: Mapping[str, Any], field: str) -> dict[str, Any]:
     raw = payload.get(field)
     if raw is None:
         return {}
     if not isinstance(raw, Mapping):
         raise InvalidInputError(f"{field} must be an object", details={"field": field})
-    return dict(raw)
+    validated = _structured_value(
+        raw,
+        field=field,
+        location=field,
+        depth=0,
+        counter=[0],
+    )
+    assert isinstance(validated, dict)
+    return validated
 
 
 def _request_id(payload: Mapping[str, Any]) -> str:
