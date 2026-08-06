@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import urllib.parse
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -72,6 +73,11 @@ DEFAULT_NO_MATCH_QUERY = {
 
 def _hash_text(value: str) -> str:
     return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _validate_timeout(timeout: float) -> None:
+    if timeout <= 0 or timeout > 240:
+        raise ValueError("timeout must be greater than 0 and no more than 240 seconds")
 
 
 def sanitize_public_value(value: Any, *, depth: int = 0) -> Any:
@@ -164,6 +170,11 @@ def capture_public_contracts(
 
     if locale not in {"zh", "en"}:
         raise ValueError("locale must be zh or en")
+    if not project_id.strip():
+        raise ValueError("project_id is required")
+    if not formal_query.strip() or not no_match_query.strip():
+        raise ValueError("formal_query and no_match_query are required")
+    _validate_timeout(timeout)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     listing = transport.request(
@@ -173,9 +184,10 @@ def capture_public_contracts(
         timeout=timeout,
     )
     route_id = _resolve_route_id(listing, project_id)
+    encoded_route_id = urllib.parse.quote(route_id, safe="")
     detail = transport.request(
         "GET",
-        f"{PUBLIC_API_PREFIX}/projects/{route_id}",
+        f"{PUBLIC_API_PREFIX}/projects/{encoded_route_id}",
         query={"lang": locale},
         timeout=timeout,
     )
