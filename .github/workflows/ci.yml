@@ -44,6 +44,22 @@ jobs:
       - name: Validate plugin package
         run: osi-validate-plugin --root .
 
+      - name: Evaluate repository code readiness
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          osi-readiness --root . --output tmp/readiness.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("tmp/readiness.json").read_text(encoding="utf-8"))
+          if report.get("code_ready") is not True:
+              raise SystemExit(f"code readiness failed: {report.get('code_blockers')}")
+          if report.get("external_alpha_ready") is not False:
+              raise SystemExit("ordinary CI must not attest live external-alpha gates")
+          PY
+
       - name: Build deterministic Skills-only alpha bundle
         run: |
           set -euo pipefail
@@ -89,4 +105,5 @@ jobs:
           osi-replay-contracts --help >/dev/null
           osi-validate-plugin --help >/dev/null
           osi-build-alpha --help >/dev/null
+          osi-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
