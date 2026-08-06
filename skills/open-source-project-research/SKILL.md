@@ -23,6 +23,29 @@ Keep these sections distinct throughout the task:
 
 Never promote a recommendation or README claim into a verified fact.
 
+## Live-tool availability gate
+
+Before claiming current project, deployment, maintenance or license facts,
+confirm that these companion tools are available:
+
+- `search_ai_projects`;
+- `get_project_facts`;
+- `get_license_evidence` when license matters.
+
+The plugin package can be installed as Skills-only. If the required tools are
+not available:
+
+1. do not invent a shortlist or current facts;
+2. state that live evidence is unavailable in this session;
+3. provide only the interpreted requirements, search plan, candidate-evaluation
+   matrix and manual verification checklist;
+4. label any project examples supplied by the user as unverified;
+5. direct the user to connect the companion read-only MCP server or use the AI
+   Open Source Radar before requesting a verified shortlist.
+
+Do not treat general model memory or an unverified web snippet as a replacement
+for the live evidence tools.
+
 ## Step 1: structure the request
 
 Extract the following before searching:
@@ -46,7 +69,7 @@ the shortlist. Otherwise search with the known constraints and expose the gap.
 
 ## Step 2: discover candidates
 
-Call `search_ai_projects` with:
+When available, call `search_ai_projects` with:
 
 - a concise natural-language task;
 - structured hard constraints and preferences;
@@ -88,7 +111,8 @@ Use this structure:
 
 ### Recommended shortlist
 
-For every project include:
+Include this section only when the live tools returned verified candidates. For
+every project include:
 
 - stable project ID and project name;
 - match status: `matched`, `partial`, `conflict` or `unknown`;
@@ -102,7 +126,8 @@ For every project include:
 ### Recommendation
 
 Explain which project to investigate first and why. State the assumptions that
-would change the recommendation.
+would change the recommendation. When live tools are unavailable, replace this
+with a research plan rather than naming a winner.
 
 ### Unknowns and manual verification
 
@@ -116,5 +141,6 @@ is technical evidence and not legal advice.
 - Do not infer permission from the absence of a license.
 - Do not claim compatibility between projects unless it has been verified.
 - Do not hide an empty result by silently relaxing hard constraints.
+- Do not claim live verification when the companion MCP tools are unavailable.
 - Keep source excerpts short and public-safe.
 - Prefer current official repositories and documentation over secondary posts.
