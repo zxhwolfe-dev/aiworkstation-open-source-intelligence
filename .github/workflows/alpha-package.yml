@@ -1,0 +1,128 @@
+name: alpha-package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alpha-package
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[mcp]"
+
+      - name: Run release gates
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -v
+          osi-validate-plugin --root .
+
+      - name: Build deterministic Skills-only bundle
+        run: |
+          set -euo pipefail
+          osi-build-alpha --root . --output-dir dist/alpha
+          (
+            cd dist/alpha
+            sha256sum --check SHA256SUMS
+          )
+
+      - name: Inspect package surface
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import zipfile
+          from pathlib import Path
+
+          root = Path("dist/alpha")
+          report = json.loads((root / "bundle-report.json").read_text(encoding="utf-8"))
+          archive = Path(report["archive"])
+          if not archive.is_absolute():
+              archive = Path.cwd() / archive
+          with zipfile.ZipFile(archive) as bundle:
+              names = set(bundle.namelist())
+              manifest = json.loads(bundle.read("BUNDLE-MANIFEST.json"))
+
+          expected = {
+              ".codex-plugin/plugin.json",
+              ".agents/plugins/marketplace.json",
+              "skills/open-source-project-research/SKILL.md",
+              "skills/open-source-project-comparison/SKILL.md",
+              "skills/open-source-stack-planner/SKILL.md",
+              "docs/alpha-tester-guide.md",
+              "docs/external-alpha-checklist.md",
+              "SECURITY.md",
+              "PRIVACY.md",
+          }
+          missing = sorted(expected - names)
+          forbidden = sorted(
+              name for name in names
+              if name.startswith("src/")
+              or name.startswith("tests/")
+              or name.startswith(".github/")
+              or name == "pyproject.toml"
+          )
+          if missing or forbidden:
+              raise SystemExit(f"unsafe package surface: missing={missing} forbidden={forbidden}")
+          if manifest.get("distribution_mode") != "skills-only":
+              raise SystemExit("alpha bundle must declare skills-only distribution")
+          if manifest.get("live_mcp_bundled") is not False:
+              raise SystemExit("alpha bundle must not claim a bundled live MCP server")
+          PY
+
+      - name: Write package summary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path("dist/alpha/bundle-report.json").read_text(encoding="utf-8"))
+          summary = "\n".join(
+              [
+                  "# Skills-only alpha package",
+                  "",
+                  f"- Name: `{report['name']}`",
+                  f"- Version: `{report['version']}`",
+                  f"- Archive: `{Path(report['archive']).name}`",
+                  f"- SHA-256: `{report['archive_sha256']}`",
+                  f"- Packaged files: `{report['file_count']}`",
+                  "- Live MCP bundled: `false`",
+                  "",
+                  "The package contains the three reviewed Skills and distribution documentation only.",
+              ]
+          ) + "\n"
+          Path("dist/alpha/SUMMARY.md").write_text(summary, encoding="utf-8")
+          destination = os.environ.get("GITHUB_STEP_SUMMARY")
+          if destination:
+              Path(destination).write_text(summary, encoding="utf-8")
+          PY
+
+      - name: Upload reviewed alpha package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-open-source-intelligence-skills-alpha-${{ github.run_id }}
+          path: dist/alpha
+          if-no-files-found: error
+          retention-days: 14
