@@ -1,8 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "aiworkstation-open-source-intelligence"
 version = "0.1.0"
-description = "Skills and MCP tools for open-source AI project intelligence."
+description = "Skills and read-only project intelligence tools for open-source AI research and technology selection."
+readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "Proprietary - pre-alpha" }
+authors = [{ name = "AI Workstation" }]
+dependencies = []
+
+[project.scripts]
+osi-m0 = "aiworkstation_osi.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
