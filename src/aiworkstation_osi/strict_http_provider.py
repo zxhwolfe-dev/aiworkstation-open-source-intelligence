@@ -40,6 +40,15 @@ UNKNOWN_LICENSE_VALUES = {
 }
 NON_STANDARD_LICENSE_VALUES = {"OTHER", "CUSTOM", "PROPRIETARY"}
 RETRYABLE_HTTP_STATUSES = {408, 425, 429}
+INTERNAL_PUBLIC_FIELDS = {
+    "assignment_version",
+    "claim_refs",
+    "evidence_ids",
+    "prompt_version",
+    "publication_version",
+    "source_hash",
+    "validated_version",
+}
 
 
 def normalize_license(value: Any) -> str | None:
@@ -60,6 +69,20 @@ def normalize_license(value: Any) -> str | None:
     if rendered.upper() in UNKNOWN_LICENSE_VALUES:
         return None
     return rendered or None
+
+
+def _find_internal_fields(value: Any) -> set[str]:
+    if isinstance(value, Mapping):
+        found = {str(key) for key in value if str(key) in INTERNAL_PUBLIC_FIELDS}
+        for child in value.values():
+            found.update(_find_internal_fields(child))
+        return found
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        found: set[str] = set()
+        for child in value:
+            found.update(_find_internal_fields(child))
+        return found
+    return set()
 
 
 class SafeUrllibJsonTransport(UrllibJsonTransport):
@@ -184,6 +207,13 @@ class AIWorkstationHttpProvider(BaseAIWorkstationHttpProvider):
     ) -> JsonResponse:
         response = super()._selector(query, constraints, locale)
         payload = response.payload
+        internal_fields = sorted(_find_internal_fields(payload))
+        if internal_fields:
+            raise UpstreamContractError(
+                "Selector response leaks internal publication fields",
+                details={"fields": internal_fields},
+            )
+
         near_matches = payload.get("near_matches") or []
         if not isinstance(near_matches, Sequence) or isinstance(near_matches, (str, bytes)):
             raise UpstreamContractError("Selector near_matches must be an array")
@@ -276,4 +306,44 @@ class AIWorkstationHttpProvider(BaseAIWorkstationHttpProvider):
             recommendations=output.recommendations,
             unknowns=tuple(dict.fromkeys(unknowns)),
             risks=tuple(risks),
+        )
+
+    def find_alternatives(self, request: Mapping[str, Any]) -> ProviderOutput:
+        """Resolve aliases before excluding the source project from alternatives."""
+
+        locale = str(request.get("locale") or "en")
+        requested_id = str(request.get("project_id") or "")
+        source_detail = self._detail(requested_id, locale)
+        source_project = source_detail.data.get("project")
+        stable_id = (
+            _project_id(source_project)
+            if isinstance(source_project, Mapping) and _project_id(source_project)
+            else requested_id.strip().lower()
+        )
+        normalized_request = dict(request)
+        normalized_request["project_id"] = stable_id
+        output = super().find_alternatives(normalized_request)
+
+        alternatives = output.data.get("alternatives")
+        filtered = [
+            dict(item)
+            for item in alternatives or []
+            if isinstance(item, Mapping)
+            and _project_id(item) not in {stable_id, requested_id.strip().lower()}
+        ]
+        facts = tuple(
+            fact
+            for fact in output.verified_facts
+            if not fact.field.startswith(f"projects.{stable_id}.")
+        )
+        data = dict(output.data)
+        data["source_project_id"] = stable_id
+        data["alternatives"] = filtered
+        data["total"] = len(filtered)
+        return ProviderOutput(
+            data=data,
+            verified_facts=facts,
+            recommendations=output.recommendations,
+            unknowns=output.unknowns,
+            risks=output.risks,
         )
