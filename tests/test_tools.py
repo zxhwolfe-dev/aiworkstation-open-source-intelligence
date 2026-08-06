@@ -74,6 +74,31 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertTrue(payload["recommendations"])
         self.assertIn("INTEGRATION_NOT_VERIFIED", {risk["code"] for risk in payload["risks"]})
 
+    def test_search_rejects_invalid_locale_and_source_mode(self) -> None:
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke("search_ai_projects", {"query": "RAG", "locale": "fr"})
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke("search_ai_projects", {"query": "RAG", "source_mode": "sometimes"})
+
+    def test_tools_reject_undeclared_fields(self) -> None:
+        with self.assertRaises(InvalidInputError) as context:
+            self.registry.invoke(
+                "get_project_facts",
+                {"project_id": "langgenius/dify", "execute_repository": True},
+            )
+        self.assertIn("execute_repository", context.exception.details["unsupported_fields"])
+
+    def test_arguments_must_be_an_object(self) -> None:
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke("search_ai_projects", ["RAG"])  # type: ignore[arg-type]
+
+    def test_request_id_is_not_silently_truncated(self) -> None:
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke(
+                "search_ai_projects",
+                {"query": "RAG", "request_id": "x" * 129},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
