@@ -12,8 +12,12 @@ license = { text = "Proprietary - pre-alpha" }
 authors = [{ name = "AI Workstation" }]
 dependencies = []
 
+[project.optional-dependencies]
+mcp = ["mcp>=2,<3"]
+
 [project.scripts]
 osi-m0 = "aiworkstation_osi.cli:main"
+osi-mcp = "aiworkstation_osi.mcp_server:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
