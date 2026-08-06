@@ -21,6 +21,7 @@ osi-mcp = "aiworkstation_osi.mcp_server:main"
 osi-probe = "aiworkstation_osi.probe:main"
 osi-capture-contracts = "aiworkstation_osi.contract_capture:main"
 osi-validate-contracts = "aiworkstation_osi.fixture_validation:main"
+osi-replay-contracts = "aiworkstation_osi.fixture_replay:main"
 osi-validate-plugin = "aiworkstation_osi.plugin_validation:main"
 
 [tool.setuptools]
