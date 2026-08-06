@@ -1,0 +1,122 @@
+name: Alpha bug report
+description: Report a reproducible problem in a Skill, tool, MCP integration, provider, or package.
+title: "[alpha bug] "
+labels:
+  - alpha
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys, credentials, private source code, customer documents, confidential prompts, or unsanitized contract captures. Security vulnerabilities and secret exposure must follow SECURITY.md instead of a public issue.
+
+  - type: input
+    id: commit
+    attributes:
+      label: Tested commit SHA
+      description: The exact commit or tag used for the test.
+      placeholder: 40-character commit SHA
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Skills-only plugin
+        - MCP stdio server
+        - Mock provider
+        - Public HTTP provider
+        - Contract probe or capture
+        - Contract validation or replay
+        - Alpha package
+        - Documentation or installation
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Test language
+      options:
+        - English
+        - Chinese
+        - Both
+        - Not applicable
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Client and environment
+      description: Client/version, operating system, Python version, and provider mode. Do not include secrets.
+      placeholder: Codex CLI ..., Ubuntu ..., Python 3.12, OSI_PROVIDER=mock
+    validations:
+      required: true
+
+  - type: textarea
+    id: request
+    attributes:
+      label: Sanitized request summary
+      description: Summarize the task without private data or a full confidential prompt.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: Include stable error codes and short sanitized excerpts when relevant.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Decision-boundary check
+      options:
+        - label: A verified fact appeared without evidence.
+        - label: A recommendation appeared as a verified fact.
+        - label: An unknown or missing value was hidden.
+        - label: A license was presented as permission or legal advice.
+        - label: A near match was presented as a complete match.
+        - label: The tool attempted a write, installation, or repository execution.
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest safe reproduction. Do not attach unsanitized logs.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Suggested severity
+      options:
+        - Low - wording, formatting, or minor friction
+        - Medium - incorrect result or confusing evidence state
+        - High - fabricated fact, hidden blocker, or unsafe decision boundary
+        - Critical - write, execution, secret exposure, or cross-boundary injection
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I removed credentials, confidential data, private prompts, and unsanitized artifacts.
+          required: true
+        - label: This is not a security vulnerability requiring private reporting.
+          required: true
