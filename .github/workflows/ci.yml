@@ -52,5 +52,6 @@ jobs:
           osi-probe --help >/dev/null
           osi-capture-contracts --help >/dev/null
           osi-validate-contracts --help >/dev/null
+          osi-replay-contracts --help >/dev/null
           osi-validate-plugin --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
