@@ -1,13 +1,13 @@
-"""Read-only tool registry and validation for the M0 capability set."""
+"""Read-only tool registry and validation for the first capability set."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
-from .contracts import Recommendation, Risk, TOOL_NAMES, ToolResult
+from .contracts import Recommendation, Risk, TOOL_NAMES, ToolResult, VerifiedFact
 from .errors import InvalidInputError, ProviderUnavailableError, UnknownToolError, UpstreamContractError
-from .providers import ProjectIntelligenceProvider
+from .providers import ProjectIntelligenceProvider, ProviderOutput
 
 ToolHandler = Callable[[Mapping[str, Any]], ToolResult]
 
@@ -50,6 +50,10 @@ def _enum_value(
             details={"field": field, "allowed": list(allowed)},
         )
     return raw
+
+
+def _locale(payload: Mapping[str, Any]) -> str:
+    return _enum_value(payload, "locale", allowed=("zh", "en"), default="en")
 
 
 def _string_list(
@@ -107,13 +111,15 @@ def _request_id(payload: Mapping[str, Any]) -> str:
     return value
 
 
-def _ensure_mapping(value: Mapping[str, Any] | Any, tool: str) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        raise UpstreamContractError(
-            "Provider returned a non-object payload",
-            details={"tool": tool, "received_type": type(value).__name__},
-        )
-    return dict(value)
+def _provider_output(value: ProviderOutput | Mapping[str, Any] | Any, tool: str) -> ProviderOutput:
+    if isinstance(value, ProviderOutput):
+        return value
+    if isinstance(value, Mapping):
+        return ProviderOutput(data=dict(value))
+    raise UpstreamContractError(
+        "Provider returned an unsupported payload",
+        details={"tool": tool, "received_type": type(value).__name__},
+    )
 
 
 def _mock_boundaries(data: Mapping[str, Any]) -> tuple[tuple[str, ...], tuple[Risk, ...]]:
@@ -124,7 +130,7 @@ def _mock_boundaries(data: Mapping[str, Any]) -> tuple[tuple[str, ...], tuple[Ri
         (
             Risk(
                 code="MOCK_DATA",
-                message="Do not use M0 fixture output for production technology or license decisions.",
+                message="Do not use fixture output for production technology or license decisions.",
                 severity="high",
             ),
         ),
@@ -172,7 +178,7 @@ class ToolRegistry:
         payload = dict(arguments or {})
         try:
             return handler(payload)
-        except (InvalidInputError, UpstreamContractError):
+        except (InvalidInputError, UpstreamContractError, ProviderUnavailableError):
             raise
         except Exception as exc:  # provider failures must not leak internals
             raise ProviderUnavailableError() from exc
@@ -181,19 +187,21 @@ class ToolRegistry:
         self,
         tool: str,
         payload: Mapping[str, Any],
-        data: Mapping[str, Any],
+        output: ProviderOutput,
         *,
+        verified_facts: tuple[VerifiedFact, ...] = (),
         recommendations: tuple[Recommendation, ...] = (),
         unknowns: tuple[str, ...] = (),
         risks: tuple[Risk, ...] = (),
     ) -> ToolResult:
-        mock_unknowns, mock_risks = _mock_boundaries(data)
+        mock_unknowns, mock_risks = _mock_boundaries(output.data)
         return ToolResult(
             tool=tool,
-            data=data,
-            recommendations=recommendations,
-            unknowns=unknowns + mock_unknowns,
-            risks=risks + mock_risks,
+            data=output.data,
+            verified_facts=output.verified_facts + verified_facts,
+            recommendations=output.recommendations + recommendations,
+            unknowns=output.unknowns + unknowns + mock_unknowns,
+            risks=output.risks + risks + mock_risks,
             request_id=_request_id(payload),
         )
 
@@ -202,7 +210,7 @@ class ToolRegistry:
         request = {
             "query": _required_text(payload, "query"),
             "constraints": _mapping(payload, "constraints"),
-            "locale": _enum_value(payload, "locale", allowed=("zh", "en"), default="en"),
+            "locale": _locale(payload),
             "source_mode": _enum_value(
                 payload,
                 "source_mode",
@@ -210,20 +218,28 @@ class ToolRegistry:
                 default="required",
             ),
         }
-        data = _ensure_mapping(self._provider.search_projects(request), "search_ai_projects")
-        return self._result("search_ai_projects", payload, data)
+        output = _provider_output(self._provider.search_projects(request), "search_ai_projects")
+        return self._result("search_ai_projects", payload, output)
 
     def _get_project_facts(self, payload: Mapping[str, Any]) -> ToolResult:
-        _reject_unknown_fields(payload, {"project_id", "request_id"})
-        request = {"project_id": _required_text(payload, "project_id", max_length=256)}
-        data = _ensure_mapping(self._provider.get_project_facts(request), "get_project_facts")
-        unknowns = () if data.get("found", True) else ("The requested project was not found in the current provider snapshot.",)
-        return self._result("get_project_facts", payload, data, unknowns=unknowns)
+        _reject_unknown_fields(payload, {"project_id", "locale", "request_id"})
+        request = {
+            "project_id": _required_text(payload, "project_id", max_length=256),
+            "locale": _locale(payload),
+        }
+        output = _provider_output(self._provider.get_project_facts(request), "get_project_facts")
+        unknowns = () if output.data.get("found", True) else (
+            "The requested project was not found in the current provider snapshot.",
+        )
+        return self._result("get_project_facts", payload, output, unknowns=unknowns)
 
     def _get_license_evidence(self, payload: Mapping[str, Any]) -> ToolResult:
-        _reject_unknown_fields(payload, {"project_id", "request_id"})
-        request = {"project_id": _required_text(payload, "project_id", max_length=256)}
-        data = _ensure_mapping(self._provider.get_license_evidence(request), "get_license_evidence")
+        _reject_unknown_fields(payload, {"project_id", "locale", "request_id"})
+        request = {
+            "project_id": _required_text(payload, "project_id", max_length=256),
+            "locale": _locale(payload),
+        }
+        output = _provider_output(self._provider.get_license_evidence(request), "get_license_evidence")
         risks = (
             Risk(
                 code="NOT_LEGAL_ADVICE",
@@ -231,42 +247,50 @@ class ToolRegistry:
                 severity="medium",
             ),
         )
-        unknowns = () if data.get("license") else ("No verified license evidence is available for this project.",)
-        return self._result("get_license_evidence", payload, data, unknowns=unknowns, risks=risks)
+        unknowns = () if output.data.get("license") else (
+            "No verified license evidence is available for this project.",
+        )
+        return self._result("get_license_evidence", payload, output, unknowns=unknowns, risks=risks)
 
     def _compare_ai_projects(self, payload: Mapping[str, Any]) -> ToolResult:
-        _reject_unknown_fields(payload, {"project_ids", "criteria", "context", "request_id"})
+        _reject_unknown_fields(payload, {"project_ids", "criteria", "context", "locale", "request_id"})
         request = {
             "project_ids": _string_list(payload, "project_ids", minimum=2, maximum=5),
             "criteria": _string_list(payload, "criteria", maximum=12),
             "context": _mapping(payload, "context"),
+            "locale": _locale(payload),
         }
-        data = _ensure_mapping(self._provider.compare_projects(request), "compare_ai_projects")
+        output = _provider_output(self._provider.compare_projects(request), "compare_ai_projects")
         recommendations = (
             Recommendation(
                 summary="Treat the comparison as a decision aid and verify every blocking requirement before adoption.",
                 assumptions=("The provider returned comparable records from one current snapshot.",),
             ),
         )
-        return self._result("compare_ai_projects", payload, data, recommendations=recommendations)
+        return self._result("compare_ai_projects", payload, output, recommendations=recommendations)
 
     def _find_alternatives(self, payload: Mapping[str, Any]) -> ToolResult:
-        _reject_unknown_fields(payload, {"project_id", "constraints", "request_id"})
+        _reject_unknown_fields(payload, {"project_id", "constraints", "locale", "request_id"})
         request = {
             "project_id": _required_text(payload, "project_id", max_length=256),
             "constraints": _mapping(payload, "constraints"),
+            "locale": _locale(payload),
         }
-        data = _ensure_mapping(self._provider.find_alternatives(request), "find_alternatives")
-        return self._result("find_alternatives", payload, data)
+        output = _provider_output(self._provider.find_alternatives(request), "find_alternatives")
+        return self._result("find_alternatives", payload, output)
 
     def _compose_ai_stack(self, payload: Mapping[str, Any]) -> ToolResult:
-        _reject_unknown_fields(payload, {"business_goal", "constraints", "existing_stack", "request_id"})
+        _reject_unknown_fields(
+            payload,
+            {"business_goal", "constraints", "existing_stack", "locale", "request_id"},
+        )
         request = {
             "business_goal": _required_text(payload, "business_goal"),
             "constraints": _mapping(payload, "constraints"),
             "existing_stack": _string_list(payload, "existing_stack", maximum=20),
+            "locale": _locale(payload),
         }
-        data = _ensure_mapping(self._provider.compose_stack(request), "compose_ai_stack")
+        output = _provider_output(self._provider.compose_stack(request), "compose_ai_stack")
         recommendations = (
             Recommendation(
                 summary="Validate the proposed components with a small isolated proof of concept before production use.",
@@ -283,7 +307,7 @@ class ToolRegistry:
         return self._result(
             "compose_ai_stack",
             payload,
-            data,
+            output,
             recommendations=recommendations,
             risks=risks,
         )
