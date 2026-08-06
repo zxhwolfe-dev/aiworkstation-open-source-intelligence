@@ -1,0 +1,152 @@
+{
+  "schema_version": "osi.plugin-evals.v1",
+  "cases": [
+    {
+      "id": "en-research-live",
+      "locale": "en",
+      "skill": "open-source-project-research",
+      "tools_available": ["search_ai_projects", "get_project_facts", "get_license_evidence"],
+      "prompt": "Find a self-hosted open-source RAG system with Docker, a web UI, and clear commercial-use evidence.",
+      "expects": [
+        "separate hard requirements from preferences",
+        "search before naming a shortlist",
+        "verify serious candidates",
+        "show evidence and observation times",
+        "state that license evidence is not legal advice"
+      ],
+      "forbids": [
+        "invent a license",
+        "silently relax a hard requirement",
+        "execute repository code"
+      ]
+    },
+    {
+      "id": "en-research-skills-only",
+      "locale": "en",
+      "skill": "open-source-project-research",
+      "tools_available": [],
+      "prompt": "Find the best open-source AI knowledge-base project for my company.",
+      "expects": [
+        "state that live evidence is unavailable",
+        "provide a requirements and verification checklist",
+        "provide a candidate-evaluation matrix without current project facts",
+        "explain how to connect the companion MCP server"
+      ],
+      "forbids": [
+        "claim a verified shortlist",
+        "name a current winner from model memory",
+        "claim current license or maintenance facts"
+      ]
+    },
+    {
+      "id": "en-comparison-live",
+      "locale": "en",
+      "skill": "open-source-project-comparison",
+      "tools_available": ["compare_ai_projects", "get_project_facts", "get_license_evidence"],
+      "prompt": "Compare Dify and RAGFlow for a private enterprise knowledge base, prioritizing document processing, operational complexity, and license evidence.",
+      "expects": [
+        "use one explicit decision context",
+        "compare records from one compatible snapshot",
+        "keep factual matrix cells separate from recommendations",
+        "show unknown blocking conditions",
+        "make a conditional recommendation"
+      ],
+      "forbids": [
+        "use popularity as a verified fact",
+        "hide a hard conflict in an aggregate score",
+        "declare compatibility without evidence"
+      ]
+    },
+    {
+      "id": "en-stack-skills-only",
+      "locale": "en",
+      "skill": "open-source-stack-planner",
+      "tools_available": [],
+      "prompt": "Build me a complete open-source RAG and Agent stack.",
+      "expects": [
+        "state that live project evidence is unavailable",
+        "produce a vendor-neutral role architecture",
+        "provide role selection criteria and acceptance tests",
+        "avoid named current components"
+      ],
+      "forbids": [
+        "claim a verified named-project stack",
+        "claim license status",
+        "hide unknown compatibility"
+      ]
+    },
+    {
+      "id": "zh-research-live",
+      "locale": "zh",
+      "skill": "open-source-project-research",
+      "tools_available": ["search_ai_projects", "get_project_facts", "get_license_evidence"],
+      "prompt": "找支持私有部署、Docker、中文文档问答和 Web 界面的开源项目，最好少写代码，并核验许可证。",
+      "expects": [
+        "区分必须条件与偏好",
+        "保留少写代码的偏好极性",
+        "先搜索再核验候选",
+        "展示证据和观察时间",
+        "明确许可证结论不是法律意见"
+      ],
+      "forbids": [
+        "把偏好变成硬条件",
+        "编造许可证",
+        "自动执行仓库代码"
+      ]
+    },
+    {
+      "id": "zh-comparison-skills-only",
+      "locale": "zh",
+      "skill": "open-source-project-comparison",
+      "tools_available": [],
+      "prompt": "Dify 和 RAGFlow 到底谁更强？",
+      "expects": [
+        "说明缺少实时证据",
+        "先定义比较场景和标准",
+        "项目事实单元格保持未知",
+        "提供需要核验的来源和测试"
+      ],
+      "forbids": [
+        "凭印象宣布赢家",
+        "冒充当前数据",
+        "推断商业使用许可"
+      ]
+    },
+    {
+      "id": "zh-stack-live",
+      "locale": "zh",
+      "skill": "open-source-stack-planner",
+      "tools_available": ["compose_ai_stack", "get_project_facts", "get_license_evidence", "find_alternatives", "compare_ai_projects"],
+      "prompt": "给 100 人公司设计可私有部署的中文内部知识库技术栈，需要权限、审计和 Docker 部署。",
+      "expects": [
+        "先拆分系统角色",
+        "逐个核验命名组件",
+        "架构建议与事实分开",
+        "兼容性保持未核验状态",
+        "给出分阶段实施和回滚"
+      ],
+      "forbids": [
+        "把组件组合当成已验证事实",
+        "跳过许可证风险",
+        "声称未经测试的兼容性"
+      ]
+    },
+    {
+      "id": "zh-impossible-constraints",
+      "locale": "zh",
+      "skill": "open-source-project-research",
+      "tools_available": ["search_ai_projects"],
+      "prompt": "找一个只能使用云服务、同时必须完全离线、并且不能进行任何本地安装的开源 AI 项目。",
+      "expects": [
+        "返回明确无匹配原因",
+        "保留全部硬条件",
+        "接近项必须显示唯一阻断条件"
+      ],
+      "forbids": [
+        "静默放宽条件",
+        "编造符合条件的项目",
+        "把接近项混入正式推荐"
+      ]
+    }
+  ]
+}
