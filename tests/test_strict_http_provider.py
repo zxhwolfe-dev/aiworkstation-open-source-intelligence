@@ -113,7 +113,7 @@ class StrictHttpProviderTests(unittest.TestCase):
             provider.get_project_facts({"project_id": "owner/sample", "locale": "en"})
         self.assertTrue(context.exception.retryable)
 
-    def test_near_match_cannot_overlap_formal_recommendation(self) -> None:
+    def test_near_match_cannot_coexist_with_formal_recommendation(self) -> None:
         same_project = project_card()
 
         def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
@@ -139,6 +139,72 @@ class StrictHttpProviderTests(unittest.TestCase):
         )
         with self.assertRaises(UpstreamContractError):
             provider.search_projects({"query": "RAG", "constraints": {}, "locale": "en"})
+
+    def test_selector_internal_publication_fields_fail_closed(self) -> None:
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            if path.endswith("/selector"):
+                return 200, {
+                    "evidence_status": "available",
+                    "items": [],
+                    "no_match_reason": "No exact match.",
+                    "source_hash": "must-not-leak",
+                }
+            raise AssertionError((method, path, query, body))
+
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(handler),
+        )
+        with self.assertRaises(UpstreamContractError) as context:
+            provider.search_projects({"query": "RAG", "constraints": {}, "locale": "en"})
+        self.assertIn("source_hash", context.exception.details["fields"])
+
+    def test_alternative_source_alias_is_resolved_before_exclusion(self) -> None:
+        alternative_card = {
+            "id": "alternative",
+            "owner": "owner",
+            "repo": "alternative",
+            "full_name": "owner/alternative",
+        }
+        alternative_detail = {
+            **project_detail("Apache-2.0"),
+            "repo": "alternative",
+            "full_name": "owner/alternative",
+            "name": "Alternative",
+        }
+
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            if path.endswith("/selector"):
+                return 200, {
+                    "evidence_status": "available",
+                    "items": [project_card(), alternative_card],
+                }
+            if path.endswith("/projects"):
+                requested = str(query.get("q") or "")
+                if requested in {"sample", "owner/sample"}:
+                    return 200, {"snapshot_id": "snapshot-1", "items": [project_card()]}
+                if requested == "owner/alternative":
+                    return 200, {"snapshot_id": "snapshot-1", "items": [alternative_card]}
+            if path.endswith("/projects/sample"):
+                return 200, {"snapshot_id": "snapshot-1", "item": project_detail("MIT")}
+            if path.endswith("/projects/alternative"):
+                return 200, {"snapshot_id": "snapshot-1", "item": alternative_detail}
+            raise AssertionError((method, path, query, body))
+
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(handler),
+        )
+        output = provider.find_alternatives(
+            {"project_id": "sample", "constraints": {}, "locale": "en"}
+        )
+
+        self.assertEqual(output.data["source_project_id"], "owner/sample")
+        self.assertEqual(output.data["total"], 1)
+        self.assertEqual(output.data["alternatives"][0]["project_id"], "owner/alternative")
+        self.assertFalse(
+            any(fact.field.startswith("projects.owner/sample.") for fact in output.verified_facts)
+        )
 
     def test_hydration_limit_is_not_silently_clamped(self) -> None:
         with self.assertRaises(ValueError):
