@@ -27,6 +27,13 @@ class LiveValidationWorkflowTests(unittest.TestCase):
         self.assertIn("allowed_hosts", self.content)
         self.assertIn("parsed.scheme != \"https\"", self.content)
 
+    def test_user_inputs_are_passed_through_environment_not_shell_templates(self) -> None:
+        self.assertIn("BASE_URL: ${{ inputs.base_url }}", self.content)
+        self.assertIn("PROJECT_ID: ${{ inputs.project_id }}", self.content)
+        self.assertIn('--project-id "$PROJECT_ID"', self.content)
+        self.assertNotIn('--project-id "${{ inputs.project_id }}"', self.content)
+        self.assertIn('os.environ["PROJECT_ID"]', self.content)
+
     def test_validation_precedes_artifact_upload(self) -> None:
         scan_position = self.content.index("Scan artifacts for forbidden keys")
         summary_position = self.content.index("Write validation summary")
