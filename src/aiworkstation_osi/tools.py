@@ -12,8 +12,20 @@ from .providers import ProjectIntelligenceProvider
 ToolHandler = Callable[[Mapping[str, Any]], ToolResult]
 
 
+def _reject_unknown_fields(payload: Mapping[str, Any], allowed: set[str]) -> None:
+    unexpected = sorted(set(payload) - allowed)
+    if unexpected:
+        raise InvalidInputError(
+            "Request contains unsupported fields",
+            details={"unsupported_fields": unexpected, "allowed_fields": sorted(allowed)},
+        )
+
+
 def _required_text(payload: Mapping[str, Any], field: str, *, max_length: int = 4_000) -> str:
-    value = str(payload.get(field) or "").strip()
+    raw = payload.get(field)
+    if raw is not None and not isinstance(raw, str):
+        raise InvalidInputError(f"{field} must be a string", details={"field": field})
+    value = str(raw or "").strip()
     if not value:
         raise InvalidInputError(f"{field} is required", details={"field": field})
     if len(value) > max_length:
@@ -24,18 +36,37 @@ def _required_text(payload: Mapping[str, Any], field: str, *, max_length: int = 
     return value
 
 
+def _enum_value(
+    payload: Mapping[str, Any],
+    field: str,
+    *,
+    allowed: tuple[str, ...],
+    default: str,
+) -> str:
+    raw = payload.get(field, default)
+    if not isinstance(raw, str) or raw not in allowed:
+        raise InvalidInputError(
+            f"{field} must be one of: {', '.join(allowed)}",
+            details={"field": field, "allowed": list(allowed)},
+        )
+    return raw
+
+
 def _string_list(
     payload: Mapping[str, Any],
     field: str,
     *,
     minimum: int = 0,
     maximum: int = 20,
+    item_max_length: int = 256,
 ) -> list[str]:
     raw = payload.get(field)
     if raw is None:
         values: list[str] = []
     elif isinstance(raw, Sequence) and not isinstance(raw, (str, bytes, bytearray)):
-        values = [str(item).strip() for item in raw if str(item).strip()]
+        if any(not isinstance(item, str) for item in raw):
+            raise InvalidInputError(f"{field} must be an array of strings", details={"field": field})
+        values = [item.strip() for item in raw if item.strip()]
     else:
         raise InvalidInputError(f"{field} must be an array of strings", details={"field": field})
     values = list(dict.fromkeys(values))
@@ -43,6 +74,11 @@ def _string_list(
         raise InvalidInputError(
             f"{field} must contain between {minimum} and {maximum} unique values",
             details={"field": field, "minimum": minimum, "maximum": maximum},
+        )
+    if any(len(item) > item_max_length for item in values):
+        raise InvalidInputError(
+            f"{field} contains a value longer than {item_max_length}",
+            details={"field": field, "item_max_length": item_max_length},
         )
     return values
 
@@ -57,7 +93,18 @@ def _mapping(payload: Mapping[str, Any], field: str) -> dict[str, Any]:
 
 
 def _request_id(payload: Mapping[str, Any]) -> str:
-    return str(payload.get("request_id") or "").strip()[:128]
+    raw = payload.get("request_id")
+    if raw is None:
+        return ""
+    if not isinstance(raw, str):
+        raise InvalidInputError("request_id must be a string", details={"field": "request_id"})
+    value = raw.strip()
+    if len(value) > 128:
+        raise InvalidInputError(
+            "request_id exceeds the maximum length of 128",
+            details={"field": "request_id", "max_length": 128},
+        )
+    return value
 
 
 def _ensure_mapping(value: Mapping[str, Any] | Any, tool: str) -> dict[str, Any]:
@@ -119,6 +166,8 @@ class ToolRegistry:
     def invoke(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> ToolResult:
         if tool_name not in TOOL_NAMES:
             raise UnknownToolError(tool_name)
+        if arguments is not None and not isinstance(arguments, Mapping):
+            raise InvalidInputError("Tool arguments must be an object")
         handler = self._handlers[tool_name]
         payload = dict(arguments or {})
         try:
@@ -149,22 +198,30 @@ class ToolRegistry:
         )
 
     def _search_ai_projects(self, payload: Mapping[str, Any]) -> ToolResult:
+        _reject_unknown_fields(payload, {"query", "constraints", "locale", "source_mode", "request_id"})
         request = {
             "query": _required_text(payload, "query"),
             "constraints": _mapping(payload, "constraints"),
-            "locale": str(payload.get("locale") or "en"),
-            "source_mode": str(payload.get("source_mode") or "required"),
+            "locale": _enum_value(payload, "locale", allowed=("zh", "en"), default="en"),
+            "source_mode": _enum_value(
+                payload,
+                "source_mode",
+                allowed=("required", "preferred", "off"),
+                default="required",
+            ),
         }
         data = _ensure_mapping(self._provider.search_projects(request), "search_ai_projects")
         return self._result("search_ai_projects", payload, data)
 
     def _get_project_facts(self, payload: Mapping[str, Any]) -> ToolResult:
+        _reject_unknown_fields(payload, {"project_id", "request_id"})
         request = {"project_id": _required_text(payload, "project_id", max_length=256)}
         data = _ensure_mapping(self._provider.get_project_facts(request), "get_project_facts")
         unknowns = () if data.get("found", True) else ("The requested project was not found in the current provider snapshot.",)
         return self._result("get_project_facts", payload, data, unknowns=unknowns)
 
     def _get_license_evidence(self, payload: Mapping[str, Any]) -> ToolResult:
+        _reject_unknown_fields(payload, {"project_id", "request_id"})
         request = {"project_id": _required_text(payload, "project_id", max_length=256)}
         data = _ensure_mapping(self._provider.get_license_evidence(request), "get_license_evidence")
         risks = (
@@ -178,6 +235,7 @@ class ToolRegistry:
         return self._result("get_license_evidence", payload, data, unknowns=unknowns, risks=risks)
 
     def _compare_ai_projects(self, payload: Mapping[str, Any]) -> ToolResult:
+        _reject_unknown_fields(payload, {"project_ids", "criteria", "context", "request_id"})
         request = {
             "project_ids": _string_list(payload, "project_ids", minimum=2, maximum=5),
             "criteria": _string_list(payload, "criteria", maximum=12),
@@ -193,6 +251,7 @@ class ToolRegistry:
         return self._result("compare_ai_projects", payload, data, recommendations=recommendations)
 
     def _find_alternatives(self, payload: Mapping[str, Any]) -> ToolResult:
+        _reject_unknown_fields(payload, {"project_id", "constraints", "request_id"})
         request = {
             "project_id": _required_text(payload, "project_id", max_length=256),
             "constraints": _mapping(payload, "constraints"),
@@ -201,6 +260,7 @@ class ToolRegistry:
         return self._result("find_alternatives", payload, data)
 
     def _compose_ai_stack(self, payload: Mapping[str, Any]) -> ToolResult:
+        _reject_unknown_fields(payload, {"business_goal", "constraints", "existing_stack", "request_id"})
         request = {
             "business_goal": _required_text(payload, "business_goal"),
             "constraints": _mapping(payload, "constraints"),
