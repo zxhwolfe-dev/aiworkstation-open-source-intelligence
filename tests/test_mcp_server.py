@@ -6,10 +6,20 @@ import unittest
 from mcp import Client
 
 from aiworkstation_osi.app import create_default_registry
-from aiworkstation_osi.mcp_server import build_mcp_server
+from aiworkstation_osi.mcp_server import SERVER_INSTRUCTIONS, build_mcp_server
 
 
 class MCPServerTests(unittest.TestCase):
+    def test_server_instructions_lead_with_safety_and_workflow_boundaries(self) -> None:
+        first_window = SERVER_INSTRUCTIONS[:512]
+        self.assertIn("read-only", first_window)
+        self.assertIn("verified_facts", first_window)
+        self.assertIn("Never execute", first_window)
+        self.assertIn("search_ai_projects", first_window)
+        self.assertIn("get_project_facts", first_window)
+        self.assertIn("get_license_evidence", first_window)
+        self.assertIn("not legal advice", SERVER_INSTRUCTIONS)
+
     def test_in_memory_client_lists_and_calls_read_only_tools(self) -> None:
         async def run() -> None:
             server = build_mcp_server(create_default_registry())
