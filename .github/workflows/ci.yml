@@ -40,6 +40,9 @@ jobs:
       - name: Run unit and in-memory MCP tests
         run: python -m unittest discover -s tests -v
 
+      - name: Validate plugin package
+        run: osi-validate-plugin --root .
+
       - name: Smoke test local commands
         run: |
           osi-m0 provider-info >/dev/null
@@ -48,4 +51,5 @@ jobs:
           osi-probe --help >/dev/null
           osi-capture-contracts --help >/dev/null
           osi-validate-contracts --help >/dev/null
+          osi-validate-plugin --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
