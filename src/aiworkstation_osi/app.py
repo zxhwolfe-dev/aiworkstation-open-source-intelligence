@@ -5,8 +5,9 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
-from .http_provider import AIWorkstationHttpProvider, DEFAULT_BASE_URL
+from .http_provider import DEFAULT_BASE_URL
 from .providers import MockProjectIntelligenceProvider, ProjectIntelligenceProvider
+from .strict_http_provider import AIWorkstationHttpProvider
 from .tools import ToolRegistry
 
 
@@ -28,7 +29,7 @@ def create_registry_from_env() -> ToolRegistry:
     Supported values:
 
     - ``OSI_PROVIDER=mock`` (default): deterministic, offline fixture data.
-    - ``OSI_PROVIDER=http``: public AI Workstation Radar HTTP adapter.
+    - ``OSI_PROVIDER=http``: hardened public AI Workstation Radar HTTP adapter.
     """
 
     provider_name = os.getenv("OSI_PROVIDER", "mock").strip().lower()
@@ -42,7 +43,7 @@ def create_registry_from_env() -> ToolRegistry:
         except ValueError as exc:
             raise ValueError("OSI HTTP timeout and hydrate limit must be numeric") from exc
         if timeout <= 0 or timeout > 240:
-            raise ValueError("OSI_HTTP_TIMEOUT_SECONDS must be between 0 and 240")
+            raise ValueError("OSI_HTTP_TIMEOUT_SECONDS must be greater than 0 and no more than 240")
         if hydrate_limit < 1 or hydrate_limit > 5:
             raise ValueError("OSI_HYDRATE_LIMIT must be between 1 and 5")
         return create_default_registry(
