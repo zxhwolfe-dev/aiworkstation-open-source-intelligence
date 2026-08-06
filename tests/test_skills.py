@@ -17,6 +17,9 @@ class SkillPackageTests(unittest.TestCase):
         self.assertIn("get_project_facts", content)
         self.assertIn("get_license_evidence", content)
         self.assertIn("Do not execute", content)
+        self.assertIn("Live-tool availability gate", content)
+        self.assertIn("do not invent a shortlist", content)
+        self.assertIn("live evidence is unavailable", content)
 
     def test_comparison_skill_preserves_fact_recommendation_boundary(self) -> None:
         content = self._read("open-source-project-comparison")
@@ -25,6 +28,9 @@ class SkillPackageTests(unittest.TestCase):
         self.assertIn("verified facts", content.lower())
         self.assertIn("recommendations", content.lower())
         self.assertIn("unknown", content.lower())
+        self.assertIn("Live-tool availability gate", content)
+        self.assertIn("do not fill the matrix", content)
+        self.assertIn("verification plan", content)
 
     def test_stack_skill_requires_component_verification(self) -> None:
         content = self._read("open-source-stack-planner")
@@ -33,6 +39,9 @@ class SkillPackageTests(unittest.TestCase):
         self.assertIn("get_project_facts", content)
         self.assertIn("compatibility", content.lower())
         self.assertIn("rollback", content.lower())
+        self.assertIn("Live-tool availability gate", content)
+        self.assertIn("vendor-neutral reference architecture", content)
+        self.assertIn("Do not populate the roles with remembered project names", content)
 
 
 if __name__ == "__main__":
