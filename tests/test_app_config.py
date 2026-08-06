@@ -5,8 +5,8 @@ import unittest
 from unittest.mock import patch
 
 from aiworkstation_osi.app import create_registry_from_env
-from aiworkstation_osi.http_provider import AIWorkstationHttpProvider
 from aiworkstation_osi.providers import MockProjectIntelligenceProvider
+from aiworkstation_osi.strict_http_provider import AIWorkstationHttpProvider
 
 
 class ApplicationConfigurationTests(unittest.TestCase):
