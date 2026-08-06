@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from mcp.server import MCPServer
+from mcp.types import ToolAnnotations
 
 from .app import create_registry_from_env
 from .errors import ToolError
@@ -22,6 +23,22 @@ SERVER_INSTRUCTIONS = (
     "License observations are technical evidence, not legal advice. Never infer permission from a missing or unknown license. "
     "Do not hide an empty result by silently relaxing hard requirements; expose the blocker or no-match reason."
 )
+
+
+def _read_only_annotations(title: str) -> ToolAnnotations:
+    """Describe the actual side-effect profile to MCP hosts.
+
+    The tools may read a changing public service, so they operate in the open
+    world, but they never modify the public service or local environment.
+    """
+
+    return ToolAnnotations(
+        title=title,
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    )
 
 
 def _invoke(registry: ToolRegistry, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -42,7 +59,9 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
         instructions=SERVER_INSTRUCTIONS,
     )
 
-    @server.tool()
+    @server.tool(
+        annotations=_read_only_annotations("Search open-source AI projects"),
+    )
     def search_ai_projects(
         query: str,
         constraints: dict[str, Any] | None = None,
@@ -64,7 +83,9 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
             },
         )
 
-    @server.tool()
+    @server.tool(
+        annotations=_read_only_annotations("Get verified project facts"),
+    )
     def get_project_facts(
         project_id: str,
         locale: Literal["zh", "en"] = "en",
@@ -78,7 +99,9 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
             {"project_id": project_id, "locale": locale, "request_id": request_id},
         )
 
-    @server.tool()
+    @server.tool(
+        annotations=_read_only_annotations("Get project license evidence"),
+    )
     def get_license_evidence(
         project_id: str,
         locale: Literal["zh", "en"] = "en",
@@ -92,7 +115,9 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
             {"project_id": project_id, "locale": locale, "request_id": request_id},
         )
 
-    @server.tool()
+    @server.tool(
+        annotations=_read_only_annotations("Compare open-source AI projects"),
+    )
     def compare_ai_projects(
         project_ids: list[str],
         criteria: list[str] | None = None,
@@ -114,7 +139,9 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
             },
         )
 
-    @server.tool()
+    @server.tool(
+        annotations=_read_only_annotations("Find open-source project alternatives"),
+    )
     def find_alternatives(
         project_id: str,
         constraints: dict[str, Any] | None = None,
@@ -134,7 +161,9 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
             },
         )
 
-    @server.tool()
+    @server.tool(
+        annotations=_read_only_annotations("Compose an open-source AI stack"),
+    )
     def compose_ai_stack(
         business_goal: str,
         constraints: dict[str, Any] | None = None,
