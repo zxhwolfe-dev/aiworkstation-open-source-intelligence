@@ -26,8 +26,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install package
-        run: python -m pip install --upgrade pip && python -m pip install -e .
+      - name: Install package with MCP runtime
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[mcp]"
 
       - name: Validate JSON artifacts
         run: |
@@ -35,10 +35,11 @@ jobs:
           python -m json.tool schemas/tool-result.schema.json >/dev/null
           python -m json.tool evals/cases.json >/dev/null
 
-      - name: Run unit tests
+      - name: Run unit and in-memory MCP tests
         run: python -m unittest discover -s tests -v
 
-      - name: Smoke test CLI
+      - name: Smoke test local commands
         run: |
           osi-m0 list-tools >/dev/null
           osi-m0 invoke search_ai_projects --arguments '{"query":"self-hosted RAG"}' >/dev/null
+          python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
