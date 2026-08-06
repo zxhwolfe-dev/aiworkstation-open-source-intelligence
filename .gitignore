@@ -15,7 +15,8 @@ node_modules/
 dist/
 build/
 
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 
 .DS_Store
