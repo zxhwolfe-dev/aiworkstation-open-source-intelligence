@@ -14,8 +14,8 @@ class MCPServerTests(unittest.TestCase):
         async def run() -> None:
             server = build_mcp_server(create_default_registry())
             async with Client(server) as client:
-                tools = await client.list_tools()
-                names = {tool.name for tool in tools}
+                listed = await client.list_tools()
+                names = {tool.name for tool in listed.tools}
                 self.assertEqual(
                     names,
                     {
