@@ -31,6 +31,8 @@ jobs:
 
       - name: Validate JSON artifacts
         run: |
+          python -m json.tool .codex-plugin/plugin.json >/dev/null
+          python -m json.tool .agents/plugins/marketplace.json >/dev/null
           python -m json.tool schemas/tool-manifest.json >/dev/null
           python -m json.tool schemas/tool-result.schema.json >/dev/null
           python -m json.tool evals/cases.json >/dev/null
