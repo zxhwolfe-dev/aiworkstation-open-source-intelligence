@@ -19,6 +19,7 @@ REQUIRED_FILES = (
     ".codex-plugin/plugin.json",
     ".agents/plugins/marketplace.json",
     "README.md",
+    "CHANGELOG.md",
     "SECURITY.md",
     "PRIVACY.md",
     "docs/codex-setup.md",
