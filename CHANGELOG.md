@@ -14,7 +14,8 @@ changes, not public availability.
   external SHA-256 checksum and credential-like-content checks.
 - Manual alpha packaging workflow that runs release gates and inspects the
   archive before upload.
-- External alpha tester guide and release checklist.
+- External alpha tester guide, structured feedback templates and release
+  checklist.
 
 ### Changed
 
@@ -23,7 +24,10 @@ changes, not public availability.
 - README and plugin packaging documentation describe the actual distribution,
   validation and live-data boundaries.
 
-## [0.1.0-alpha.1] - 2026-08-06
+## [0.1.0] - 2026-08-06
+
+**Pre-release status:** M1 Alpha. This version number identifies the current
+plugin contract and package contents; it does not imply a broad public launch.
 
 ### Added
 
