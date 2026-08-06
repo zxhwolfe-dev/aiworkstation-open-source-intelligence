@@ -1,6 +1,6 @@
 {
   "schema_version": "osi.tool-manifest.v1",
-  "status": "transport-neutral-m0",
+  "status": "m1-alpha",
   "tools": [
     {
       "name": "search_ai_projects",
@@ -29,6 +29,7 @@
         "required": ["project_id"],
         "properties": {
           "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
+          "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}
         }
       }
@@ -43,6 +44,7 @@
         "required": ["project_id"],
         "properties": {
           "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
+          "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}
         }
       }
@@ -70,6 +72,7 @@
             "items": {"type": "string", "minLength": 1}
           },
           "context": {"type": "object"},
+          "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}
         }
       }
@@ -85,6 +88,7 @@
         "properties": {
           "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
           "constraints": {"type": "object"},
+          "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}
         }
       }
@@ -106,6 +110,7 @@
             "uniqueItems": true,
             "items": {"type": "string", "minLength": 1}
           },
+          "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}
         }
       }
