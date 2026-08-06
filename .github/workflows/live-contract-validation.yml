@@ -30,6 +30,8 @@ jobs:
     timeout-minutes: 30
     env:
       VALIDATION_ROOT: tmp/live-contract-validation
+      BASE_URL: ${{ inputs.base_url }}
+      PROJECT_ID: ${{ inputs.project_id }}
 
     steps:
       - name: Check out repository
@@ -42,9 +44,6 @@ jobs:
           cache: pip
 
       - name: Validate workflow inputs
-        env:
-          BASE_URL: ${{ inputs.base_url }}
-          PROJECT_ID: ${{ inputs.project_id }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -75,9 +74,6 @@ jobs:
           osi-validate-plugin --root .
 
       - name: Run English and Chinese public probes
-        env:
-          BASE_URL: ${{ inputs.base_url }}
-          PROJECT_ID: ${{ inputs.project_id }}
         run: |
           set -euo pipefail
           mkdir -p "$VALIDATION_ROOT"
@@ -93,9 +89,6 @@ jobs:
             --output "$VALIDATION_ROOT/probe-zh.json"
 
       - name: Capture sanitized public contracts
-        env:
-          BASE_URL: ${{ inputs.base_url }}
-          PROJECT_ID: ${{ inputs.project_id }}
         run: |
           set -euo pipefail
           osi-capture-contracts \
@@ -117,7 +110,7 @@ jobs:
             osi-validate-contracts --directory "$directory"
             osi-replay-contracts \
               --directory "$directory" \
-              --project-id "${{ inputs.project_id }}" \
+              --project-id "$PROJECT_ID" \
               --locale "$locale" \
               --output "$VALIDATION_ROOT/replay-$locale.json"
           done
@@ -134,9 +127,6 @@ jobs:
           fi
 
       - name: Write validation summary
-        env:
-          BASE_URL: ${{ inputs.base_url }}
-          PROJECT_ID: ${{ inputs.project_id }}
         run: |
           set -euo pipefail
           python - <<'PY'
