@@ -1,7 +1,7 @@
 {
   "name": "aiworkstation-open-source-intelligence",
   "version": "0.1.0",
-  "description": "Evidence-backed workflows for finding, verifying, comparing, and composing open-source AI projects.",
+  "description": "Read-only workflows for finding, verifying, comparing, and composing open-source AI projects; live evidence requires the separately configured MCP server.",
   "author": {
     "name": "AI Workstation",
     "url": "https://aiworkstation.cn"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "AI Open Source Intelligence",
-    "shortDescription": "Research and compare open-source AI projects",
-    "longDescription": "Find, verify, compare, and assemble open-source AI projects while keeping source facts, recommendations, unknowns, and risks clearly separated.",
+    "shortDescription": "Research workflows for open-source AI projects",
+    "longDescription": "Structure project research, comparison, and stack planning while keeping facts, recommendations, unknowns, and risks separate. Connect the companion read-only MCP server before claiming live verified project or license facts.",
     "developerName": "AI Workstation",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,9 +30,9 @@
     ],
     "websiteURL": "https://aiworkstation.cn/githubai/",
     "defaultPrompt": [
-      "Find open-source AI projects that meet my deployment, license, and technical constraints.",
-      "Compare Dify and RAGFlow for an enterprise knowledge-base use case.",
-      "Design a self-hosted open-source AI stack and separate verified facts from recommendations."
+      "Find open-source AI projects that meet my deployment, license, and technical constraints. If the live tools are unavailable, give me the requirements and verification checklist instead of inventing facts.",
+      "Compare Dify and RAGFlow for an enterprise knowledge-base use case, clearly separating verified facts from assumptions.",
+      "Design a self-hosted open-source AI stack and mark every unverified compatibility or license condition."
     ],
     "brandColor": "#24292F"
   }
