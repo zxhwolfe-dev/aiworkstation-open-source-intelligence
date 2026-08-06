@@ -1,0 +1,39 @@
+{
+  "name": "aiworkstation-open-source-intelligence",
+  "version": "0.1.0",
+  "description": "Evidence-backed workflows for finding, verifying, comparing, and composing open-source AI projects.",
+  "author": {
+    "name": "AI Workstation",
+    "url": "https://aiworkstation.cn"
+  },
+  "homepage": "https://aiworkstation.cn/githubai/",
+  "repository": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence",
+  "keywords": [
+    "open-source-ai",
+    "project-research",
+    "technology-selection",
+    "license-evidence",
+    "rag",
+    "agents"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AI Open Source Intelligence",
+    "shortDescription": "Research and compare open-source AI projects",
+    "longDescription": "Find, verify, compare, and assemble open-source AI projects while keeping source facts, recommendations, unknowns, and risks clearly separated.",
+    "developerName": "AI Workstation",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Research",
+      "Compare"
+    ],
+    "websiteURL": "https://aiworkstation.cn/githubai/",
+    "defaultPrompt": [
+      "Find open-source AI projects that meet my deployment, license, and technical constraints.",
+      "Compare Dify and RAGFlow for an enterprise knowledge-base use case.",
+      "Design a self-hosted open-source AI stack and separate verified facts from recommendations."
+    ],
+    "brandColor": "#24292F"
+  }
+}
