@@ -23,6 +23,7 @@ osi-capture-contracts = "aiworkstation_osi.contract_capture:main"
 osi-validate-contracts = "aiworkstation_osi.fixture_validation:main"
 osi-replay-contracts = "aiworkstation_osi.fixture_replay:main"
 osi-validate-plugin = "aiworkstation_osi.plugin_validation:main"
+osi-build-alpha = "aiworkstation_osi.alpha_bundle:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
