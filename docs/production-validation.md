@@ -35,6 +35,7 @@ osi-m0 provider-info
 osi-m0 list-tools
 osi-probe --help
 osi-capture-contracts --help
+osi-validate-contracts --help
 ```
 
 Record the commit under test:
@@ -100,8 +101,33 @@ selector-formal.json
 selector-no-match.json
 ```
 
+Run the offline validator immediately:
+
+```bash
+osi-validate-contracts --directory tmp/public-validation/contracts-en
+osi-validate-contracts --directory tmp/public-validation/contracts-zh
+```
+
+The validator checks:
+
+- manifest and fixture schema versions;
+- the exact four required scenarios;
+- query fingerprints and absence of query text;
+- removed internal or sensitive keys;
+- safe response headers and bounded content;
+- project-list snapshot and stable identity;
+- project-detail identity and snapshot compatibility;
+- selector evidence state;
+- formal-result versus near-match separation;
+- explicit no-match reasons and valid near-match blockers.
+
+A missing direct detail snapshot is reported as a warning when the exact project
+identity still matches the captured list. All other contract errors fail the
+validator.
+
 The capture removes user queries, client IDs, credentials and internal
-publication fields. Review the files manually before committing any fixture:
+publication fields. The validator is necessary but not a substitute for manual
+review before committing any fixture:
 
 ```bash
 grep -RniE 'authorization|cookie|api[_-]?key|access[_-]?token|email|source_hash|evidence_ids|claim_refs|publication_version|"query"' \
@@ -167,6 +193,19 @@ OSI_PROVIDER=http
 AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn
 ```
 
+Confirm that Codex discovers exactly six tools and that every tool is advertised
+with these MCP hints:
+
+```text
+read_only_hint = true
+destructive_hint = false
+idempotent_hint = true
+open_world_hint = true
+```
+
+The hints describe the actual server behavior: tools may read changing public
+data, but they never mutate the public service or local environment.
+
 Test these workflows:
 
 1. Search for a self-hosted RAG project.
@@ -200,8 +239,8 @@ Do not invite external testers until all are true:
 - local tests pass;
 - GitHub Actions succeeds on Python 3.10 and 3.12;
 - English and Chinese probes pass;
-- sanitized fixtures have been reviewed;
-- Codex discovers exactly six tools;
+- sanitized fixtures pass the offline validator and manual review;
+- Codex discovers exactly six read-only annotated tools;
 - no tool writes data or executes repository code;
 - license output preserves the non-legal-advice boundary;
 - known limitations are documented in README and release notes.
