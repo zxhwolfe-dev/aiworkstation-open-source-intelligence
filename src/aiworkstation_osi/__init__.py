@@ -2,7 +2,7 @@
 
 from .app import create_default_registry, create_registry_from_env, invoke_tool
 from .contracts import TOOL_NAMES, ToolResult
-from .http_provider import AIWorkstationHttpProvider
+from .strict_http_provider import AIWorkstationHttpProvider
 
 __all__ = [
     "AIWorkstationHttpProvider",
