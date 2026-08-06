@@ -36,6 +36,7 @@ jobs:
           python -m json.tool schemas/tool-manifest.json >/dev/null
           python -m json.tool schemas/tool-result.schema.json >/dev/null
           python -m json.tool evals/cases.json >/dev/null
+          python -m json.tool evals/plugin-cases.json >/dev/null
 
       - name: Run unit and in-memory MCP tests
         run: python -m unittest discover -s tests -v
