@@ -91,12 +91,37 @@ codex plugin marketplace list
 Local marketplace installation tests only the packaged Skills. Configure the
 stdio MCP server separately until the plugin receives a proper MCP mapping.
 
-## Local package validation
+## Offline package validation
+
+Run the package validator from the repository root:
+
+```bash
+python -m pip install -e ".[mcp]"
+osi-validate-plugin --root .
+```
+
+The validator checks:
+
+- required manifest identity and semantic version;
+- `./`-prefixed paths that remain inside the plugin root;
+- the rule that `.codex-plugin/` contains only `plugin.json`;
+- Skill directory presence, frontmatter names and descriptions;
+- install-surface descriptions, prompts, color and read-only capabilities;
+- optional `.mcp.json` and `.app.json` targets when declared;
+- marketplace identity, local source path, policy and category;
+- intentional public-release blockers such as missing license and legal URLs.
+
+The command exits successfully when the local Skills package is structurally
+ready. Its JSON report keeps `public_submission_ready=false` while legal or
+publication gates remain unresolved.
+
+Low-level checks remain useful:
 
 ```bash
 python -m json.tool .codex-plugin/plugin.json >/dev/null
 python -m json.tool .agents/plugins/marketplace.json >/dev/null
 python -m unittest tests.test_plugin_package -v
+python -m unittest tests.test_plugin_validation -v
 ```
 
 Then restart the ChatGPT desktop app and verify:
