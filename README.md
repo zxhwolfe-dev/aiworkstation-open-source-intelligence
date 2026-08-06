@@ -12,12 +12,13 @@ open-source AI projects with explicit evidence and uncertainty boundaries.
 - a transport-neutral Python core;
 - a deterministic offline mock provider;
 - a fail-closed HTTP provider for AI Workstation's public Radar API;
-- an MCP Python SDK v2 stdio server;
-- machine-readable schemas, bilingual evaluations and automated tests.
+- an MCP Python SDK v2 stdio server with server-wide safety instructions;
+- a live public-contract probe and sanitized fixture-capture command;
+- machine-readable schemas, bilingual evaluations and automated tests;
+- Codex CLI and project-scoped MCP configuration guidance.
 
 This is not yet a hosted public MCP service. The live HTTP provider is opt-in and
-still requires validation against representative production responses before a
-public release.
+must pass production contract validation before an external release.
 
 ## Product boundaries
 
@@ -51,12 +52,12 @@ GitHub projects, save collections, authenticate users or process payments.
 ```text
 .
 ├── skills/                     reusable Skill workflows
-├── src/aiworkstation_osi/      core, HTTP provider and MCP server
+├── src/aiworkstation_osi/      core, providers, MCP, probe and capture tools
 ├── schemas/                    input manifest and unified result schema
 ├── evals/                      bilingual evaluation cases
-├── tests/                      unit, provider and in-memory MCP tests
-├── examples/                   local invocation examples
-├── docs/                       architecture, integration and safety contracts
+├── tests/                      unit, provider, capture and in-memory MCP tests
+├── examples/                   local invocation and Codex config examples
+├── docs/                       architecture, setup and validation runbooks
 ├── AGENTS.md
 ├── SECURITY.md
 └── PRIVACY.md
@@ -106,7 +107,8 @@ The adapter:
 - rejects mixed-snapshot comparisons;
 - requires selector evidence status to be `available` or disclosed `partial`;
 - keeps near matches outside formal recommendations;
-- never infers a missing license;
+- converts missing and sentinel license values to explicit unknowns;
+- flags non-standard license labels for manual review;
 - never imports private `akaiagents` modules.
 
 ## MCP server
@@ -125,9 +127,39 @@ AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn \
 osi-mcp
 ```
 
-The server is built with the current stable MCP Python SDK v2 line and exposes
-only the six declared read-only tools. Tests connect to the server in memory,
-without opening a subprocess or network port.
+The server uses the MCP Python SDK v2 line and exposes only the six declared
+read-only tools. Its server instructions lead with the fact/recommendation
+boundary, prohibition on repository execution, license caveat and recommended
+tool sequence. Tests connect in memory without opening a subprocess or port.
+
+For Codex setup, see [`docs/codex-setup.md`](docs/codex-setup.md) and
+[`examples/codex-config.toml`](examples/codex-config.toml).
+
+## Validate the public contract
+
+Run both language probes:
+
+```bash
+osi-probe --base-url https://aiworkstation.cn --locale en
+osi-probe --base-url https://aiworkstation.cn --locale zh
+```
+
+Capture sanitized response shapes for review:
+
+```bash
+osi-capture-contracts \
+  --base-url https://aiworkstation.cn \
+  --locale en \
+  --project-id infiniflow/ragflow \
+  --output-dir tmp/public-validation/contracts-en
+```
+
+The capture stores four public response fixtures and a manifest. It removes
+queries, credentials, client IDs and internal publication fields; bounds long
+strings and lists; and records query fingerprints instead of query text.
+
+Follow [`docs/production-validation.md`](docs/production-validation.md) before
+inviting external testers.
 
 ## Architecture
 
@@ -136,11 +168,11 @@ User / MCP host
      |
 Skills: repeatable task workflow
      |
-MCP Python SDK v2 stdio transport
+MCP Python SDK v2 stdio server
      |
 Transport-neutral ToolRegistry
      |
-Mock provider OR fail-closed AI Workstation HTTP provider
+Mock provider OR hardened AI Workstation HTTP provider
      |
 Current healthy validated Radar release
 ```
@@ -152,21 +184,25 @@ contracts rather than importing its private Python modules.
 See:
 
 - [`docs/architecture.md`](docs/architecture.md)
+- [`docs/m1-alpha.md`](docs/m1-alpha.md)
 - [`docs/akaiagents-integration.md`](docs/akaiagents-integration.md)
+- [`docs/codex-setup.md`](docs/codex-setup.md)
+- [`docs/production-validation.md`](docs/production-validation.md)
 - [`schemas/tool-manifest.json`](schemas/tool-manifest.json)
 - [`schemas/tool-result.schema.json`](schemas/tool-result.schema.json)
 - [`docs/security-and-privacy.md`](docs/security-and-privacy.md)
 - [`docs/error-codes.md`](docs/error-codes.md)
-- [`docs/m0-acceptance.md`](docs/m0-acceptance.md)
 
-## Remaining M1 work
+## Remaining M1 validation
 
-1. Validate the HTTP adapter against representative production responses.
-2. Confirm exact transparency, observation-time and license-evidence fields.
-3. Add recorded contract fixtures from the public API.
-4. Add Streamable HTTP deployment only after host allowlists, authentication and
-   rate limiting are designed.
-5. Expand the evaluation corpus before publishing an anonymous demo.
+1. Pull `main` and run the complete local suite.
+2. Observe successful GitHub Actions runs on Python 3.10 and 3.12.
+3. Run English and Chinese production probes.
+4. Capture and review sanitized production contract fixtures.
+5. Confirm exact transparency, observation-time and license-evidence fields.
+6. Test the stdio server from Codex with the project-scoped configuration.
+7. Add Streamable HTTP only after host allowlists, authentication, rate limiting
+   and deployment controls are designed.
 
 ## License
 
