@@ -20,7 +20,7 @@ class MCPServerTests(unittest.TestCase):
         self.assertIn("get_license_evidence", first_window)
         self.assertIn("not legal advice", SERVER_INSTRUCTIONS)
 
-    def test_in_memory_client_lists_and_calls_read_only_tools(self) -> None:
+    def test_in_memory_client_lists_annotated_read_only_tools_and_calls_one(self) -> None:
         async def run() -> None:
             server = build_mcp_server(create_default_registry())
             async with Client(server) as client:
@@ -37,6 +37,16 @@ class MCPServerTests(unittest.TestCase):
                         "compose_ai_stack",
                     },
                 )
+                for tool in listed.tools:
+                    with self.subTest(tool=tool.name):
+                        self.assertIsNotNone(tool.annotations)
+                        assert tool.annotations is not None
+                        self.assertTrue(tool.annotations.title)
+                        self.assertIs(tool.annotations.read_only_hint, True)
+                        self.assertIs(tool.annotations.destructive_hint, False)
+                        self.assertIs(tool.annotations.idempotent_hint, True)
+                        self.assertIs(tool.annotations.open_world_hint, True)
+
                 result = await client.call_tool(
                     "search_ai_projects",
                     {
