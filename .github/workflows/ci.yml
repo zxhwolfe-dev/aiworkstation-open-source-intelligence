@@ -40,6 +40,8 @@ jobs:
 
       - name: Smoke test local commands
         run: |
+          osi-m0 provider-info >/dev/null
           osi-m0 list-tools >/dev/null
           osi-m0 invoke search_ai_projects --arguments '{"query":"self-hosted RAG"}' >/dev/null
+          osi-probe --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
