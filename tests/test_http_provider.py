@@ -1,0 +1,219 @@
+from __future__ import annotations
+
+import unittest
+from typing import Any, Callable, Mapping
+
+from aiworkstation_osi.errors import UpstreamContractError
+from aiworkstation_osi.http_provider import (
+    AIWorkstationHttpProvider,
+    JsonResponse,
+    UrllibJsonTransport,
+)
+from aiworkstation_osi.tools import ToolRegistry
+
+
+class RouterTransport:
+    def __init__(
+        self,
+        handler: Callable[[str, str, Mapping[str, Any], Mapping[str, Any]], tuple[int, Mapping[str, Any]]],
+    ) -> None:
+        self.handler = handler
+        self.calls: list[tuple[str, str, dict[str, Any], dict[str, Any]]] = []
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        query: Mapping[str, Any] | None = None,
+        body: Mapping[str, Any] | None = None,
+        timeout: float = 30.0,
+    ) -> JsonResponse:
+        query_dict = dict(query or {})
+        body_dict = dict(body or {})
+        self.calls.append((method, path, query_dict, body_dict))
+        status, payload = self.handler(method, path, query_dict, body_dict)
+        return JsonResponse(
+            status=status,
+            headers={"date": "Thu, 06 Aug 2026 14:00:00 GMT"},
+            payload=dict(payload),
+            url="https://example.test" + path,
+            observed_at="2026-08-06T14:00:00Z",
+        )
+
+
+def project_card(project_id: str, route_id: str) -> dict[str, Any]:
+    owner, repo = project_id.split("/", 1)
+    return {
+        "id": route_id,
+        "owner": owner,
+        "repo": repo,
+        "full_name": project_id,
+        "name": repo,
+    }
+
+
+def project_detail(project_id: str, *, license_name: str = "Apache-2.0") -> dict[str, Any]:
+    owner, repo = project_id.split("/", 1)
+    return {
+        "full_name": project_id,
+        "owner": owner,
+        "repo": repo,
+        "name": repo,
+        "summary": f"Public summary for {repo}",
+        "license": license_name,
+        "deployment": ["self-hosted", "docker"],
+        "languages": ["Python"],
+        "stars": 123,
+        "updated_at": "2026-08-05T00:00:00Z",
+        "categories": ["rag"],
+        "use_cases": ["knowledge-base"],
+        "archived": False,
+        "interpretation": {
+            "coverage_level": "EN_L2",
+            "transparency": {"source_count": 3},
+        },
+    }
+
+
+class HttpProviderTests(unittest.TestCase):
+    def test_plain_http_is_rejected_for_non_localhost(self) -> None:
+        with self.assertRaises(ValueError):
+            UrllibJsonTransport("http://example.com")
+        UrllibJsonTransport("http://127.0.0.1:9010")
+
+    def test_project_facts_are_promoted_only_with_snapshot_and_public_detail(self) -> None:
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            if path.endswith("/projects"):
+                return 200, {
+                    "snapshot_id": "snapshot-1",
+                    "items": [project_card("infiniflow/ragflow", "ragflow")],
+                }
+            if path.endswith("/projects/ragflow"):
+                return 200, {
+                    "snapshot_id": "snapshot-1",
+                    "item": project_detail("infiniflow/ragflow"),
+                }
+            raise AssertionError((method, path, query, body))
+
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(handler),
+        )
+        result = ToolRegistry(provider).invoke(
+            "get_project_facts",
+            {"project_id": "infiniflow/ragflow", "locale": "en"},
+        )
+
+        self.assertEqual(result.data["snapshot_id"], "snapshot-1")
+        self.assertEqual(result.data["project"]["license"], "Apache-2.0")
+        by_field = {fact.field: fact for fact in result.verified_facts}
+        self.assertEqual(by_field["license"].confidence, "high")
+        self.assertEqual(by_field["license"].evidence[0].source_type, "aiworkstation_public_release")
+        self.assertFalse(result.recommendations)
+
+    def test_search_uses_selector_and_hydrates_current_project_details(self) -> None:
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            if path.endswith("/selector"):
+                self.assertEqual(body["use_model"], False)
+                self.assertIn("required", body["query"])
+                return 200, {
+                    "evidence_status": "available",
+                    "result_kind": "projects",
+                    "items": [project_card("infiniflow/ragflow", "ragflow")],
+                }
+            if path.endswith("/projects"):
+                return 200, {
+                    "snapshot_id": "snapshot-1",
+                    "items": [project_card("infiniflow/ragflow", "ragflow")],
+                }
+            if path.endswith("/projects/ragflow"):
+                return 200, {
+                    "snapshot_id": "snapshot-1",
+                    "item": project_detail("infiniflow/ragflow"),
+                }
+            raise AssertionError((method, path, query, body))
+
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(handler),
+        )
+        result = ToolRegistry(provider).invoke(
+            "search_ai_projects",
+            {
+                "query": "Find a private RAG service",
+                "constraints": {"docker": "required"},
+                "locale": "en",
+            },
+        )
+
+        self.assertEqual(result.data["total"], 1)
+        self.assertEqual(result.data["projects"][0]["project_id"], "infiniflow/ragflow")
+        self.assertTrue(any(fact.field.endswith(".license") for fact in result.verified_facts))
+        self.assertFalse(any(risk.code == "MOCK_DATA" for risk in result.risks))
+
+    def test_partial_selector_requires_public_notice(self) -> None:
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            return 200, {"evidence_status": "partial", "items": []}
+
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(handler),
+        )
+        with self.assertRaises(UpstreamContractError):
+            provider.search_projects({"query": "RAG", "constraints": {}, "locale": "en"})
+
+    def test_project_detail_without_snapshot_fails_closed(self) -> None:
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            if path.endswith("/projects"):
+                return 200, {"items": [project_card("infiniflow/ragflow", "ragflow")]}
+            raise AssertionError((method, path, query, body))
+
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(handler),
+        )
+        with self.assertRaises(UpstreamContractError):
+            provider.get_project_facts({"project_id": "infiniflow/ragflow", "locale": "en"})
+
+    def test_comparison_rejects_mixed_public_snapshots(self) -> None:
+        snapshots = {
+            "langgenius/dify": "snapshot-1",
+            "infiniflow/ragflow": "snapshot-2",
+        }
+        routes = {
+            "langgenius/dify": "dify",
+            "infiniflow/ragflow": "ragflow",
+        }
+
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            if path.endswith("/projects"):
+                project_id = str(query["q"])
+                return 200, {
+                    "snapshot_id": snapshots[project_id],
+                    "items": [project_card(project_id, routes[project_id])],
+                }
+            for project_id, route_id in routes.items():
+                if path.endswith("/projects/" + route_id):
+                    return 200, {
+                        "snapshot_id": snapshots[project_id],
+                        "item": project_detail(project_id),
+                    }
+            raise AssertionError((method, path, query, body))
+
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(handler),
+        )
+        with self.assertRaises(UpstreamContractError):
+            provider.compare_projects(
+                {
+                    "project_ids": ["langgenius/dify", "infiniflow/ragflow"],
+                    "criteria": ["license"],
+                    "locale": "en",
+                }
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
