@@ -16,6 +16,7 @@ open-source AI projects with explicit evidence and uncertainty boundaries.
 - an MCP Python SDK v2 stdio server with server-wide safety instructions;
 - live public-contract probes, sanitized capture, validation and offline replay;
 - a deterministic Skills-only alpha ZIP builder with SHA-256 checksums;
+- a consolidated code/live/operator release-readiness report;
 - automated unit, plugin, MCP, workflow and packaging tests.
 
 This is not yet a hosted public MCP service or a public-directory release. The
@@ -63,6 +64,7 @@ GitHub projects, save collections, authenticate users or process payments.
 ├── tests/                       unit, provider, workflow and MCP tests
 ├── examples/                    invocation and Codex configuration examples
 ├── docs/                        architecture, setup and release runbooks
+├── CHANGELOG.md
 ├── AGENTS.md
 ├── SECURITY.md
 └── PRIVACY.md
@@ -76,7 +78,12 @@ source .venv/bin/activate
 python -m pip install -e ".[mcp]"
 python -m unittest discover -s tests -v
 osi-validate-plugin --root .
+osi-readiness --root .
 ```
+
+The default readiness command verifies the code tree only. It should report
+`code_ready=true` while keeping `external_alpha_ready=false` until live captures,
+CI results, Codex testing and human review are supplied.
 
 ## Install the local Skills plugin
 
@@ -216,8 +223,8 @@ osi-build-alpha --root . --output-dir dist/alpha
 )
 ```
 
-The archive contains the plugin manifests, three Skills, public documentation
-and an embedded file manifest with individual SHA-256 hashes. It deliberately
+The archive contains the plugin manifests, three Skills, public documentation,
+changelog and an embedded file manifest with individual SHA-256 hashes. It
 excludes Python source, tests, CI workflows, `pyproject.toml` and the live MCP
 server, so it does not imply live Radar access.
 
@@ -230,6 +237,33 @@ uploading the archive:
 
 See [`docs/alpha-tester-guide.md`](docs/alpha-tester-guide.md) and
 [`docs/external-alpha-checklist.md`](docs/external-alpha-checklist.md).
+
+## Produce the final alpha-readiness report
+
+After downloading and reviewing both live contract directories:
+
+```bash
+osi-readiness \
+  --root . \
+  --contracts-en /path/to/contracts-en \
+  --contracts-zh /path/to/contracts-zh \
+  --ci-python310-passed \
+  --ci-python312-passed \
+  --codex-tested \
+  --artifact-reviewed \
+  --live-validation-run-id 123456789 \
+  --reviewer "Reviewer name" \
+  --require-external-alpha \
+  --output tmp/external-alpha-readiness.json
+```
+
+The command validates and replays the supplied captures, but CI, Codex and human
+review flags remain explicit operator attestations. It never claims those gates
+were independently observed. Public-launch readiness intentionally remains false
+until software licensing, public legal/support pages and hosted MCP protections
+are complete.
+
+See [`docs/release-readiness.md`](docs/release-readiness.md).
 
 ## Architecture
 
@@ -260,6 +294,7 @@ contracts rather than importing its private Python modules.
 - [`docs/codex-setup.md`](docs/codex-setup.md)
 - [`docs/live-validation-workflow.md`](docs/live-validation-workflow.md)
 - [`docs/production-validation.md`](docs/production-validation.md)
+- [`docs/release-readiness.md`](docs/release-readiness.md)
 - [`docs/alpha-tester-guide.md`](docs/alpha-tester-guide.md)
 - [`docs/external-alpha-checklist.md`](docs/external-alpha-checklist.md)
 - [`schemas/tool-manifest.json`](schemas/tool-manifest.json)
@@ -275,9 +310,11 @@ contracts rather than importing its private Python modules.
 3. Install and test the Skills plugin through the repo marketplace.
 4. Test the stdio server from Codex using the project-scoped configuration.
 5. Close any public-contract differences found in production responses.
-6. Select a software license, public legal pages and support contact before a
+6. Generate an external-alpha readiness report with real run and reviewer
+   evidence.
+7. Select a software license, public legal pages and support contact before a
    broad public launch.
-7. Add hosted Streamable HTTP only after authentication, host validation, rate
+8. Add hosted Streamable HTTP only after authentication, host validation, rate
    limiting, abuse controls and deployment policy are designed.
 
 ## License
