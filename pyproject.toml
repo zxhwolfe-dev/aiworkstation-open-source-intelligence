@@ -1,0 +1,8 @@
+[project]
+name = "aiworkstation-open-source-intelligence"
+version = "0.1.0"
+description = "Skills and MCP tools for open-source AI project intelligence."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
