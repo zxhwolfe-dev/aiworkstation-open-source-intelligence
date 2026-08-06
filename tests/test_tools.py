@@ -4,6 +4,11 @@ import unittest
 
 from aiworkstation_osi.app import create_default_registry, invoke_tool
 from aiworkstation_osi.errors import InvalidInputError, UnknownToolError
+from aiworkstation_osi.tools import (
+    MAX_STRUCTURED_CONTAINER_ITEMS,
+    MAX_STRUCTURED_DEPTH,
+    MAX_STRUCTURED_STRING_LENGTH,
+)
 
 
 class ToolRegistryTests(unittest.TestCase):
@@ -97,6 +102,79 @@ class ToolRegistryTests(unittest.TestCase):
             self.registry.invoke(
                 "search_ai_projects",
                 {"query": "RAG", "request_id": "x" * 129},
+            )
+
+    def test_nested_json_compatible_constraints_are_accepted(self) -> None:
+        result = self.registry.invoke(
+            "search_ai_projects",
+            {
+                "query": "private RAG",
+                "constraints": {
+                    "deployment": {
+                        "required": ["docker", "self-hosted"],
+                        "preferred": {"platforms": ["linux", "windows"]},
+                    },
+                    "budget": 1000,
+                    "offline": True,
+                    "maximum_latency": 2.5,
+                    "notes": None,
+                },
+            },
+        )
+        self.assertEqual(result.tool, "search_ai_projects")
+
+    def test_structured_inputs_reject_excessive_depth(self) -> None:
+        value: object = "leaf"
+        for index in range(MAX_STRUCTURED_DEPTH + 2):
+            value = {f"level_{index}": value}
+        with self.assertRaises(InvalidInputError) as context:
+            self.registry.invoke(
+                "search_ai_projects",
+                {"query": "RAG", "constraints": value},  # type: ignore[arg-type]
+            )
+        self.assertIn("nesting depth", context.exception.message)
+
+    def test_structured_inputs_reject_oversized_strings_and_arrays(self) -> None:
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke(
+                "search_ai_projects",
+                {
+                    "query": "RAG",
+                    "constraints": {"note": "x" * (MAX_STRUCTURED_STRING_LENGTH + 1)},
+                },
+            )
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke(
+                "search_ai_projects",
+                {
+                    "query": "RAG",
+                    "constraints": {"targets": list(range(MAX_STRUCTURED_CONTAINER_ITEMS + 1))},
+                },
+            )
+
+    def test_structured_inputs_reject_non_json_and_non_finite_values(self) -> None:
+        with self.assertRaises(InvalidInputError) as non_json:
+            self.registry.invoke(
+                "compare_ai_projects",
+                {
+                    "project_ids": ["one/project", "two/project"],
+                    "context": {"unsupported": {"set-value"}},
+                },
+            )
+        self.assertIn("JSON-compatible", non_json.exception.message)
+
+        with self.assertRaises(InvalidInputError) as non_finite:
+            self.registry.invoke(
+                "search_ai_projects",
+                {"query": "RAG", "constraints": {"weight": float("nan")}},
+            )
+        self.assertIn("non-finite", non_finite.exception.message)
+
+    def test_structured_inputs_reject_invalid_keys(self) -> None:
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke(
+                "search_ai_projects",
+                {"query": "RAG", "constraints": {"bad\nkey": "value"}},
             )
 
 
