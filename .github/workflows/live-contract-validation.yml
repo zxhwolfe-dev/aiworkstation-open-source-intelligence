@@ -108,10 +108,10 @@ jobs:
           for locale in en zh; do
             directory="$VALIDATION_ROOT/contracts-$locale"
             osi-validate-contracts --directory "$directory"
+            # Replay intentionally derives locale and project identity from the
+            # sanitized capture manifest so the exact captured contract is tested.
             osi-replay-contracts \
               --directory "$directory" \
-              --project-id "$PROJECT_ID" \
-              --locale "$locale" \
               --output "$VALIDATION_ROOT/replay-$locale.json"
           done
 
