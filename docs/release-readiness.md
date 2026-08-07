@@ -1,14 +1,10 @@
 # Release Readiness Report
 
-`osi-readiness` produces one machine-readable report that separates repository
-readiness, Skills-only external-alpha readiness, hosted private-alpha readiness
-and broad public-launch readiness.
+`osi-readiness` produces a machine-readable report that separates repository readiness, Skills-only external-alpha readiness, hosted private-alpha readiness, and broad public-launch readiness.
 
-It runs offline. It does not call AI Workstation, query GitHub Actions, connect
-to the hosted MCP endpoint or infer that a human review occurred. Live and human
-claims enter only as explicit operator evidence.
+For the preferred evidence-first release path, use `osi-evidence-readiness`, which derives CI/live/Codex gates from candidate-bound evidence artifacts instead of relying only on operator booleans.
 
-## Code-readiness check
+## Code readiness
 
 From the repository root:
 
@@ -16,19 +12,17 @@ From the repository root:
 osi-readiness --root . --output tmp/readiness.json
 ```
 
-The default exit status reflects `code_ready`. Ordinary CI can therefore verify
-the source tree without falsely certifying production contracts, Codex testing,
-a hosted endpoint or human review.
+The default exit status reflects `code_ready`. Ordinary CI can verify the source tree without falsely certifying production contracts, Codex testing, a hosted endpoint, or human review.
 
 Code readiness validates:
 
-- required source, Skill, workflow, schema, deployment and release files;
+- required source, Skill, workflow, schema, deployment, legal, and release files;
 - the Skills-only plugin package;
-- Python, plugin and changelog version alignment;
-- two byte-identical deterministic alpha builds;
+- Python/plugin/changelog version alignment;
+- two byte-identical deterministic Skills builds;
 - Skills-only distribution scope and absence of a bundled live-MCP claim.
 
-A healthy pre-validation tree is expected to look like:
+A healthy tree before external evidence is supplied is expected to look like:
 
 ```json
 {
@@ -39,107 +33,77 @@ A healthy pre-validation tree is expected to look like:
 }
 ```
 
-## Skills-only external-alpha evidence
+## Evidence-first External Alpha
 
-After the live workflow has produced reviewed English and Chinese captures:
+The preferred machine path combines:
 
-```bash
-osi-readiness \
-  --root . \
-  --contracts-en /path/to/contracts-en \
-  --contracts-zh /path/to/contracts-zh \
-  --ci-python310-passed \
-  --ci-python312-passed \
-  --codex-tested \
-  --artifact-reviewed \
-  --live-validation-run-id REAL_RUN_ID \
-  --reviewer "REAL_REVIEWER" \
-  --require-external-alpha \
-  --output tmp/external-alpha-readiness.json
-```
+1. `ci-evidence.json` from the successful Python 3.10/3.12 CI matrix;
+2. `validation-evidence.json` plus the protected bilingual live-contract artifact;
+3. a real `osi-codex-acceptance` report and matching privacy-safe ledger;
+4. a human artifact-review decision and reviewer identity.
 
-The command validates and replays both capture directories. CI, Codex, review,
-run ID and reviewer flags remain operator attestations; compare them with the
-actual run records before inviting testers.
+See [`evidence-readiness.md`](evidence-readiness.md) for the exact command and candidate-binding checks.
 
-## Hosted private-alpha evidence
-
-A guarded Streamable HTTP endpoint adds another readiness level. It requires the
-entire Skills-only external-alpha gate plus a real protected remote endpoint.
-
-```bash
-osi-readiness \
-  --root . \
-  --contracts-en /path/to/contracts-en \
-  --contracts-zh /path/to/contracts-zh \
-  --ci-python310-passed \
-  --ci-python312-passed \
-  --codex-tested \
-  --artifact-reviewed \
-  --live-validation-run-id REAL_RUN_ID \
-  --reviewer "REAL_REVIEWER" \
-  --remote-mcp-tested \
-  --remote-mcp-url https://mcp.example.com/mcp \
-  --hosted-gateway-protected \
-  --require-hosted-alpha \
-  --output tmp/hosted-alpha-readiness.json
-```
-
-The remote URL must be credential-free HTTPS. `--remote-mcp-tested` means an
-operator actually ran the remote compatibility smoke test; the readiness command
-does not perform that network call. `--hosted-gateway-protected` means the
-endpoint is behind an authenticated TLS gateway or trusted private network.
+The older `osi-readiness` attestation flags remain available for compatibility, but operator booleans do not replace real workflow artifacts in a release decision.
 
 ## Readiness levels
 
 ### `code_ready`
 
-True only when the repository structure, plugin package, version alignment,
-deployment scaffolding and deterministic Skills-only bundle pass their offline
-checks.
+True only when repository structure, plugin package, version alignment, deployment scaffolding, public release documents, and deterministic Skills bundle pass their offline checks.
 
 ### `external_alpha_ready`
 
-True only when `code_ready` is true and all of the following are supplied and
-pass:
+True only when `code_ready` is true and the current candidate has passing:
 
 - English contract validation and provider replay;
 - Chinese contract validation and provider replay;
-- Python 3.10 CI attestation;
-- Python 3.12 CI attestation;
-- local/Codex MCP integration attestation;
-- sanitized artifact review attestation;
-- live validation workflow run ID;
-- reviewer identity.
+- Python 3.10 CI;
+- Python 3.12 CI;
+- real Codex/MCP integration evidence;
+- sanitized artifact review;
+- recorded workflow/run identity;
+- named human reviewer.
 
-This level is appropriate for distributing the Skills-only alpha package to an
-invited cohort.
+This level is appropriate for distributing the reviewed Skills-only alpha package to an invited cohort.
 
 ### `hosted_private_alpha_ready`
 
-True only when `external_alpha_ready` is true and all of the following are also
-present:
+Requires the full Skills-only gate plus:
 
 - a credential-free HTTPS MCP endpoint URL;
-- attestation that `osi-remote-smoke` passed against the deployed endpoint;
-- attestation that an authenticated gateway or trusted private network protects
-the endpoint.
+- successful remote MCP smoke testing;
+- an authenticated gateway or trusted private-network protection attestation.
 
-This level is for invited hosted testing. It is not equivalent to a public
-Internet launch.
+This is for invited hosted testing, not unrestricted Internet launch.
 
 ### `public_launch_ready`
 
-Intentionally remains false in M1. Current blockers include:
+Intentionally remains false until the **hosted/public service** gates are complete.
 
-- software license not selected;
-- final public privacy policy and terms not published;
-- native per-user OAuth/identity and revocation not delivered;
-- production quotas, rate limiting and abuse controls not fully delivered;
-- public directory/platform review not completed.
+The public repository and first Skills-only package have now resolved earlier repository-level blockers:
 
-Do not change the readiness command merely to make these blockers disappear.
-Resolve the underlying product, infrastructure and legal decisions first.
+- Apache-2.0 software license selected;
+- public repository Privacy/Terms/Support/Security documents published;
+- public Skills listing/submission metadata prepared.
+
+Remaining broad public hosted-service blockers include:
+
+- service-specific hosted privacy/terms/retention policy;
+- final user identity/authentication and revocation model where required by product scope;
+- production quotas, rate limiting, and abuse controls;
+- canonical public MCP connection/domain review;
+- actual public directory/platform submission approval and publish action.
+
+Do not remove these blockers merely to make a readiness report green. Resolve the underlying product/infrastructure/platform gates.
+
+## Public Skills release versus hosted MCP
+
+These are separate release layers.
+
+A Skills-only package can be prepared and submitted without pretending that a public hosted MCP is already available. Its Skills explicitly degrade to requirements/verification workflows when live tools are absent.
+
+A combined Skills + hosted MCP release requires the additional hosted-service gates above.
 
 ## Report integrity
 
@@ -150,18 +114,13 @@ The v2 report separates:
 - `hosted_alpha_blockers`;
 - `public_launch_blockers`;
 - plugin warnings;
-- individual checks and details;
+- individual checks/details;
 - explicit operator attestations.
 
-An attestation flag is evidence supplied by the operator, not proof generated by
-the tool. Record real workflow IDs, endpoint URLs and reviewer names.
+`osi-evidence-readiness` additionally records validated CI, Codex, and live-validation evidence summaries.
 
 ## CI behavior
 
-The standard CI workflow runs `osi-readiness` without live captures or
-attestations. It requires `code_ready=true` and requires
-`external_alpha_ready=false`; ordinary CI must not accidentally certify a live
-release.
+The standard CI workflow runs readiness without external live/reviewer evidence. It requires `code_ready=true` while ordinary CI alone must not certify an External Alpha or hosted launch.
 
-Use the manual live-validation workflow, remote smoke client and the v2
-readiness report together for private-alpha release decisions.
+Use candidate-bound workflow evidence, real Codex acceptance, and human artifact review for release decisions.
