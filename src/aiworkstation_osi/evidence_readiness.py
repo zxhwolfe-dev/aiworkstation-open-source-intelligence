@@ -10,11 +10,13 @@ the existing deterministic readiness evaluator.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .codex_acceptance import WORKFLOW_VERSION, evaluate_ledger, load_ledger
 from .contracts import TOOL_NAMES
 from .release_readiness import evaluate_release_readiness
 
@@ -45,6 +47,13 @@ def _git_head(root: Path) -> str:
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return completed.stdout.strip() if completed.returncode == 0 else ""
+
+
+def _sha256_file(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return ""
 
 
 def validate_codex_acceptance_report(
@@ -80,17 +89,26 @@ def validate_codex_acceptance_report(
     provider = str(payload.get("provider") or "").strip()
     base_url = str(payload.get("base_url") or "").strip().rstrip("/")
     expected_origin = str(expected_base_url or DEFAULT_RADAR_BASE_URL).strip().rstrip("/")
-    ledger = payload.get("ledger") if isinstance(payload.get("ledger"), Mapping) else {}
-    expected_tools = [str(value) for value in ledger.get("expected_tools") or []]
-    successful_tools = [str(value) for value in ledger.get("successful_tools") or []]
-    missing_tools = [str(value) for value in ledger.get("missing_tools") or []]
+    reported_ledger = payload.get("ledger") if isinstance(payload.get("ledger"), Mapping) else {}
     required_tools = list(TOOL_NAMES)
+
+    ledger_path_text = str(payload.get("ledger_path") or "").strip()
+    ledger_path = Path(ledger_path_text).expanduser() if ledger_path_text else Path()
+    ledger_absolute = bool(ledger_path_text) and ledger_path.is_absolute()
+    if ledger_absolute:
+        ledger_path = ledger_path.resolve()
+    actual_events = load_ledger(ledger_path) if ledger_absolute else []
+    actual_ledger = evaluate_ledger(actual_events)
+    actual_digest = _sha256_file(ledger_path) if ledger_absolute else ""
+    reported_digest = str(payload.get("ledger_sha256") or "").strip().lower()
 
     if payload.get("schema_version") != CODEX_ACCEPTANCE_SCHEMA:
         errors.append("Codex acceptance schema is not supported")
+    if payload.get("workflow_version") != WORKFLOW_VERSION:
+        errors.append("Codex acceptance workflow version is not supported")
     if payload.get("ok") is not True:
         errors.append("Codex acceptance report did not pass")
-    if payload.get("codex_completed") is not True or int(payload.get("codex_returncode") or 0) != 0:
+    if payload.get("codex_completed") is not True or payload.get("codex_returncode") != 0:
         errors.append("Codex acceptance process did not complete successfully")
     if provider != "http":
         errors.append("Codex acceptance must use the live HTTP provider")
@@ -100,13 +118,25 @@ def validate_codex_acceptance_report(
         errors.append("candidate Git commit could not be resolved")
     elif report_commit != candidate_commit:
         errors.append("Codex acceptance report belongs to a different candidate commit")
+    if not ledger_absolute:
+        errors.append("Codex acceptance ledger path must be absolute")
+    elif not ledger_path.is_file():
+        errors.append("Codex acceptance ledger file is missing")
+    if not reported_digest or reported_digest != actual_digest:
+        errors.append("Codex acceptance ledger digest does not match the report")
+    if dict(reported_ledger) != actual_ledger:
+        errors.append("Codex acceptance report ledger summary does not match the ledger file")
+
+    expected_tools = [str(value) for value in actual_ledger.get("expected_tools") or []]
+    successful_tools = [str(value) for value in actual_ledger.get("successful_tools") or []]
+    missing_tools = [str(value) for value in actual_ledger.get("missing_tools") or []]
     if expected_tools != required_tools:
         errors.append("Codex acceptance expected-tool set does not match the six-tool contract")
     if set(successful_tools) != set(required_tools) or len(successful_tools) != len(required_tools):
         errors.append("Codex acceptance did not prove success for all six tools")
     if missing_tools:
         errors.append("Codex acceptance still reports missing tools")
-    success_counts = ledger.get("success_counts") if isinstance(ledger.get("success_counts"), Mapping) else {}
+    success_counts = actual_ledger.get("success_counts") if isinstance(actual_ledger.get("success_counts"), Mapping) else {}
     if any(int(success_counts.get(tool) or 0) < 1 for tool in required_tools):
         errors.append("Codex acceptance ledger lacks a success event for one or more tools")
 
@@ -119,8 +149,10 @@ def validate_codex_acceptance_report(
         "provider": provider,
         "base_url": base_url,
         "codex_version": str(payload.get("codex_version") or "")[:200],
+        "ledger_path": str(ledger_path) if ledger_absolute else ledger_path_text,
+        "ledger_sha256": actual_digest,
         "successful_tools": successful_tools,
-        "event_count": int(ledger.get("event_count") or 0),
+        "event_count": int(actual_ledger.get("event_count") or 0),
         "errors": errors,
     }
 
