@@ -9,6 +9,7 @@ from typing import Any, Mapping
 from aiworkstation_osi.contract_capture import (
     REDACTED_QUERY_TEXT,
     REMOVED_KEYS,
+    SELECTOR_REMOVED_KEYS,
     capture_public_contracts,
     sanitize_public_value,
 )
@@ -60,9 +61,10 @@ class EchoingSelectorTransport:
                 },
                 "query_analysis": {
                     "goal": request_text,
-                    "search_queries": {"en": [request_text]},
+                    "search_queries": {"en": [f"paraphrase of {request_text}"]},
                 },
-                "understanding": f"Echoed request: {request_text}",
+                "understanding": f"Paraphrased request about {request_text}",
+                "notice": f"Safe retained result can still exactly echo {request_text}",
             }
         else:
             raise AssertionError((method, path, query, body, timeout))
@@ -81,7 +83,7 @@ class ContractCapturePrivacyTests(unittest.TestCase):
         sanitized = sanitize_public_value(
             {
                 "goal": private_query,
-                "understanding": f"You asked for {private_query.lower()} today",
+                "notice": f"You asked for {private_query.lower()} today",
             },
             redact_texts=(private_query,),
         )
@@ -90,7 +92,7 @@ class ContractCapturePrivacyTests(unittest.TestCase):
         self.assertNotIn(private_query.lower(), rendered.lower())
         self.assertIn(REDACTED_QUERY_TEXT, rendered)
 
-    def test_capture_removes_requirement_token_and_echoed_query_text(self) -> None:
+    def test_capture_removes_selector_query_metadata_and_exact_echoes(self) -> None:
         formal_query = "PRIVATE FORMAL QUERY 7b93"
         no_match_query = "PRIVATE NO MATCH QUERY 82ac"
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -109,18 +111,29 @@ class ContractCapturePrivacyTests(unittest.TestCase):
                 ("selector-no-match.json", no_match_query),
             ):
                 rendered = (root / filename).read_text(encoding="utf-8")
-                payload = json.loads(rendered)
+                payload = json.loads(rendered)["payload"]
                 self.assertNotIn(private_text, rendered)
-                self.assertNotIn("requirement_token", rendered)
-                self.assertIn(REDACTED_QUERY_TEXT, rendered)
-                self.assertIn("requirement_spec", payload["payload"])
-                self.assertIn("query_analysis", payload["payload"])
+                for forbidden in (
+                    "requirement_token",
+                    "requirement_spec",
+                    "query_analysis",
+                    "understanding",
+                ):
+                    self.assertNotIn(forbidden, payload)
+                # Retained public output is still protected from an exact echo.
+                self.assertEqual(payload["notice"], f"Safe retained result can still exactly echo {REDACTED_QUERY_TEXT}")
 
             self.assertIn("requirement_token", REMOVED_KEYS)
+            for key in ("understanding", "query_analysis", "requirement_spec"):
+                self.assertIn(key, SELECTOR_REMOVED_KEYS)
             self.assertFalse(manifest["sanitization"]["stores_query_text"])
             self.assertEqual(
                 manifest["sanitization"]["query_text_redaction"],
-                "exact_case_insensitive",
+                "selector_metadata_removed_plus_exact_echo_redaction",
+            )
+            self.assertEqual(
+                set(manifest["sanitization"]["selector_removed_keys"]),
+                set(SELECTOR_REMOVED_KEYS),
             )
 
 
