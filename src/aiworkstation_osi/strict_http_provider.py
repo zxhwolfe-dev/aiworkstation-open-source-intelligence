@@ -51,6 +51,27 @@ INTERNAL_PUBLIC_FIELDS = {
 }
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Prevent public Radar requests from leaving the configured origin.
+
+    urllib follows redirects by default. For a verification adapter, a redirect
+    is a contract change and must be investigated instead of being followed.
+    Returning ``None`` causes urllib to surface the 3xx response as HTTPError,
+    which the transport then normalizes and rejects below.
+    """
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        return None
+
+
 def normalize_license(value: Any) -> str | None:
     """Return a public license observation or ``None`` for unknown sentinels."""
 
@@ -86,7 +107,14 @@ def _find_internal_fields(value: Any) -> set[str]:
 
 
 class SafeUrllibJsonTransport(UrllibJsonTransport):
-    """Standard-library transport with safe HTTP-error and 404 handling."""
+    """Standard-library transport with safe HTTP-error and redirect handling."""
+
+    def _open(self, request: urllib.request.Request, *, timeout: float) -> Any:
+        opener = urllib.request.build_opener(
+            _NoRedirectHandler(),
+            urllib.request.HTTPSHandler(context=self._ssl_context),
+        )
+        return opener.open(request, timeout=timeout)
 
     def request(
         self,
@@ -111,11 +139,7 @@ class SafeUrllibJsonTransport(UrllibJsonTransport):
         request = urllib.request.Request(url, data=data, method=method.upper(), headers=headers)
 
         try:
-            response = urllib.request.urlopen(
-                request,
-                timeout=timeout,
-                context=self._ssl_context if url.startswith("https://") else None,
-            )
+            response = self._open(request, timeout=timeout)
             status = int(response.status)
             raw_headers = {key.lower(): value for key, value in response.headers.items()}
             raw = response.read(self.max_response_bytes + 1)
@@ -128,6 +152,16 @@ class SafeUrllibJsonTransport(UrllibJsonTransport):
             raw = exc.read(self.max_response_bytes + 1)
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise ProviderUnavailableError("AI Workstation public Radar request failed") from exc
+
+        if 300 <= status < 400:
+            raise UpstreamContractError(
+                "AI Workstation public Radar redirects are not allowed",
+                details={
+                    "url": url,
+                    "status": status,
+                    "location_present": bool(raw_headers.get("location")),
+                },
+            )
 
         if len(raw) > self.max_response_bytes:
             raise UpstreamContractError(
@@ -190,6 +224,11 @@ class AIWorkstationHttpProvider(BaseAIWorkstationHttpProvider):
         body: Mapping[str, Any] | None = None,
     ) -> JsonResponse:
         response = self.transport.request(method, path, query=query, body=body, timeout=self.timeout)
+        if 300 <= response.status < 400:
+            raise UpstreamContractError(
+                "AI Workstation public Radar redirects are not allowed",
+                details={"status": response.status, "url": response.url},
+            )
         if response.status in RETRYABLE_HTTP_STATUSES or response.status >= 500:
             raise ProviderUnavailableError("AI Workstation public Radar is temporarily unavailable")
         if response.status >= 400 and response.status != 404:
