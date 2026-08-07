@@ -109,6 +109,12 @@ class UrllibJsonTransport:
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise ProviderUnavailableError("AI Workstation public Radar request failed") from exc
 
+        # Availability errors are not response-contract evidence. Reverse proxies commonly
+        # render 5xx responses as HTML, so classify them before attempting JSON decoding.
+        # The provider-level status check remains as a compatibility guard for custom
+        # transports that return a JsonResponse directly.
+        if status >= 500:
+            raise ProviderUnavailableError("AI Workstation public Radar is temporarily unavailable")
         if len(raw) > self.max_response_bytes:
             raise UpstreamContractError(
                 "AI Workstation response exceeded the configured size limit",
