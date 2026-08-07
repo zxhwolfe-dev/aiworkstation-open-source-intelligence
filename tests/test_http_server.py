@@ -69,6 +69,7 @@ class HttpServerSettingsTests(unittest.TestCase):
             "https://example.com",
             "https://aiworkstation.cn/private/path",
             "https://user:pass@aiworkstation.cn",
+            "https://aiworkstation.cn:99999",
         ):
             with self.subTest(base_url=base_url), self.assertRaises(ValueError):
                 self._settings(
@@ -94,12 +95,13 @@ class HttpServerSettingsTests(unittest.TestCase):
                     OSI_PROVIDER="http",
                 )
 
-    def test_browser_origins_are_https_origins_without_paths(self) -> None:
+    def test_browser_origins_are_https_origins_without_paths_or_invalid_ports(self) -> None:
         for origin in (
             "http://app.example.com",
             "https://user:pass@app.example.com",
             "https://app.example.com/path",
             "https://app.example.com?debug=1",
+            "https://app.example.com:99999",
         ):
             with self.subTest(origin=origin), self.assertRaises(ValueError):
                 self._settings(
