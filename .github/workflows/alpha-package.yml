@@ -64,13 +64,19 @@ jobs:
               manifest = json.loads(bundle.read("BUNDLE-MANIFEST.json"))
 
           expected = {
+              "BUNDLE-MANIFEST.json",
               ".codex-plugin/plugin.json",
               ".agents/plugins/marketplace.json",
+              "README.md",
+              "README.zh-CN.md",
+              "LICENSE",
+              "TERMS.md",
+              "ROADMAP.md",
+              "docs/QUICKSTART.md",
+              "docs/FAQ.md",
               "skills/open-source-project-research/SKILL.md",
               "skills/open-source-project-comparison/SKILL.md",
               "skills/open-source-stack-planner/SKILL.md",
-              "docs/alpha-tester-guide.md",
-              "docs/external-alpha-checklist.md",
               "SECURITY.md",
               "PRIVACY.md",
               "SUPPORT.md",
@@ -109,9 +115,10 @@ jobs:
                   f"- Archive: `{Path(report['archive']).name}`",
                   f"- SHA-256: `{report['archive_sha256']}`",
                   f"- Packaged files: `{report['file_count']}`",
+                  "- License: `Apache-2.0`",
                   "- Live MCP bundled: `false`",
                   "",
-                  "The package contains the three reviewed Skills plus security, privacy and support documentation.",
+                  "The package contains the three reviewed Skills plus bilingual quickstart, license, terms, security, privacy and support documentation.",
               ]
           ) + "\n"
           Path("dist/alpha/SUMMARY.md").write_text(summary, encoding="utf-8")
