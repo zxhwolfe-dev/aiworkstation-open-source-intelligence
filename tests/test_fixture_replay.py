@@ -59,7 +59,25 @@ def write_replay_directory(root: Path) -> None:
                     "archived": False,
                     "interpretation": {
                         "coverage_level": "EN_L2",
-                        "transparency": {"source_count": 3},
+                        "transparency": {
+                            "published_at": "2026-08-06T13:00:00Z",
+                            "source_updated_at": "2026-08-06T12:00:00Z",
+                            "quality_label": "Deterministically validated and independently reviewed",
+                            "sources": [
+                                {
+                                    "source_label": "README",
+                                    "source_path": "README.md",
+                                    "section_heading": "Deployment",
+                                    "excerpt": "Self-host with Docker.",
+                                },
+                                {
+                                    "source_label": "License",
+                                    "source_path": "LICENSE",
+                                    "section_heading": "License",
+                                    "excerpt": "Licensed under Apache-2.0.",
+                                },
+                            ],
+                        },
                     },
                 },
             },
@@ -114,6 +132,7 @@ class FixtureReplayTests(unittest.TestCase):
         by_id = {check["id"]: check for check in report["checks"]}
         self.assertTrue(by_id["project-snapshot"]["ok"])
         self.assertTrue(by_id["license-boundary"]["ok"])
+        self.assertEqual(by_id["license-boundary"]["details"]["license"], "Apache-2.0")
         self.assertTrue(by_id["selector-honesty"]["ok"])
         self.assertTrue(by_id["no-match-replay"]["ok"])
         formal_paths = {call["path"] for call in report["request_summary"]["formal_calls"]}
