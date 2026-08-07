@@ -1,12 +1,8 @@
 # External Alpha Release Checklist
 
-Use this checklist before inviting anyone outside the core development workflow.
-A checked box must be backed by the current candidate commit, a workflow artifact,
-a real Codex acceptance report, or a named human reviewer. Do not check an item
-based only on intent or model prose.
+Use this checklist before inviting anyone outside the core development workflow. A checked box must be backed by the current candidate commit, a workflow artifact, a real Codex acceptance report, or a named human reviewer.
 
-The preferred machine-evidence flow is documented in
-[`evidence-readiness.md`](evidence-readiness.md).
+The preferred machine-evidence flow is documented in [`evidence-readiness.md`](evidence-readiness.md).
 
 ## Source and build identity
 
@@ -23,66 +19,65 @@ The preferred machine-evidence flow is documented in
 - [ ] The standard `ci` workflow succeeds on Python 3.12.
 - [ ] The successful matrix produces `ci-evidence.json` for the same candidate commit.
 - [ ] `osi-validate-plugin --root .` succeeds.
-- [ ] The bilingual core evaluation corpus passes structural checks.
-- [ ] The bilingual plugin workflow corpus passes structural checks.
+- [ ] The bilingual evaluation corpora pass.
 - [ ] In-memory MCP tests discover exactly six tools.
 - [ ] All tools advertise read-only, non-destructive and idempotent hints.
 
 ## Real Codex MCP acceptance
 
 - [ ] `osi-codex-acceptance` runs from the same candidate commit.
-- [ ] The acceptance uses the live HTTP provider and intended public Radar origin.
+- [ ] The acceptance uses the intended live HTTP provider/origin.
 - [ ] Codex completes successfully in the ephemeral read-only acceptance session.
 - [ ] The privacy-safe ledger records at least one successful invocation for each of the six tools.
-- [ ] The acceptance report SHA-256 matches the ledger file used by readiness.
+- [ ] The report SHA-256 matches the ledger file.
 - [ ] `osi-evidence-readiness` accepts the candidate-bound Codex report.
 
 ## Live public contract
 
-- [ ] The manual `live-contract-validation` workflow succeeds for the same candidate commit.
+- [ ] `live-contract-validation` succeeds for the same candidate commit.
 - [ ] English public probe succeeds.
 - [ ] Chinese public probe succeeds.
-- [ ] English contract capture validates and replays.
-- [ ] Chinese contract capture validates and replays.
+- [ ] English capture validates and replays.
+- [ ] Chinese capture validates and replays.
 - [ ] Artifact forbidden-key scan succeeds.
-- [ ] `validation-evidence.json` is present and its protected-file SHA-256 checks pass.
-- [ ] The tested AI Workstation origin is the intended alpha origin.
+- [ ] `validation-evidence.json` is present and protected-file SHA-256 checks pass.
+- [ ] The tested AI Workstation origin is the intended origin.
 - [ ] A human reviewer inspects the sanitized artifact.
-- [ ] The reviewer name is recorded.
+- [ ] Reviewer identity is recorded.
 
 ## Data and decision boundaries
 
 - [ ] Every verified fact has evidence and observation time.
 - [ ] Recommendations are separate from verified facts.
 - [ ] Unknown fields remain explicit.
-- [ ] Missing and sentinel licenses remain unknown.
+- [ ] Missing/sentinel licenses remain unknown.
 - [ ] Non-standard license labels require manual review.
 - [ ] Near matches never appear as full matches.
-- [ ] Impossible constraints return an explicit no-match state.
+- [ ] Impossible constraints return explicit no-match.
 - [ ] Mixed-snapshot comparison fails closed.
-- [ ] Proposed cross-project compatibility is not presented as verified.
+- [ ] Cross-project compatibility is not presented as verified without testing.
 
 ## Security and privacy
 
-- [ ] No tool writes to AI Workstation, GitHub or the local filesystem as part of product behavior.
+- [ ] Product tools remain read-only.
 - [ ] No tool executes or installs third-party repository code.
-- [ ] MCP server instructions preserve the untrusted-content boundary.
+- [ ] MCP instructions preserve the untrusted-content boundary.
 - [ ] No real credential is required for the anonymous alpha provider path.
 - [ ] Acceptance ledger contains no tool arguments, project IDs, queries, prompts, results or raw request IDs.
-- [ ] Live contract artifacts contain no forbidden keys or private internal evidence fields.
-- [ ] `SECURITY.md` contains a usable private reporting route.
-- [ ] `PRIVACY.md` matches the actual pre-release behavior.
-- [ ] Security findings classified critical or high are closed or blocking.
+- [ ] Live contract artifacts contain no forbidden/private internal fields.
+- [ ] `SECURITY.md`, `PRIVACY.md`, `TERMS.md`, and `SUPPORT.md` match the release scope.
+- [ ] Critical/high findings are closed or explicitly block release.
 
 ## Distribution package
 
 - [ ] Skills-only plugin package validates locally.
 - [ ] Package does not claim a live MCP connection when none is bundled.
-- [ ] Package does not claim an open-source license before one is selected.
-- [ ] Included files have been reviewed for secrets and private internal data.
+- [ ] Apache-2.0 `LICENSE` is included.
+- [ ] `TERMS.md`, privacy, support and security docs are included.
+- [ ] English/Chinese onboarding is included.
+- [ ] Included files have been reviewed for secrets/private internal data.
 - [ ] Checksums are generated for distributed archives.
 - [ ] Installation instructions were tested in a clean environment.
-- [ ] Uninstallation or rollback instructions are documented.
 
 ## Tester readiness
 
@@ -92,26 +87,38 @@ The preferred machine-evidence flow is documented in
 - [ ] Required Chinese and English scenarios are assigned.
 - [ ] Feedback template and severity definitions are provided.
 - [ ] Critical findings have a private escalation path.
-- [ ] A person is assigned to triage feedback during the test window.
+- [ ] A person is assigned to triage feedback.
 
-## Commercial and legal readiness
+## Public Skills release preparation
 
-These are not required for a private technical alpha but block a broad public
-launch:
+- [x] Public repository license selected: Apache-2.0.
+- [x] Public repository privacy statement published.
+- [x] Public Terms published.
+- [x] Public Support/Security routes published.
+- [x] English/Chinese README and Quickstart prepared.
+- [x] Structured issue intake prepared.
+- [x] OpenAI Skills-only submission copy and 5+3 review cases prepared.
+- [x] GitHub/PyPI/GHCR publishing workflows prepared.
+- [ ] Publisher/developer identity verification complete on target platform.
+- [ ] Final logo/social preview uploaded.
+- [ ] Cohort feedback complete and release candidate revalidated.
+- [ ] Platform submission reviewed/approved.
 
-- [ ] Publisher identity is final.
-- [ ] Software license is selected.
-- [ ] Public privacy policy is published.
-- [ ] Terms of service are published.
-- [ ] Support contact is published.
-- [ ] Data-source commercial-use review is complete.
-- [ ] Public MCP authentication, quotas and abuse controls are designed.
-- [ ] Country availability and platform submission attestations are decided.
+## Hosted public MCP — separate gate
+
+The following do not block the first Skills-only public package, but they block a broad hosted MCP release:
+
+- [ ] Canonical public MCP hostname and deployment owner finalized.
+- [ ] Service-specific privacy/terms/retention policy finalized.
+- [ ] Identity/authentication and revocation finalized as required by product scope.
+- [ ] Production quotas, rate limiting and abuse controls delivered.
+- [ ] Monitoring/incident response delivered.
+- [ ] Remote bilingual MCP validation passed.
+- [ ] Platform connection/domain review completed.
 
 ## Release decision
 
-The final machine gate should be generated with `osi-evidence-readiness`. Record
-one outcome:
+The final machine gate should be generated with `osi-evidence-readiness`.
 
 ```text
 GO
@@ -125,16 +132,4 @@ Tester count:
 Known limitations:
 ```
 
-or:
-
-```text
-NO-GO
-Candidate commit:
-Blocking items:
-Owner for each blocker:
-Next review date:
-```
-
-A failed live contract, candidate-binding check, six-tool Codex acceptance,
-evidence boundary, license boundary, security gate or artifact sanitization gate
-is always a no-go condition.
+A failed candidate-binding check, live contract, six-tool Codex acceptance, evidence/license/security boundary, or artifact sanitization gate is always a no-go condition.
