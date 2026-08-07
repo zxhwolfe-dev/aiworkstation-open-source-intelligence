@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from aiworkstation_osi.http_server import PUBLIC_BIND_ACK, load_http_server_settings
+from aiworkstation_osi.http_server import PUBLIC_BIND_ACK, load_http_server_settings, main
 
 
 class HttpServerSettingsTests(unittest.TestCase):
@@ -80,6 +80,44 @@ class HttpServerSettingsTests(unittest.TestCase):
         for value in ("0", "65536", "not-a-port"):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 self._settings(OSI_MCP_HTTP_PORT=value)
+
+    def test_main_runs_streamable_http_stateless_json_without_opening_real_socket(self) -> None:
+        fake_server = Mock()
+        environment = {
+            "OSI_MCP_HTTP_HOST": "127.0.0.1",
+            "OSI_MCP_HTTP_PORT": "8123",
+            "OSI_PROVIDER": "mock",
+            "AIWORKSTATION_RADAR_BASE_URL": "https://aiworkstation.cn",
+        }
+        with (
+            patch.dict(os.environ, environment, clear=True),
+            patch("aiworkstation_osi.http_server.build_mcp_server", return_value=fake_server),
+        ):
+            exit_code = main([])
+
+        self.assertEqual(exit_code, 0)
+        fake_server.run.assert_called_once_with(
+            transport="streamable-http",
+            host="127.0.0.1",
+            port=8123,
+            stateless_http=True,
+            json_response=True,
+        )
+
+    def test_check_config_does_not_build_or_run_server(self) -> None:
+        environment = {
+            "OSI_MCP_HTTP_HOST": "127.0.0.1",
+            "OSI_MCP_HTTP_PORT": "8000",
+            "OSI_PROVIDER": "mock",
+        }
+        with (
+            patch.dict(os.environ, environment, clear=True),
+            patch("aiworkstation_osi.http_server.build_mcp_server") as builder,
+        ):
+            exit_code = main(["--check-config"])
+
+        self.assertEqual(exit_code, 0)
+        builder.assert_not_called()
 
 
 if __name__ == "__main__":
