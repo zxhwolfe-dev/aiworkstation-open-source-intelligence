@@ -9,6 +9,7 @@ than by trusting the model's final prose.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -22,6 +23,7 @@ from typing import Any, Mapping, Sequence
 from .contracts import TOOL_NAMES
 
 SCHEMA_VERSION = "osi.codex-acceptance.v1"
+WORKFLOW_VERSION = "osi.codex-live-workflow.v1"
 SERVER_NAME = "ai_open_source_intelligence_acceptance"
 DEFAULT_BASE_URL = "https://aiworkstation.cn"
 
@@ -158,6 +160,8 @@ def build_codex_command(
         "--ephemeral",
         "--sandbox",
         "read-only",
+        "--ask-for-approval",
+        "never",
         "--color",
         "never",
         "--json",
@@ -212,6 +216,12 @@ def evaluate_ledger(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _sha256_file(path: Path) -> str:
+    if not path.is_file():
+        return ""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="osi-codex-acceptance")
     parser.add_argument("--root", type=Path, default=Path.cwd())
@@ -238,11 +248,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     report: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
+        "workflow_version": WORKFLOW_VERSION,
         "generated_at": _utc_now_iso(),
         "repository_root": str(root),
         "commit": _git_head(root),
         "provider": args.provider,
         "base_url": args.base_url if args.provider == "http" else "",
+        "codex_returncode": None,
+        "codex_completed": False,
         "ok": False,
     }
 
@@ -276,16 +289,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         report["codex_returncode"] = int(completed.returncode)
         report["codex_completed"] = completed.returncode == 0
     except subprocess.TimeoutExpired:
-        report["codex_completed"] = False
         report["error"] = {"code": "CODEX_TIMEOUT", "message": "Codex acceptance run timed out."}
     except (OSError, ValueError) as exc:
-        report["codex_completed"] = False
         report["error"] = {"code": "CODEX_START_FAILED", "message": str(exc)}
 
     events = load_ledger(ledger_path)
     ledger = evaluate_ledger(events)
     report["ledger"] = ledger
-    report["ledger_path"] = str(ledger_path)
+    report["ledger_path"] = str(ledger_path.resolve())
+    report["ledger_sha256"] = _sha256_file(ledger_path)
     report["ok"] = bool(report.get("codex_completed")) and bool(ledger.get("ok"))
 
     rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
