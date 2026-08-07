@@ -19,6 +19,7 @@ mcp = ["mcp>=2,<3"]
 osi-m0 = "aiworkstation_osi.cli:main"
 osi-mcp = "aiworkstation_osi.mcp_server:main"
 osi-mcp-http = "aiworkstation_osi.http_server:main"
+osi-remote-smoke = "aiworkstation_osi.remote_smoke:main"
 osi-probe = "aiworkstation_osi.probe:main"
 osi-capture-contracts = "aiworkstation_osi.contract_capture:main"
 osi-validate-contracts = "aiworkstation_osi.fixture_validation:main"
