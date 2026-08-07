@@ -1,0 +1,35 @@
+name: Project coverage request
+description: Request coverage or better evidence for a public open-source AI project.
+title: "[Project] "
+labels: []
+body:
+  - type: input
+    id: project
+    attributes:
+      label: Public repository
+      placeholder: https://github.com/owner/repository
+    validations:
+      required: true
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Why this project matters
+      description: Describe the use case or selection question that needs coverage.
+    validations:
+      required: true
+  - type: checkboxes
+    id: fields
+    attributes:
+      label: Evidence you care about
+      options:
+        - label: Project identity / repository metadata
+        - label: Deployment / self-hosting
+        - label: License evidence
+        - label: Category / use case
+        - label: Alternatives / comparison
+        - label: Stack role
+  - type: textarea
+    id: sources
+    attributes:
+      label: Suggested official public sources
+      description: Optional. Repository/docs URLs only; do not submit private information.
