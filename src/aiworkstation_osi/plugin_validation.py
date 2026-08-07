@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import urllib.parse
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -25,6 +26,11 @@ REQUIRED_INTERFACE_FIELDS = {
     "defaultPrompt",
     "brandColor",
 }
+PUBLIC_INTERFACE_URL_FIELDS = (
+    "supportURL",
+    "privacyPolicyURL",
+    "termsOfServiceURL",
+)
 REQUIRED_MARKETPLACE_POLICY_FIELDS = {"installation", "authentication"}
 
 
@@ -90,12 +96,30 @@ def _validate_component_path(
         errors.append(f"{field} target does not exist: {path}")
 
 
+def _public_https_url(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    try:
+        parsed = urllib.parse.urlparse(text)
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and bool(parsed.netloc)
+        and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
+        and parsed.username is None
+        and parsed.password is None
+    )
+
+
 def validate_plugin_package(root: Path) -> dict[str, Any]:
-    """Return local-install and public-submission readiness for one plugin root."""
+    """Return local-install and public-submission metadata readiness for one plugin root."""
 
     plugin_root = Path(root).resolve()
     errors: list[str] = []
     warnings: list[str] = []
+    public_blockers: list[str] = []
     manifest_path = plugin_root / ".codex-plugin" / "plugin.json"
     marketplace_path = plugin_root / ".agents" / "plugins" / "marketplace.json"
     manifest = _load_object(manifest_path, errors)
@@ -152,7 +176,9 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
         interface = manifest.get("interface")
         if not isinstance(interface, Mapping):
             errors.append("plugin manifest interface must be an object")
+            interface_mapping: Mapping[str, Any] = {}
         else:
+            interface_mapping = interface
             missing_interface = sorted(REQUIRED_INTERFACE_FIELDS - set(interface))
             if missing_interface:
                 errors.append(f"plugin interface is missing fields: {missing_interface}")
@@ -178,13 +204,24 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
             if not re.fullmatch(r"#[0-9A-Fa-f]{6}", brand_color):
                 errors.append("brandColor must be a six-digit hexadecimal color")
 
-        if "license" not in manifest:
-            warnings.append("public submission is blocked until a software license is selected")
-        interface_mapping = interface if isinstance(interface, Mapping) else {}
-        if not interface_mapping.get("privacyPolicyURL"):
-            warnings.append("public submission is blocked until a public privacy policy URL exists")
-        if not interface_mapping.get("termsOfServiceURL"):
-            warnings.append("public submission is blocked until a public terms URL exists")
+        license_id = str(manifest.get("license") or "").strip()
+        if not license_id:
+            public_blockers.append("software license is missing")
+        elif license_id != "Apache-2.0":
+            public_blockers.append("public Skills release expects license=Apache-2.0")
+        elif not (plugin_root / "LICENSE").is_file():
+            public_blockers.append("Apache-2.0 LICENSE file is missing")
+
+        for field in PUBLIC_INTERFACE_URL_FIELDS:
+            value = interface_mapping.get(field)
+            if not value:
+                public_blockers.append(f"{field} is missing")
+            elif not _public_https_url(value):
+                public_blockers.append(f"{field} must be a public credential-free HTTPS URL")
+
+        if not _public_https_url(interface_mapping.get("websiteURL")):
+            public_blockers.append("websiteURL must be a public credential-free HTTPS URL")
+
         if "mcpServers" not in manifest and "apps" not in manifest:
             warnings.append(
                 "current package is Skills-only; MCP server setup remains a separate local workflow"
@@ -241,10 +278,11 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
                 if not str(entry.get("category") or "").strip():
                     errors.append("marketplace category is required")
 
+    for blocker in public_blockers:
+        warnings.append("public submission is blocked: " + blocker)
+
     local_ready = not errors
-    public_ready = local_ready and not any(
-        warning.startswith("public submission is blocked") for warning in warnings
-    )
+    public_ready = local_ready and not public_blockers
     return {
         "schema_version": "osi.plugin-validation.v1",
         "plugin_root": str(plugin_root),
@@ -255,6 +293,7 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
         "summary": {"errors": len(errors), "warnings": len(warnings)},
         "errors": errors,
         "warnings": warnings,
+        "public_submission_blockers": public_blockers,
     }
 
 
