@@ -1,0 +1,61 @@
+name: Incorrect fact or evidence boundary
+description: Report fabricated, stale, weakly evidenced, or misclassified project/license facts.
+title: "[Evidence] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when the product presents a project fact without sufficient evidence, treats analysis as fact, mishandles license evidence, or hides an unknown. Do not post private data or security-sensitive exploit details.
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or version
+    validations:
+      required: true
+  - type: input
+    id: project
+    attributes:
+      label: Public project ID
+      placeholder: owner/repository
+  - type: dropdown
+    id: type
+    attributes:
+      label: Problem type
+      options:
+        - Fact presented without evidence
+        - Analysis/recommendation presented as fact
+        - License evidence incorrectly verified
+        - Unknown information hidden or guessed
+        - Mixed/incompatible snapshot
+        - Near match promoted to full match
+        - Hard constraint silently relaxed
+        - Other evidence-boundary issue
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: Problematic claim or behavior
+      description: Quote only the smallest public-safe excerpt needed.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Public evidence showing the issue
+      description: Prefer official repository/documentation URLs and observation time.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected evidence state
+      placeholder: verified_public_metadata / verified_direct_evidence / public_projection_only / unknown
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: This report contains only public-safe evidence and no credentials or confidential data.
+          required: true
