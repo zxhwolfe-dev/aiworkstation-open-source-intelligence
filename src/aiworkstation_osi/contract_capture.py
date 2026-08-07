@@ -28,42 +28,19 @@ MAX_DEPTH = 10
 REDACTED_QUERY_TEXT = "<redacted-query>"
 
 REMOVED_KEYS = {
-    "authorization",
-    "api_key",
-    "apikey",
-    "access_token",
-    "refresh_token",
-    "bearer_token",
-    "cookie",
-    "cookies",
-    "secret",
-    "password",
-    "email",
-    "client_id",
-    "request_id",
-    "query",
-    "prompt",
-    "raw",
-    "raw_content",
-    "evidence_ids",
-    "claim_refs",
-    "publication_version",
-    "source_hash",
-    "validated_version",
-    "assignment_version",
-    "prompt_version",
-    # Public selector continuation tokens currently encode the requirement spec,
-    # including the original user query. Captured artifacts must never retain it.
+    "authorization", "api_key", "apikey", "access_token", "refresh_token",
+    "bearer_token", "cookie", "cookies", "secret", "password", "email",
+    "client_id", "request_id", "query", "prompt", "raw", "raw_content",
+    "evidence_ids", "claim_refs", "publication_version", "source_hash",
+    "validated_version", "assignment_version", "prompt_version",
     "requirement_token",
 }
+SELECTOR_REMOVED_KEYS = frozenset(
+    REMOVED_KEYS | {"understanding", "query_analysis", "requirement_spec"}
+)
 
 SAFE_HEADERS = {
-    "cache-control",
-    "content-type",
-    "date",
-    "etag",
-    "last-modified",
-    "x-request-id",
+    "cache-control", "content-type", "date", "etag", "last-modified", "x-request-id",
 }
 
 DEFAULT_FORMAL_QUERY = {
@@ -87,12 +64,8 @@ def _validate_timeout(timeout: float) -> None:
 
 
 def _redact_query_text(value: str, redact_texts: Sequence[str]) -> str:
-    """Remove exact request text wherever the public response echoes it."""
-
+    """Remove exact request text wherever retained public output still echoes it."""
     redacted = value
-    # Longest first avoids a shorter supplied phrase partially masking a longer
-    # one before it can be replaced. Case-insensitive matching covers harmless
-    # upstream casing changes without trying to infer paraphrases.
     for text in sorted(
         {str(item) for item in redact_texts if str(item or "").strip()},
         key=len,
@@ -107,21 +80,22 @@ def sanitize_public_value(
     *,
     depth: int = 0,
     redact_texts: Sequence[str] = (),
+    removed_keys: frozenset[str] | set[str] = frozenset(REMOVED_KEYS),
 ) -> Any:
     """Return a bounded JSON-safe copy with sensitive/internal fields removed."""
-
     if depth > MAX_DEPTH:
         return "<max-depth>"
     if isinstance(value, Mapping):
         sanitized: dict[str, Any] = {}
         for raw_key, child in value.items():
             key = str(raw_key)
-            if key.lower() in REMOVED_KEYS:
+            if key.lower() in removed_keys:
                 continue
             sanitized[key] = sanitize_public_value(
                 child,
                 depth=depth + 1,
                 redact_texts=redact_texts,
+                removed_keys=removed_keys,
             )
         return sanitized
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
@@ -130,6 +104,7 @@ def sanitize_public_value(
                 child,
                 depth=depth + 1,
                 redact_texts=redact_texts,
+                removed_keys=removed_keys,
             )
             for child in value[:MAX_LIST_ITEMS]
         ]
@@ -152,12 +127,9 @@ def _fixture(
     *,
     request_fingerprint: str,
     redact_texts: Sequence[str] = (),
+    removed_keys: frozenset[str] | set[str] = frozenset(REMOVED_KEYS),
 ) -> dict[str, Any]:
-    headers = {
-        key.lower(): value
-        for key, value in response.headers.items()
-        if key.lower() in SAFE_HEADERS
-    }
+    headers = {key.lower(): value for key, value in response.headers.items() if key.lower() in SAFE_HEADERS}
     return {
         "schema_version": FIXTURE_SCHEMA_VERSION,
         "scenario": scenario,
@@ -165,7 +137,11 @@ def _fixture(
         "observed_at": response.observed_at,
         "status": response.status,
         "headers": headers,
-        "payload": sanitize_public_value(response.payload, redact_texts=redact_texts),
+        "payload": sanitize_public_value(
+            response.payload,
+            redact_texts=redact_texts,
+            removed_keys=removed_keys,
+        ),
     }
 
 
@@ -213,7 +189,6 @@ def capture_public_contracts(
     timeout: float = 30.0,
 ) -> dict[str, Any]:
     """Capture four sanitized public response fixtures and a manifest."""
-
     if locale not in {"zh", "en"}:
         raise ValueError("locale must be zh or en")
     if not project_id.strip():
@@ -242,12 +217,7 @@ def capture_public_contracts(
     formal = transport.request(
         "POST",
         f"{PUBLIC_API_PREFIX}/selector",
-        body={
-            "lang": locale,
-            "query": formal_query,
-            "use_model": False,
-            "client_id": "aiworkstation-osi-contract-capture",
-        },
+        body={"lang": locale, "query": formal_query, "use_model": False, "client_id": "aiworkstation-osi-contract-capture"},
         timeout=timeout,
     )
     _require_success(formal, "selector-formal")
@@ -267,28 +237,26 @@ def capture_public_contracts(
 
     fixtures = {
         "project-list.json": _fixture(
-            "project-list",
-            listing,
+            "project-list", listing,
             request_fingerprint=_hash_text(f"{locale}:project-list:{project_id}"),
         ),
         "project-detail.json": _fixture(
-            "project-detail",
-            detail,
+            "project-detail", detail,
             request_fingerprint=_hash_text(f"{locale}:project-detail:{project_id}"),
         ),
         "selector-formal.json": _fixture(
-            "selector-formal",
-            formal,
+            "selector-formal", formal,
             request_fingerprint=_hash_text(f"{locale}:selector-formal:{formal_query}"),
             redact_texts=(formal_query,),
+            removed_keys=SELECTOR_REMOVED_KEYS,
         ),
         "selector-no-match.json": _fixture(
-            "selector-no-match",
-            no_match,
+            "selector-no-match", no_match,
             request_fingerprint=_hash_text(
                 f"{locale}:selector-no-match:{json.dumps(dict(no_match_filters or DEFAULT_NO_MATCH_FILTERS), sort_keys=True, separators=(',', ':'))}"
             ),
             redact_texts=(no_match_query,),
+            removed_keys=SELECTOR_REMOVED_KEYS,
         ),
     }
     for filename, payload in fixtures.items():
@@ -305,10 +273,11 @@ def capture_public_contracts(
         "fixture_files": sorted(fixtures),
         "sanitization": {
             "removed_keys": sorted(REMOVED_KEYS),
+            "selector_removed_keys": sorted(SELECTOR_REMOVED_KEYS),
             "max_string_length": MAX_STRING_LENGTH,
             "max_list_items": MAX_LIST_ITEMS,
             "stores_query_text": False,
-            "query_text_redaction": "exact_case_insensitive",
+            "query_text_redaction": "selector_metadata_removed_plus_exact_echo_redaction",
         },
     }
     (output_dir / "manifest.json").write_text(
@@ -345,19 +314,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             timeout=args.timeout,
         )
     except (ProviderUnavailableError, UpstreamContractError, ValueError) as exc:
-        print(
-            json.dumps(
-                {
-                    "ok": False,
-                    "error": {
-                        "code": getattr(exc, "code", "INVALID_CONFIGURATION"),
-                        "message": str(exc),
-                    },
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
+        print(json.dumps({"ok": False, "error": {"code": getattr(exc, "code", "INVALID_CONFIGURATION"), "message": str(exc)}}, ensure_ascii=False, indent=2))
         return 1
     print(json.dumps({"ok": True, **manifest}, ensure_ascii=False, indent=2))
     return 0
