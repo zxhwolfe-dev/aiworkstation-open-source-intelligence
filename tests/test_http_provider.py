@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import io
 import unittest
+import urllib.error
 from typing import Any, Callable, Mapping
+from unittest.mock import patch
 
-from aiworkstation_osi.errors import UpstreamContractError
+from aiworkstation_osi.errors import ProviderUnavailableError, UpstreamContractError
 from aiworkstation_osi.http_provider import (
     AIWorkstationHttpProvider,
     JsonResponse,
@@ -81,6 +84,32 @@ class HttpProviderTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             UrllibJsonTransport("http://example.com")
         UrllibJsonTransport("http://127.0.0.1:9010")
+
+    def test_transport_classifies_html_5xx_as_provider_unavailable(self) -> None:
+        transport = UrllibJsonTransport("https://example.test")
+        failure = urllib.error.HTTPError(
+            "https://example.test/api/v1/ai/githubai/selector",
+            504,
+            "Gateway Timeout",
+            {"Content-Type": "text/html"},
+            io.BytesIO(b"<html><body>gateway timeout</body></html>"),
+        )
+        with patch("urllib.request.urlopen", side_effect=failure):
+            with self.assertRaises(ProviderUnavailableError):
+                transport.request("POST", "/api/v1/ai/githubai/selector", body={"query": "RAG"})
+
+    def test_transport_keeps_success_invalid_json_as_contract_error(self) -> None:
+        class FakeResponse:
+            status = 200
+            headers: Mapping[str, str] = {"Content-Type": "application/json"}
+
+            def read(self, _limit: int) -> bytes:
+                return b"not-json"
+
+        transport = UrllibJsonTransport("https://example.test")
+        with patch("urllib.request.urlopen", return_value=FakeResponse()):
+            with self.assertRaises(UpstreamContractError):
+                transport.request("GET", "/api/v1/ai/githubai/projects")
 
     def test_project_facts_are_promoted_only_with_snapshot_and_public_detail(self) -> None:
         def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
