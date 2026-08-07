@@ -81,7 +81,47 @@ osi-probe --base-url https://aiworkstation.cn --locale zh
 A failed probe is a contract or connectivity problem, not permission to bypass
 the fail-closed checks.
 
-## 4. Configure with TOML instead of the CLI
+## 4. Run the automated Codex Live acceptance
+
+For release evidence, prefer the one-command acceptance runner instead of a long
+manual conversation:
+
+```bash
+source .venv/bin/activate
+osi-codex-acceptance \
+  --root . \
+  --provider http \
+  --base-url https://aiworkstation.cn \
+  --output tmp/codex-acceptance/live.json
+```
+
+The command runs `codex exec` in an ephemeral, read-only sandbox and injects one
+temporary MCP server through inline Codex configuration. It does **not** persist
+or rewrite `~/.codex/config.toml`.
+
+The acceptance workflow asks Codex to exercise all six tools against live public
+Radar data. The MCP process writes a separate privacy-safe JSONL ledger containing
+only tool name, outcome, duration, level and error code. Queries, constraints,
+project IDs, tool arguments, result payloads, raw request IDs and the Codex
+conversation are not written to the ledger.
+
+A passing report requires:
+
+- the `codex exec` process to exit successfully; and
+- at least one actual `success` ledger event for every one of the six declared
+  MCP tools.
+
+This is stronger evidence than relying on Codex's final prose to claim which
+tools it used. Keep the generated report and ledger with the private validation
+records. Do not set `--codex-tested` in release readiness unless this real Codex
+acceptance has passed on the target Codex host.
+
+The runner uses current Codex CLI capabilities: non-interactive `codex exec`,
+ephemeral sessions, read-only sandboxing and inline `-c` configuration overrides.
+If the installed Codex version rejects those options, update Codex or run the
+manual MCP workflow instead; do not weaken the MCP server's read-only contract.
+
+## 5. Configure with TOML instead of the CLI
 
 Codex reads MCP configuration from `~/.codex/config.toml`. For a trusted project,
 you can also place it in `.codex/config.toml` to keep the server scoped to that
@@ -105,7 +145,7 @@ Important settings used by the example:
 After the provider and tool annotations have been validated in the target Codex
 version, approval settings can be tightened without changing business logic.
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 ### Server does not appear
 
@@ -139,6 +179,16 @@ osi-m0 invoke get_project_facts \
   --arguments '{"project_id":"infiniflow/ragflow","locale":"en"}'
 ```
 
+### Automated Codex acceptance fails
+
+Inspect the generated acceptance JSON first. `missing_tools` means Codex did not
+produce a successful call for every tool. A nonzero `codex_returncode` means the
+Codex process itself failed or could not initialize the required MCP server.
+The safe ledger can be inspected directly without exposing prompts or results.
+
+The acceptance runner intentionally does not persist Codex configuration, copy
+authentication files, bypass the Codex sandbox, or use `--yolo`.
+
 ### Live provider rejects an answer
 
 This is expected when the public response lacks snapshot identity, evidence
@@ -149,5 +199,6 @@ changing the adapter.
 ## Official references
 
 - Codex MCP configuration: <https://developers.openai.com/codex/mcp>
+- Codex CLI reference: <https://developers.openai.com/codex/cli/reference>
 - Codex configuration reference: <https://developers.openai.com/codex/config-reference>
 - MCP Python SDK: <https://github.com/modelcontextprotocol/python-sdk>
