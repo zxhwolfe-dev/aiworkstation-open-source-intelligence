@@ -1,10 +1,9 @@
 """Evidence-first wrapper for external-alpha release readiness.
 
 The core ``osi-readiness`` command deliberately accepts operator attestations.
-This wrapper removes the manual Codex attestation from the normal release path:
-it verifies a real ``osi-codex-acceptance`` report, binds it to the current Git
-commit and expected live Radar origin, then supplies the resulting boolean to
-the existing deterministic readiness evaluator.
+This wrapper replaces machine-verifiable attestations with candidate-bound
+artifacts from GitHub Actions and a real Codex six-tool acceptance run. Human
+artifact review remains explicitly human and is never synthesized here.
 """
 
 from __future__ import annotations
@@ -18,6 +17,11 @@ from typing import Any, Mapping, Sequence
 
 from .codex_acceptance import WORKFLOW_VERSION, evaluate_ledger, load_ledger
 from .contracts import TOOL_NAMES
+from .evidence_manifests import (
+    EXPECTED_REPOSITORY,
+    validate_ci_evidence,
+    validate_live_validation_evidence,
+)
 from .release_readiness import evaluate_release_readiness
 
 CODEX_ACCEPTANCE_SCHEMA = "osi.codex-acceptance.v1"
@@ -157,6 +161,25 @@ def validate_codex_acceptance_report(
     }
 
 
+def _mark_machine_check(
+    report: dict[str, Any],
+    check_id: str,
+    *,
+    evidence: Mapping[str, Any],
+    success_message: str,
+    failure_message: str,
+) -> None:
+    for check in report.get("checks") or []:
+        if not isinstance(check, dict) or check.get("id") != check_id:
+            continue
+        details = check.setdefault("details", {})
+        details["operator_attested"] = False
+        details["evidence_verified"] = bool(evidence.get("ok"))
+        details["evidence_path"] = str(evidence.get("path") or "")
+        check["message"] = success_message if evidence.get("ok") else failure_message
+        return
+
+
 def evaluate_evidence_readiness(
     root: Path,
     *,
@@ -164,7 +187,9 @@ def evaluate_evidence_readiness(
     contracts_zh: Path | None = None,
     ci_python310_passed: bool = False,
     ci_python312_passed: bool = False,
+    ci_evidence: Path | None = None,
     codex_acceptance_report: Path | None = None,
+    live_validation_evidence: Path | None = None,
     expected_base_url: str = DEFAULT_RADAR_BASE_URL,
     artifact_reviewed: bool = False,
     live_validation_run_id: str = "",
@@ -173,9 +198,43 @@ def evaluate_evidence_readiness(
     remote_mcp_url: str = "",
     hosted_gateway_protected: bool = False,
 ) -> dict[str, Any]:
-    """Evaluate readiness with Codex testing derived from verifiable evidence."""
+    """Evaluate readiness with machine gates derived from verifiable evidence."""
 
     repository_root = root.expanduser().resolve()
+    candidate_commit = _git_head(repository_root)
+
+    ci_manifest = validate_ci_evidence(
+        ci_evidence,
+        candidate_commit=candidate_commit,
+        expected_repository=EXPECTED_REPOSITORY,
+    )
+    if ci_evidence is not None:
+        effective_ci310 = bool(ci_manifest["ok"] and ci_manifest.get("python310_passed"))
+        effective_ci312 = bool(ci_manifest["ok"] and ci_manifest.get("python312_passed"))
+    else:
+        effective_ci310 = bool(ci_python310_passed)
+        effective_ci312 = bool(ci_python312_passed)
+
+    live_manifest = validate_live_validation_evidence(
+        live_validation_evidence,
+        candidate_commit=candidate_commit,
+        expected_base_url=expected_base_url,
+        expected_repository=EXPECTED_REPOSITORY,
+    )
+    if live_validation_evidence is not None:
+        if live_manifest["ok"]:
+            effective_contracts_en = Path(str(live_manifest["contracts_en"]))
+            effective_contracts_zh = Path(str(live_manifest["contracts_zh"]))
+            effective_run_id = str(live_manifest["run_id"])
+        else:
+            effective_contracts_en = None
+            effective_contracts_zh = None
+            effective_run_id = ""
+    else:
+        effective_contracts_en = contracts_en
+        effective_contracts_zh = contracts_zh
+        effective_run_id = str(live_validation_run_id or "").strip()
+
     codex_evidence = validate_codex_acceptance_report(
         codex_acceptance_report,
         root=repository_root,
@@ -183,31 +242,66 @@ def evaluate_evidence_readiness(
     )
     report = evaluate_release_readiness(
         repository_root,
-        contracts_en=contracts_en,
-        contracts_zh=contracts_zh,
-        ci_python310_passed=ci_python310_passed,
-        ci_python312_passed=ci_python312_passed,
+        contracts_en=effective_contracts_en,
+        contracts_zh=effective_contracts_zh,
+        ci_python310_passed=effective_ci310,
+        ci_python312_passed=effective_ci312,
         codex_tested=bool(codex_evidence["ok"]),
         artifact_reviewed=artifact_reviewed,
-        live_validation_run_id=live_validation_run_id,
+        live_validation_run_id=effective_run_id,
         reviewer=reviewer,
         remote_mcp_tested=remote_mcp_tested,
         remote_mcp_url=remote_mcp_url,
         hosted_gateway_protected=hosted_gateway_protected,
     )
+    report["machine_evidence"] = {
+        "ci": ci_manifest,
+        "codex": codex_evidence,
+        "live_validation": live_manifest,
+    }
+    # Backward-compatible alias for tooling created with the first evidence build.
     report["codex_acceptance_evidence"] = codex_evidence
-    for check in report.get("checks") or []:
-        if isinstance(check, dict) and check.get("id") == "attestation-codex-tested":
+
+    if ci_evidence is not None:
+        _mark_machine_check(
+            report,
+            "attestation-ci-python310-passed",
+            evidence=ci_manifest,
+            success_message="Python 3.10 CI is verified by candidate-bound workflow evidence.",
+            failure_message="Valid candidate-bound Python 3.10 CI evidence is required.",
+        )
+        _mark_machine_check(
+            report,
+            "attestation-ci-python312-passed",
+            evidence=ci_manifest,
+            success_message="Python 3.12 CI is verified by candidate-bound workflow evidence.",
+            failure_message="Valid candidate-bound Python 3.12 CI evidence is required.",
+        )
+
+    _mark_machine_check(
+        report,
+        "attestation-codex-tested",
+        evidence=codex_evidence,
+        success_message="The real Codex six-tool MCP workflow is verified by candidate-bound acceptance evidence.",
+        failure_message="A valid candidate-bound Codex six-tool acceptance report is required.",
+    )
+
+    if live_validation_evidence is not None:
+        for check in report.get("checks") or []:
+            if not isinstance(check, dict) or check.get("id") != "validation-evidence":
+                continue
             details = check.setdefault("details", {})
-            details["operator_attested"] = False
-            details["evidence_verified"] = bool(codex_evidence["ok"])
-            details["acceptance_report"] = codex_evidence.get("path") or ""
-            check["message"] = (
-                "The real Codex six-tool MCP workflow is verified by candidate-bound acceptance evidence."
-                if codex_evidence["ok"]
-                else "A valid candidate-bound Codex six-tool acceptance report is required."
-            )
+            details["workflow_evidence_verified"] = bool(live_manifest.get("ok"))
+            details["workflow_evidence_path"] = str(live_manifest.get("path") or "")
+            details["workflow_run_id"] = str(live_manifest.get("run_id") or "")
+            if live_manifest.get("ok") and reviewer:
+                check["message"] = "Live validation run is candidate-bound and the human artifact reviewer is recorded."
+            elif live_manifest.get("ok"):
+                check["message"] = "Live validation run is candidate-bound; a named human artifact reviewer is still required."
+            else:
+                check["message"] = "Valid candidate-bound live validation workflow evidence is required."
             break
+
     return report
 
 
@@ -218,7 +312,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--contracts-zh", type=Path)
     parser.add_argument("--ci-python310-passed", action="store_true")
     parser.add_argument("--ci-python312-passed", action="store_true")
+    parser.add_argument("--ci-evidence", type=Path)
     parser.add_argument("--codex-acceptance-report", type=Path)
+    parser.add_argument("--live-validation-evidence", type=Path)
     parser.add_argument("--expected-base-url", default=DEFAULT_RADAR_BASE_URL)
     parser.add_argument("--artifact-reviewed", action="store_true")
     parser.add_argument("--live-validation-run-id", default="")
@@ -242,7 +338,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         contracts_zh=args.contracts_zh,
         ci_python310_passed=args.ci_python310_passed,
         ci_python312_passed=args.ci_python312_passed,
+        ci_evidence=args.ci_evidence,
         codex_acceptance_report=args.codex_acceptance_report,
+        live_validation_evidence=args.live_validation_evidence,
         expected_base_url=args.expected_base_url,
         artifact_reviewed=args.artifact_reviewed,
         live_validation_run_id=args.live_validation_run_id,
