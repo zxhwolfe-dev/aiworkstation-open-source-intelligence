@@ -13,7 +13,10 @@ open-source AI projects with explicit evidence and uncertainty boundaries.
 - a transport-neutral Python core;
 - a deterministic offline mock provider;
 - a fail-closed HTTP provider for AI Workstation's public Radar API;
+- strict field-level evidence boundaries for repository metadata, analysis
+  projection fields and direct license evidence;
 - stdio and guarded Streamable HTTP MCP transports;
+- privacy-minimized structured tool telemetry;
 - live public-contract probes, sanitized capture, validation and offline replay;
 - a deterministic Skills-only alpha ZIP builder with SHA-256 checksums;
 - a consolidated four-level release-readiness report;
@@ -35,6 +38,22 @@ Every tool result separates:
 2. analysis and recommendations;
 3. unknown or unverified information;
 4. risks and limitations.
+
+A value being present in `data.project` does not automatically make it a verified
+fact. The live hardened provider distinguishes:
+
+```text
+verified_public_metadata
+verified_direct_evidence
+public_projection_only
+unknown
+```
+
+Stable repository/public-release metadata can cross the fact boundary after
+same-snapshot validation. Summary, deployment classification, categories and use
+cases remain `public_projection_only` unless a future field-specific evidence
+contract verifies them. License is stricter: a license label is verified only
+when public transparency includes a direct `License` source and excerpt.
 
 The first release is read-only. It does not execute repository code, mutate
 GitHub projects, save collections, authenticate end users or process payments.
@@ -96,6 +115,9 @@ hosted_private_alpha_ready=false
 public_launch_ready=false
 ```
 
+`code_ready=true` is a target of the repository checks; do not claim it has been
+observed until the current local/CI suite actually runs green.
+
 ## Install the local Skills plugin
 
 Register the repository marketplace:
@@ -147,10 +169,18 @@ osi-m0 invoke get_project_facts \
   --arguments '{"project_id":"infiniflow/ragflow","locale":"en"}'
 ```
 
-The adapter requires public snapshot identity, rejects mixed snapshots and
-unsafe selector contracts, keeps near matches outside formal recommendations,
-turns missing/sentinel licenses into explicit unknowns, flags non-standard
-license labels and never imports private `akaiagents` modules.
+The adapter:
+
+- requires public snapshot identity;
+- rejects mixed snapshots and unsafe selector contracts;
+- rejects upstream redirects instead of silently following them;
+- keeps near matches outside formal recommendations;
+- exposes `field_evidence_status` for project-detail fields;
+- requires direct public `License` evidence before a license enters
+  `verified_facts`;
+- converts missing/indirect/sentinel licenses into explicit unknowns;
+- flags non-standard license labels for manual review;
+- never imports private `akaiagents` modules.
 
 ## stdio MCP server
 
@@ -171,6 +201,12 @@ osi-mcp
 The server exposes exactly six annotated read-only tools and preserves the
 fact/recommendation/unknown/risk boundary.
 
+Runtime telemetry defaults to warnings/errors on **stderr** so stdio protocol
+output is not polluted. Set `OSI_LOG_LEVEL=INFO` to record successful tool name,
+outcome, duration and safe aggregate counts. Tool arguments, queries, project IDs
+and raw request IDs are not logged; request IDs are reduced to a short SHA-256
+fingerprint.
+
 See [`docs/codex-setup.md`](docs/codex-setup.md).
 
 ## Guarded Streamable HTTP MCP
@@ -187,7 +223,7 @@ Run a loopback-only development endpoint:
 OSI_PROVIDER=mock osi-mcp-http
 ```
 
-The MCP endpoint is then:
+The endpoint is:
 
 ```text
 http://127.0.0.1:8000/mcp
@@ -196,14 +232,26 @@ http://127.0.0.1:8000/mcp
 Verify it with a real MCP client:
 
 ```bash
-osi-remote-smoke --url http://127.0.0.1:8000/mcp
+osi-remote-smoke --url http://127.0.0.1:8000/mcp --invoke-search --locale en
 ```
 
-A non-loopback bind requires an explicit private-network/reverse-proxy
-acknowledgement, the live HTTP provider and an allow-listed HTTPS Radar origin.
-That acknowledgement is **not authentication**. Do not expose the endpoint
-directly to the Internet without a trusted authenticated TLS gateway or future
-native OAuth.
+A non-loopback bind requires all of the following:
+
+```text
+OSI_PROVIDER=http
+OSI_MCP_HTTP_PUBLIC_BIND_ACK=reverse-proxy-or-private-network
+AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn
+OSI_MCP_HTTP_ALLOWED_HOSTS=mcp.example.com,mcp.example.com:*
+```
+
+The server also caps MCP request bodies at 256 KiB by default. Browser clients
+must additionally use explicit HTTPS `OSI_MCP_HTTP_ALLOWED_ORIGINS` plus matching
+narrow CORS policy.
+
+The Host/origin allowlists are passed into MCP transport security for
+DNS-rebinding/Host-header protection. The public-bind acknowledgement is **not
+authentication**. Do not expose the endpoint directly to the Internet without a
+trusted authenticated TLS gateway or future native OAuth.
 
 Container/private-alpha example:
 
@@ -212,8 +260,9 @@ docker build -t aiworkstation-osi-mcp:0.1.0 .
 docker compose -f compose.hosted.example.yml up --build
 ```
 
-The example maps only `127.0.0.1:8000` on the host and drops container
-capabilities. See [`docs/hosted-mcp.md`](docs/hosted-mcp.md).
+The example maps only `127.0.0.1:8000` on the host, runs non-root, uses a
+read-only filesystem and drops Linux capabilities. See
+[`docs/hosted-mcp.md`](docs/hosted-mcp.md).
 
 ## Validate the public Radar contract
 
@@ -242,8 +291,10 @@ osi-replay-contracts \
 ```
 
 Replay derives locale and project identity from the sanitized capture manifest.
-The manual `live-contract-validation` workflow runs the bilingual chain and
-uploads artifacts only after validation, replay and forbidden-key scanning pass.
+The probe requires a reported license either to have direct verified evidence or
+to remain an explicit unknown. The manual `live-contract-validation` workflow
+runs the bilingual chain and uploads artifacts only after validation, replay and
+forbidden-key scanning pass.
 
 See [`docs/production-validation.md`](docs/production-validation.md).
 
@@ -278,8 +329,8 @@ public_launch_ready
 
 For a Skills-only invited alpha, supply real bilingual contract captures plus
 CI, Codex and review evidence. For a hosted private alpha, additionally supply a
-credential-free HTTPS MCP endpoint, successful remote smoke-test attestation and
-protected gateway/private-network attestation.
+credential-free HTTPS `/mcp` endpoint, successful remote smoke-test attestation
+and protected gateway/private-network attestation.
 
 See [`docs/release-readiness.md`](docs/release-readiness.md).
 
@@ -323,6 +374,7 @@ contracts rather than importing its private Python modules.
 - [`docs/external-alpha-checklist.md`](docs/external-alpha-checklist.md)
 - [`schemas/tool-manifest.json`](schemas/tool-manifest.json)
 - [`schemas/tool-result.schema.json`](schemas/tool-result.schema.json)
+- [`schemas/tool_contracts.md`](schemas/tool_contracts.md)
 - [`docs/security-and-privacy.md`](docs/security-and-privacy.md)
 - [`docs/error-codes.md`](docs/error-codes.md)
 
@@ -331,7 +383,8 @@ contracts rather than importing its private Python modules.
 Code-side M1 Alpha is now substantially complete. Remaining gates are:
 
 1. observe successful local tests and GitHub Actions on Python 3.10/3.12;
-2. run and review bilingual production contract validation;
+2. run and review bilingual production contract validation against the real
+   Radar responses;
 3. install the Skills package and test stdio MCP from Codex;
 4. deploy the guarded HTTP service behind a protected gateway/private network;
 5. run English and Chinese `osi-remote-smoke` against the deployed endpoint;
