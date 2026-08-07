@@ -118,6 +118,48 @@ jobs:
           osi-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
 
+      - name: End-to-end Streamable HTTP MCP round trip
+        if: matrix.python-version == '3.12'
+        env:
+          OSI_PROVIDER: mock
+          OSI_MCP_HTTP_HOST: 127.0.0.1
+          OSI_MCP_HTTP_PORT: "8765"
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          osi-mcp-http >tmp/mcp-http.log 2>&1 &
+          server_pid=$!
+
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          python - <<'PY'
+          import socket
+          import time
+
+          deadline = time.monotonic() + 15
+          while True:
+              try:
+                  with socket.create_connection(("127.0.0.1", 8765), timeout=1):
+                      break
+              except OSError:
+                  if time.monotonic() >= deadline:
+                      raise SystemExit("Streamable HTTP MCP server did not become ready within 15 seconds")
+                  time.sleep(0.2)
+          PY
+
+          if ! osi-remote-smoke \
+            --url http://127.0.0.1:8765/mcp \
+            --invoke-search \
+            --locale en \
+            --output tmp/mcp-http-smoke.json; then
+            cat tmp/mcp-http.log >&2
+            exit 1
+          fi
+
       - name: Validate container packaging and hosted config
         if: matrix.python-version == '3.12'
         run: |
