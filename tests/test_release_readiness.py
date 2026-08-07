@@ -103,15 +103,17 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assertIn("README.md", required["details"]["missing"])
         self.assertIn("Dockerfile", required["details"]["missing"])
 
-    def test_public_launch_remains_blocked_even_when_code_is_ready(self) -> None:
+    def test_public_launch_remains_blocked_even_after_skills_release_prep(self) -> None:
         report = evaluate_release_readiness(self.ROOT)
 
         self.assertFalse(report["public_launch_ready"])
         blockers = " ".join(report["public_launch_blockers"])
-        self.assertIn("software license", blockers)
-        self.assertIn("privacy policy", blockers)
+        self.assertNotIn("software license has not been selected", blockers)
+        self.assertIn("hosted privacy/terms", blockers)
         self.assertIn("oauth", blockers.lower())
         self.assertIn("rate limiting", blockers)
+        self.assertIn("platform review", blockers)
+        self.assertIn("directory", blockers)
 
 
 if __name__ == "__main__":
