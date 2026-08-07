@@ -1,10 +1,10 @@
 """Guarded Streamable HTTP entrypoint for private and hosted alpha testing.
 
 This module intentionally does not make the service public-safe by itself.
-Non-loopback binds require an explicit operator acknowledgement and the live HTTP
-provider. Authentication, TLS termination, rate limiting and abuse controls
-remain the responsibility of the trusted reverse proxy until native OAuth is
-implemented.
+Non-loopback binds require explicit host allowlists, an operator deployment
+acknowledgement and the live HTTP provider. Authentication, TLS termination,
+rate limiting and abuse controls remain the responsibility of the trusted
+gateway until native OAuth is implemented.
 """
 
 from __future__ import annotations
@@ -13,16 +13,25 @@ import argparse
 import ipaddress
 import json
 import os
+import re
 import socket
 from dataclasses import asdict, dataclass
 from typing import Sequence
 from urllib.parse import urlparse
+
+from mcp.server.transport_security import TransportSecuritySettings
 
 from .http_provider import DEFAULT_BASE_URL
 from .mcp_server import build_mcp_server
 
 PUBLIC_BIND_ACK = "reverse-proxy-or-private-network"
 ALLOWED_RADAR_HOSTS = {"aiworkstation.cn", "useaistation.com"}
+DEFAULT_MAX_REQUEST_BODY_BYTES = 256 * 1024
+MAX_ALLOWED_HOSTS = 20
+MAX_ALLOWED_ORIGINS = 20
+HOST_ALLOWLIST_PATTERN = re.compile(
+    r"^(?:[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?|\d{1,3}(?:\.\d{1,3}){3})(?::(?:\*|\d{1,5}))?$"
+)
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -46,8 +55,6 @@ def _is_loopback_host(host: str) -> bool:
     except ValueError:
         pass
 
-    # Hostnames are treated conservatively. Only names resolving exclusively to
-    # loopback addresses qualify as a local bind.
     try:
         addresses = {
             item[4][0]
@@ -80,6 +87,47 @@ def _validate_live_radar_origin(base_url: str) -> str:
     return base_url.rstrip("/")
 
 
+def _csv_values(name: str, *, maximum: int) -> tuple[str, ...]:
+    raw = os.getenv(name, "")
+    values = tuple(dict.fromkeys(part.strip() for part in raw.split(",") if part.strip()))
+    if len(values) > maximum:
+        raise ValueError(f"{name} may contain at most {maximum} entries")
+    return values
+
+
+def _validate_allowed_hosts(values: tuple[str, ...]) -> tuple[str, ...]:
+    if not values:
+        raise ValueError(
+            "Non-loopback MCP HTTP binds require OSI_MCP_HTTP_ALLOWED_HOSTS with the exact externally served Host values"
+        )
+    for value in values:
+        if not HOST_ALLOWLIST_PATTERN.fullmatch(value):
+            raise ValueError(
+                "OSI_MCP_HTTP_ALLOWED_HOSTS entries must be exact host[:port] values or host:* patterns"
+            )
+        if value.endswith(":*"):
+            continue
+        if ":" in value:
+            port = value.rsplit(":", 1)[1]
+            if port.isdigit() and not 1 <= int(port) <= 65535:
+                raise ValueError("OSI_MCP_HTTP_ALLOWED_HOSTS contains an invalid port")
+    return values
+
+
+def _validate_allowed_origins(values: tuple[str, ...]) -> tuple[str, ...]:
+    validated: list[str] = []
+    for value in values:
+        parsed = urlparse(value)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("OSI_MCP_HTTP_ALLOWED_ORIGINS entries must be HTTPS origins")
+        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError("OSI_MCP_HTTP_ALLOWED_ORIGINS must not contain credentials, query or fragment")
+        if parsed.path not in {"", "/"}:
+            raise ValueError("OSI_MCP_HTTP_ALLOWED_ORIGINS entries must not contain a path")
+        validated.append(value.rstrip("/"))
+    return tuple(validated)
+
+
 @dataclass(frozen=True, slots=True)
 class HttpServerSettings:
     host: str
@@ -87,6 +135,9 @@ class HttpServerSettings:
     provider: str
     radar_base_url: str
     public_bind: bool
+    allowed_hosts: tuple[str, ...] = ()
+    allowed_origins: tuple[str, ...] = ()
+    max_request_body_size: int = DEFAULT_MAX_REQUEST_BODY_BYTES
     stateless_http: bool = True
     json_response: bool = True
     auth_mode: str = "reverse-proxy-required"
@@ -95,6 +146,20 @@ class HttpServerSettings:
         """Return settings safe to print in logs and CI."""
 
         return asdict(self)
+
+    def transport_security(self) -> TransportSecuritySettings | None:
+        """Return explicit SDK DNS-rebinding protection for deployed hosts.
+
+        Local loopback mode intentionally uses the SDK's secure localhost
+        defaults. Non-loopback mode always passes an explicit allowlist.
+        """
+
+        if not self.public_bind:
+            return None
+        return TransportSecuritySettings(
+            allowed_hosts=list(self.allowed_hosts),
+            allowed_origins=list(self.allowed_origins),
+        )
 
 
 def load_http_server_settings() -> HttpServerSettings:
@@ -106,10 +171,17 @@ def load_http_server_settings() -> HttpServerSettings:
 
     try:
         port = int(os.getenv("OSI_MCP_HTTP_PORT", "8000"))
+        max_request_body_size = int(
+            os.getenv("OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_REQUEST_BODY_BYTES))
+        )
     except ValueError as exc:
-        raise ValueError("OSI_MCP_HTTP_PORT must be an integer") from exc
+        raise ValueError("MCP HTTP port and request-body limit must be integers") from exc
     if not 1 <= port <= 65535:
         raise ValueError("OSI_MCP_HTTP_PORT must be between 1 and 65535")
+    if not 16 * 1024 <= max_request_body_size <= 1024 * 1024:
+        raise ValueError(
+            "OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES must be between 16384 and 1048576"
+        )
 
     provider = os.getenv("OSI_PROVIDER", "mock").strip().lower()
     if provider not in {"mock", "http"}:
@@ -117,6 +189,8 @@ def load_http_server_settings() -> HttpServerSettings:
 
     public_bind = not _is_loopback_host(host)
     base_url = os.getenv("AIWORKSTATION_RADAR_BASE_URL", DEFAULT_BASE_URL).strip()
+    allowed_hosts: tuple[str, ...] = ()
+    allowed_origins: tuple[str, ...] = ()
 
     if public_bind:
         acknowledgement = os.getenv("OSI_MCP_HTTP_PUBLIC_BIND_ACK", "").strip()
@@ -128,10 +202,14 @@ def load_http_server_settings() -> HttpServerSettings:
         if provider != "http":
             raise ValueError("Non-loopback MCP HTTP binds require OSI_PROVIDER=http")
         base_url = _validate_live_radar_origin(base_url)
+        allowed_hosts = _validate_allowed_hosts(
+            _csv_values("OSI_MCP_HTTP_ALLOWED_HOSTS", maximum=MAX_ALLOWED_HOSTS)
+        )
+        allowed_origins = _validate_allowed_origins(
+            _csv_values("OSI_MCP_HTTP_ALLOWED_ORIGINS", maximum=MAX_ALLOWED_ORIGINS)
+        )
 
     if _env_bool("OSI_MCP_HTTP_ASSUME_PUBLIC_AUTH", False):
-        # This switch is deliberately rejected. It exists only to prevent an
-        # operator from interpreting a boolean as an authentication feature.
         raise ValueError(
             "OSI_MCP_HTTP_ASSUME_PUBLIC_AUTH is not supported; configure real reverse-proxy "
             "authentication or native OAuth before Internet exposure"
@@ -143,6 +221,9 @@ def load_http_server_settings() -> HttpServerSettings:
         provider=provider,
         radar_base_url=base_url.rstrip("/"),
         public_bind=public_bind,
+        allowed_hosts=allowed_hosts,
+        allowed_origins=allowed_origins,
+        max_request_body_size=max_request_body_size,
     )
 
 
@@ -193,13 +274,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     server = build_mcp_server()
-    server.run(
-        transport="streamable-http",
-        host=settings.host,
-        port=settings.port,
-        stateless_http=True,
-        json_response=True,
-    )
+    run_arguments: dict[str, object] = {
+        "transport": "streamable-http",
+        "host": settings.host,
+        "port": settings.port,
+        "stateless_http": True,
+        "json_response": True,
+        "max_request_body_size": settings.max_request_body_size,
+    }
+    transport_security = settings.transport_security()
+    if transport_security is not None:
+        run_arguments["transport_security"] = transport_security
+    server.run(**run_arguments)
     return 0
 
 
