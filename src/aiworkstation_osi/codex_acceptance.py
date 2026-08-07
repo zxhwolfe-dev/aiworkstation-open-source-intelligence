@@ -144,6 +144,7 @@ def build_codex_command(
         env["AIWORKSTATION_RADAR_BASE_URL"] = base_url
 
     overrides = [
+        f"approval_policy={_toml_string('never')}",
         f"{server}.command={_toml_string(mcp_command)}",
         f"{server}.cwd={_toml_string(str(root.resolve()))}",
         f"{server}.enabled=true",
@@ -160,8 +161,6 @@ def build_codex_command(
         "--ephemeral",
         "--sandbox",
         "read-only",
-        "--ask-for-approval",
-        "never",
         "--color",
         "never",
         "--json",
