@@ -82,7 +82,11 @@ def _validate_live_radar_origin(base_url: str) -> str:
         raise ValueError("Radar origin must not contain credentials, query, or fragment")
     if parsed.path not in {"", "/"}:
         raise ValueError("Radar origin must be an origin without a path")
-    if parsed.port not in {None, 443}:
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("Radar origin contains an invalid port") from exc
+    if port not in {None, 443}:
         raise ValueError("Public-bind Radar origin must use the standard HTTPS port")
     return base_url.rstrip("/")
 
@@ -124,6 +128,12 @@ def _validate_allowed_origins(values: tuple[str, ...]) -> tuple[str, ...]:
             raise ValueError("OSI_MCP_HTTP_ALLOWED_ORIGINS must not contain credentials, query or fragment")
         if parsed.path not in {"", "/"}:
             raise ValueError("OSI_MCP_HTTP_ALLOWED_ORIGINS entries must not contain a path")
+        try:
+            port = parsed.port
+        except ValueError as exc:
+            raise ValueError("OSI_MCP_HTTP_ALLOWED_ORIGINS contains an invalid port") from exc
+        if port is not None and not 1 <= port <= 65535:
+            raise ValueError("OSI_MCP_HTTP_ALLOWED_ORIGINS contains an invalid port")
         validated.append(value.rstrip("/"))
     return tuple(validated)
 
