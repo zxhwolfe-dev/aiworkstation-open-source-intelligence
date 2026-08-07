@@ -13,7 +13,9 @@ class LiveValidationWorkflowTests(unittest.TestCase):
             cls.ROOT / ".github" / "workflows" / "live-contract-validation.yml"
         ).read_text(encoding="utf-8")
 
-    def test_workflow_is_manual_and_read_only(self) -> None:
+    def test_workflow_supports_automatic_and_manual_read_only_validation(self) -> None:
+        self.assertIn("push:", self.content)
+        self.assertIn("branches: [main]", self.content)
         self.assertIn("workflow_dispatch:", self.content)
         self.assertNotIn("schedule:", self.content)
         self.assertNotIn("pull_request:", self.content)
@@ -28,10 +30,15 @@ class LiveValidationWorkflowTests(unittest.TestCase):
         self.assertIn("parsed.scheme != \"https\"", self.content)
 
     def test_user_inputs_are_passed_through_environment_not_shell_templates(self) -> None:
-        self.assertIn("BASE_URL: ${{ inputs.base_url }}", self.content)
-        self.assertIn("PROJECT_ID: ${{ inputs.project_id }}", self.content)
+        # The expression may provide safe defaults for automatic push runs, but
+        # workflow inputs must still cross into shell/Python only through env.
+        self.assertIn("BASE_URL: ${{ inputs.base_url", self.content)
+        self.assertIn("PROJECT_ID: ${{ inputs.project_id", self.content)
+        self.assertIn('--base-url "$BASE_URL"', self.content)
         self.assertIn('--project-id "$PROJECT_ID"', self.content)
-        self.assertNotIn('--project-id "${{ inputs.project_id }}"', self.content)
+        self.assertNotIn('--base-url "${{ inputs.base_url', self.content)
+        self.assertNotIn('--project-id "${{ inputs.project_id', self.content)
+        self.assertIn('os.environ["BASE_URL"]', self.content)
         self.assertIn('os.environ["PROJECT_ID"]', self.content)
 
     def test_replay_uses_capture_manifest_instead_of_duplicate_identity_flags(self) -> None:
@@ -66,7 +73,7 @@ class LiveValidationWorkflowTests(unittest.TestCase):
 
     def test_forbidden_key_scan_targets_json_keys_not_free_text(self) -> None:
         self.assertIn("forbidden_key_pattern", self.content)
-        self.assertIn('"[[:space:]]*:', self.content)
+        self.assertIn('\"[[:space:]]*:', self.content)
         for marker in (
             "authorization",
             "cookie",
