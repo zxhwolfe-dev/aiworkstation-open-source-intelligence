@@ -1,0 +1,61 @@
+name: Public Radar contract regression
+description: Report a public Radar response-shape or provider compatibility regression.
+title: "[Contract] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Attach only sanitized public-contract information. Never attach raw credentials, cookies, private prompts, internal publication identifiers, or unsanitized production captures.
+  - type: input
+    id: commit
+    attributes:
+      label: OSI commit or version
+    validations:
+      required: true
+  - type: dropdown
+    id: locale
+    attributes:
+      label: Locale
+      options:
+        - en
+        - zh
+        - both
+    validations:
+      required: true
+  - type: dropdown
+    id: scenario
+    attributes:
+      label: Scenario
+      options:
+        - project-list
+        - project-detail
+        - selector-formal
+        - selector-no-match
+        - probe
+        - replay
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: difference
+    attributes:
+      label: Smallest public field difference
+      description: Describe the contract change without posting unsafe raw payloads.
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Provider/validator error
+  - type: input
+    id: snapshot
+    attributes:
+      label: Public snapshot identity (if safe and available)
+  - type: checkboxes
+    id: sanitized
+    attributes:
+      label: Sanitization
+      options:
+        - label: Any attached fixture/capture was produced by the repository sanitizer and contains no private data.
+          required: true
