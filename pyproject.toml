@@ -1,16 +1,41 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "aiworkstation-open-source-intelligence"
 version = "0.1.0"
-description = "Skills and read-only project intelligence tools for open-source AI research and technology selection."
+description = "Evidence-backed Skills, CLI, and read-only MCP tools for open-source AI research and technology selection."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Proprietary - pre-alpha" }
+license = { file = "LICENSE" }
 authors = [{ name = "AI Workstation" }]
+keywords = [
+  "ai",
+  "open-source",
+  "mcp",
+  "rag",
+  "agents",
+  "technology-selection",
+  "license-evidence",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development",
+]
 dependencies = []
+
+[project.urls]
+Homepage = "https://aiworkstation.cn/githubai/"
+Repository = "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence"
+Documentation = "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/docs/QUICKSTART.md"
+Issues = "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/issues"
+Changelog = "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 mcp = ["mcp>=2,<3"]
