@@ -7,12 +7,13 @@ adapter without coupling to private ``akaiagents`` modules.
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Mapping, Sequence
 
-from .contracts import Risk, VerifiedFact
+from .contracts import Evidence, Risk, VerifiedFact
 from .errors import ProviderUnavailableError, UpstreamContractError
 from .http_provider import (
     AIWorkstationHttpProvider as BaseAIWorkstationHttpProvider,
@@ -49,16 +50,13 @@ INTERNAL_PUBLIC_FIELDS = {
     "source_hash",
     "validated_version",
 }
+PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+SAFE_SOURCE_PATH_PATTERN = re.compile(r"^[A-Za-z0-9._/ -]{1,240}$")
+LICENSE_SOURCE_LABELS = {"license", "licence"}
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Prevent public Radar requests from leaving the configured origin.
-
-    urllib follows redirects by default. For a verification adapter, a redirect
-    is a contract change and must be investigated instead of being followed.
-    Returning ``None`` causes urllib to surface the 3xx response as HTTPError,
-    which the transport then normalizes and rejects below.
-    """
+    """Prevent public Radar requests from leaving the configured origin."""
 
     def redirect_request(
         self,
@@ -104,6 +102,85 @@ def _find_internal_fields(value: Any) -> set[str]:
             found.update(_find_internal_fields(child))
         return found
     return set()
+
+
+def _safe_github_evidence_url(project_id: str, row: Mapping[str, Any]) -> str:
+    """Build a public official URL for one already-sanitized evidence row."""
+
+    if not PROJECT_ID_PATTERN.fullmatch(project_id):
+        return ""
+    repository_url = f"https://github.com/{project_id}"
+
+    explicit_url = str(row.get("source_url") or "").strip()
+    if explicit_url:
+        parsed = urllib.parse.urlparse(explicit_url)
+        if (
+            parsed.scheme == "https"
+            and parsed.hostname == "github.com"
+            and not parsed.username
+            and not parsed.password
+            and not parsed.query
+            and not parsed.fragment
+        ):
+            return explicit_url
+
+    source_path = str(row.get("source_path") or "").strip().replace("\\", "/")
+    safe_path = (
+        source_path
+        and not source_path.startswith("/")
+        and ".." not in source_path.split("/")
+        and bool(SAFE_SOURCE_PATH_PATTERN.fullmatch(source_path))
+    )
+    if safe_path:
+        return f"{repository_url}/blob/HEAD/{urllib.parse.quote(source_path, safe='/._-')}"
+    return repository_url
+
+
+def _direct_license_evidence(
+    *,
+    project_id: str,
+    transparency: Mapping[str, Any],
+    fallback_observed_at: str,
+) -> tuple[Evidence, ...]:
+    """Return direct public License evidence only; unrelated sources do not count."""
+
+    rows = transparency.get("sources")
+    if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes, bytearray)):
+        return ()
+    observed_at = str(
+        transparency.get("source_updated_at")
+        or transparency.get("published_at")
+        or fallback_observed_at
+        or ""
+    ).strip()
+    evidence: list[Evidence] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        source_label = str(row.get("source_label") or "").strip().lower()
+        if source_label not in LICENSE_SOURCE_LABELS:
+            continue
+        excerpt = str(row.get("excerpt") or "").strip()
+        if not excerpt:
+            continue
+        source_url = _safe_github_evidence_url(project_id, row)
+        if not source_url:
+            continue
+        key = (source_url, excerpt)
+        if key in seen:
+            continue
+        seen.add(key)
+        evidence.append(
+            Evidence(
+                source_url=source_url,
+                observed_at=observed_at or fallback_observed_at,
+                source_type="official_license_source",
+                excerpt=excerpt,
+                supports=("license",),
+            )
+        )
+    return tuple(evidence)
 
 
 class SafeUrllibJsonTransport(UrllibJsonTransport):
@@ -296,33 +373,54 @@ class AIWorkstationHttpProvider(BaseAIWorkstationHttpProvider):
             return output
 
         normalized_project = dict(project)
+        stable_project_id = _project_id(normalized_project)
         raw_license = normalized_project.get("license")
         normalized_license = normalize_license(raw_license)
+        transparency = (
+            output.data.get("transparency")
+            if isinstance(output.data.get("transparency"), Mapping)
+            else {}
+        )
+        direct_license_evidence = _direct_license_evidence(
+            project_id=stable_project_id,
+            transparency=transparency,
+            fallback_observed_at=str(output.data.get("observed_at") or ""),
+        )
+
         facts: list[VerifiedFact] = []
+        license_fact_confidence = "low"
         for fact in output.verified_facts:
             if fact.field != "license":
                 facts.append(fact)
-            elif normalized_license is not None:
+                continue
+            license_fact_confidence = fact.confidence
+            if normalized_license is not None and direct_license_evidence:
                 facts.append(
                     VerifiedFact(
                         field="license",
                         value=normalized_license,
                         confidence=fact.confidence,
-                        evidence=fact.evidence,
+                        evidence=direct_license_evidence,
                     )
                 )
 
         unknowns = list(output.unknowns)
         risks = list(output.risks)
-        if normalized_license is None:
+        license_verified = normalized_license is not None and bool(direct_license_evidence)
+        if not license_verified:
             normalized_project.pop("license", None)
-            message = "License evidence is unavailable or explicitly marked unknown in the current public detail."
+            if normalized_license is None:
+                message = "License evidence is unavailable or explicitly marked unknown in the current public detail."
+            else:
+                message = (
+                    "A license label is present, but the current public transparency payload does not expose direct License evidence."
+                )
             if message not in unknowns:
                 unknowns.append(message)
             risks.append(
                 Risk(
                     code="LICENSE_UNVERIFIED",
-                    message="Do not infer permission to use or redistribute this project without license evidence.",
+                    message="Do not infer permission to use or redistribute this project without direct license evidence.",
                     severity="high",
                 )
             )
@@ -339,12 +437,48 @@ class AIWorkstationHttpProvider(BaseAIWorkstationHttpProvider):
 
         data = dict(output.data)
         data["project"] = normalized_project
+        data["license_evidence_status"] = "verified" if license_verified else "unknown"
+        data["license_evidence_count"] = len(direct_license_evidence)
         return ProviderOutput(
             data=data,
             verified_facts=tuple(facts),
             recommendations=output.recommendations,
             unknowns=tuple(dict.fromkeys(unknowns)),
             risks=tuple(risks),
+        )
+
+    def get_license_evidence(self, request: Mapping[str, Any]) -> ProviderOutput:
+        """Return only license-specific unknowns/risks and direct public evidence."""
+
+        requested_id = str(request.get("project_id") or "")
+        locale = str(request.get("locale") or "en")
+        detail = self._detail(requested_id, locale)
+        project = detail.data.get("project")
+        stable_id = _project_id(project) if isinstance(project, Mapping) else requested_id.strip().lower()
+        license_facts = tuple(fact for fact in detail.verified_facts if fact.field == "license")
+        license_value = license_facts[0].value if license_facts else None
+        license_unknowns = tuple(
+            value for value in detail.unknowns if "license" in value.lower()
+        )
+        license_risks = tuple(
+            risk
+            for risk in detail.risks
+            if risk.code in {"LICENSE_UNVERIFIED", "NON_STANDARD_LICENSE"}
+        )
+        return ProviderOutput(
+            data={
+                "project_id": stable_id,
+                "license": license_value,
+                "found": bool(detail.data.get("found")),
+                "snapshot_id": detail.data.get("snapshot_id"),
+                "source_url": detail.data.get("source_url"),
+                "observed_at": detail.data.get("observed_at"),
+                "evidence_status": detail.data.get("license_evidence_status") or "unknown",
+                "evidence_count": detail.data.get("license_evidence_count") or 0,
+            },
+            verified_facts=license_facts,
+            unknowns=license_unknowns,
+            risks=license_risks,
         )
 
     def find_alternatives(self, request: Mapping[str, Any]) -> ProviderOutput:
