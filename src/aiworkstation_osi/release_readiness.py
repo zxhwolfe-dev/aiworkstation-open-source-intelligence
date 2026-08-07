@@ -1,9 +1,9 @@
 """Produce a deterministic release-readiness report for the M1 alpha.
 
-The report distinguishes repository/code readiness from operator-attested and
-live-contract gates. It never contacts AI Workstation and never claims that CI,
-Codex, or human review occurred without explicit evidence supplied by the
-operator.
+The report distinguishes repository/code readiness, Skills-only external-alpha
+readiness, hosted private-alpha readiness, and broad public-launch readiness. It
+never contacts AI Workstation and never claims that CI, Codex, remote MCP tests,
+or human review occurred without explicit evidence supplied by the operator.
 """
 
 from __future__ import annotations
@@ -19,8 +19,9 @@ from .alpha_bundle import build_alpha_bundle
 from .fixture_replay import replay_contract_directory
 from .fixture_validation import validate_contract_directory
 from .plugin_validation import validate_plugin_package
+from .remote_smoke import _validate_endpoint
 
-READINESS_SCHEMA_VERSION = "osi.release-readiness.v1"
+READINESS_SCHEMA_VERSION = "osi.release-readiness.v2"
 
 REQUIRED_REPOSITORY_PATHS = (
     ".codex-plugin/plugin.json",
@@ -28,10 +29,14 @@ REQUIRED_REPOSITORY_PATHS = (
     ".github/workflows/ci.yml",
     ".github/workflows/live-contract-validation.yml",
     ".github/workflows/alpha-package.yml",
+    ".dockerignore",
+    "Dockerfile",
+    "compose.hosted.example.yml",
     "README.md",
     "CHANGELOG.md",
     "SECURITY.md",
     "PRIVACY.md",
+    "SUPPORT.md",
     "docs/architecture.md",
     "docs/m1-alpha.md",
     "docs/codex-setup.md",
@@ -40,6 +45,8 @@ REQUIRED_REPOSITORY_PATHS = (
     "docs/plugin-packaging.md",
     "docs/alpha-tester-guide.md",
     "docs/external-alpha-checklist.md",
+    "docs/hosted-mcp.md",
+    "docs/public-launch-decisions.md",
     "skills/open-source-project-research/SKILL.md",
     "skills/open-source-project-comparison/SKILL.md",
     "skills/open-source-stack-planner/SKILL.md",
@@ -47,6 +54,11 @@ REQUIRED_REPOSITORY_PATHS = (
     "schemas/tool-result.schema.json",
     "evals/cases.json",
     "evals/plugin-cases.json",
+    "src/aiworkstation_osi/http_server.py",
+    "src/aiworkstation_osi/remote_smoke.py",
+    "tests/test_http_server.py",
+    "tests/test_remote_smoke.py",
+    "tests/test_container_packaging.py",
 )
 
 
@@ -127,6 +139,47 @@ def _contract_gate(directory: Path | None, locale: str) -> tuple[dict[str, Any],
     )
 
 
+def _remote_endpoint_gate(remote_mcp_url: str) -> tuple[dict[str, Any], list[str]]:
+    blockers: list[str] = []
+    value = remote_mcp_url.strip()
+    if not value:
+        blockers.append("hosted MCP endpoint URL is missing")
+        return (
+            _check(
+                "hosted-mcp-endpoint",
+                False,
+                "No hosted MCP endpoint URL was supplied.",
+                supplied=False,
+            ),
+            blockers,
+        )
+    try:
+        normalized = _validate_endpoint(value, allow_http_localhost=False)
+    except ValueError as exc:
+        blockers.append(f"hosted MCP endpoint is invalid: {exc}")
+        return (
+            _check(
+                "hosted-mcp-endpoint",
+                False,
+                "Hosted MCP endpoint must be a credential-free HTTPS URL.",
+                supplied=True,
+                endpoint=value,
+                error=str(exc),
+            ),
+            blockers,
+        )
+    return (
+        _check(
+            "hosted-mcp-endpoint",
+            True,
+            "Hosted MCP endpoint is a credential-free HTTPS URL.",
+            supplied=True,
+            endpoint=normalized,
+        ),
+        blockers,
+    )
+
+
 def evaluate_release_readiness(
     root: Path,
     *,
@@ -138,24 +191,29 @@ def evaluate_release_readiness(
     artifact_reviewed: bool = False,
     live_validation_run_id: str = "",
     reviewer: str = "",
+    remote_mcp_tested: bool = False,
+    remote_mcp_url: str = "",
+    hosted_gateway_protected: bool = False,
 ) -> dict[str, Any]:
-    """Evaluate code gates and explicit external-alpha attestations offline."""
+    """Evaluate code gates and explicit alpha attestations offline."""
 
     repository_root = Path(root).resolve()
     checks: list[dict[str, Any]] = []
     code_blockers: list[str] = []
     operational_blockers: list[str] = []
+    hosted_alpha_blockers: list[str] = []
     warnings: list[str] = []
 
     missing_paths = [
-        relative for relative in REQUIRED_REPOSITORY_PATHS
+        relative
+        for relative in REQUIRED_REPOSITORY_PATHS
         if not (repository_root / relative).is_file()
     ]
     checks.append(
         _check(
             "required-repository-paths",
             not missing_paths,
-            "Required source, workflow, Skill, schema, evaluation, and release documents exist.",
+            "Required source, workflow, Skill, schema, deployment and release documents exist.",
             missing=missing_paths,
         )
     )
@@ -255,6 +313,9 @@ def evaluate_release_readiness(
         "artifact_reviewed": bool(artifact_reviewed),
         "live_validation_run_id": str(live_validation_run_id).strip(),
         "reviewer": str(reviewer).strip(),
+        "remote_mcp_tested": bool(remote_mcp_tested),
+        "remote_mcp_url": str(remote_mcp_url).strip(),
+        "hosted_gateway_protected": bool(hosted_gateway_protected),
     }
     for key, label in (
         ("ci_python310_passed", "GitHub Actions succeeded on Python 3.10"),
@@ -292,11 +353,48 @@ def evaluate_release_readiness(
 
     code_ready = not code_blockers
     external_alpha_ready = code_ready and not operational_blockers
+
+    endpoint_check, endpoint_blockers = _remote_endpoint_gate(attestations["remote_mcp_url"])
+    checks.append(endpoint_check)
+    hosted_alpha_blockers.extend(endpoint_blockers)
+
+    remote_test_ok = bool(attestations["remote_mcp_tested"])
+    checks.append(
+        _check(
+            "attestation-remote-mcp-tested",
+            remote_test_ok,
+            "The deployed Streamable HTTP endpoint passed the remote six-tool smoke test.",
+            operator_attested=remote_test_ok,
+        )
+    )
+    if not remote_test_ok:
+        hosted_alpha_blockers.append("deployed Streamable HTTP MCP smoke test is not attested")
+
+    gateway_ok = bool(attestations["hosted_gateway_protected"])
+    checks.append(
+        _check(
+            "attestation-hosted-gateway-protected",
+            gateway_ok,
+            "The hosted endpoint is behind an authenticated TLS gateway or trusted private network.",
+            operator_attested=gateway_ok,
+        )
+    )
+    if not gateway_ok:
+        hosted_alpha_blockers.append(
+            "hosted MCP gateway authentication/private-network protection is not attested"
+        )
+
+    if not external_alpha_ready:
+        hosted_alpha_blockers.append("Skills-only external-alpha gates are not complete")
+
+    hosted_private_alpha_ready = external_alpha_ready and not hosted_alpha_blockers
+
     public_launch_ready = False
     public_launch_blockers = [
         "software license has not been selected",
-        "public privacy policy, terms, and support contact are not final",
-        "hosted MCP authentication, quotas, rate limiting, and abuse controls are not delivered",
+        "public privacy policy and terms are not final",
+        "native per-user OAuth/identity and revocation are not delivered",
+        "production quotas, rate limiting and abuse controls are not fully delivered",
         "public directory submission review has not occurred",
     ]
 
@@ -306,6 +404,7 @@ def evaluate_release_readiness(
         "version": plugin_version,
         "code_ready": code_ready,
         "external_alpha_ready": external_alpha_ready,
+        "hosted_private_alpha_ready": hosted_private_alpha_ready,
         "public_launch_ready": public_launch_ready,
         "summary": {
             "checks": len(checks),
@@ -313,11 +412,13 @@ def evaluate_release_readiness(
             "failed": sum(1 for check in checks if not check["ok"]),
             "code_blockers": len(code_blockers),
             "operational_blockers": len(operational_blockers),
+            "hosted_alpha_blockers": len(hosted_alpha_blockers),
         },
         "checks": checks,
         "operator_attestations": attestations,
         "code_blockers": list(dict.fromkeys(code_blockers)),
         "operational_blockers": list(dict.fromkeys(operational_blockers)),
+        "hosted_alpha_blockers": list(dict.fromkeys(hosted_alpha_blockers)),
         "public_launch_blockers": public_launch_blockers,
         "warnings": list(dict.fromkeys(warnings)),
     }
@@ -334,17 +435,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--artifact-reviewed", action="store_true")
     parser.add_argument("--live-validation-run-id", default="")
     parser.add_argument("--reviewer", default="")
+    parser.add_argument("--remote-mcp-tested", action="store_true")
+    parser.add_argument("--remote-mcp-url", default="")
+    parser.add_argument("--hosted-gateway-protected", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument(
         "--require-external-alpha",
         action="store_true",
-        help="Exit non-zero unless all live and operator-attested alpha gates pass.",
+        help="Exit non-zero unless all live and operator-attested Skills-only alpha gates pass.",
+    )
+    parser.add_argument(
+        "--require-hosted-alpha",
+        action="store_true",
+        help="Exit non-zero unless Skills-only gates plus hosted endpoint and gateway gates pass.",
     )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.require_external_alpha and args.require_hosted_alpha:
+        raise SystemExit("choose only one of --require-external-alpha or --require-hosted-alpha")
     report = evaluate_release_readiness(
         args.root,
         contracts_en=args.contracts_en,
@@ -355,13 +466,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         artifact_reviewed=args.artifact_reviewed,
         live_validation_run_id=args.live_validation_run_id,
         reviewer=args.reviewer,
+        remote_mcp_tested=args.remote_mcp_tested,
+        remote_mcp_url=args.remote_mcp_url,
+        hosted_gateway_protected=args.hosted_gateway_protected,
     )
     rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(rendered, encoding="utf-8")
     print(rendered, end="")
-    ready = report["external_alpha_ready"] if args.require_external_alpha else report["code_ready"]
+    if args.require_hosted_alpha:
+        ready = report["hosted_private_alpha_ready"]
+    elif args.require_external_alpha:
+        ready = report["external_alpha_ready"]
+    else:
+        ready = report["code_ready"]
     return 0 if ready else 1
 
 
