@@ -33,9 +33,17 @@ class CodexAcceptanceTests(unittest.TestCase):
 
         self.assertEqual(command[:2], ["/usr/bin/codex", "exec"])
         self.assertIn("--ephemeral", command)
+        self.assertIn("--sandbox", command)
         self.assertIn("read-only", command)
+        self.assertIn("--ask-for-approval", command)
+        approval_index = command.index("--ask-for-approval")
+        self.assertEqual(command[approval_index + 1], "never")
         rendered = "\n".join(command)
         self.assertIn(f"mcp_servers.{SERVER_NAME}.required=true", rendered)
+        self.assertIn(
+            f'mcp_servers.{SERVER_NAME}.default_tools_approval_mode="approve"',
+            rendered,
+        )
         self.assertIn("OSI_ACCEPTANCE_LEDGER_PATH", rendered)
         self.assertIn("AIWORKSTATION_RADAR_BASE_URL", rendered)
         for tool in TOOL_NAMES:
