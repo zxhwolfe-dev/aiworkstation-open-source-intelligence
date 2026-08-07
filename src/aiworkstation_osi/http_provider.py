@@ -258,6 +258,8 @@ def _constraint_plan(constraints: Mapping[str, Any]) -> tuple[dict[str, Any], li
     filters: dict[str, Any] = {}
     query_ids: list[str] = []
     unsupported: list[str] = []
+    required_keys: set[str] = set()
+    deferred_filters: dict[str, Any] = {}
     for raw_key, raw_value in constraints.items():
         key = _CONSTRAINT_ALIASES.get(str(raw_key).strip().lower(), str(raw_key).strip().lower())
         if isinstance(raw_value, Mapping):
@@ -274,30 +276,36 @@ def _constraint_plan(constraints: Mapping[str, Any]) -> tuple[dict[str, Any], li
         if status != "required":
             continue
         if key in {"local", "self_hosted"}:
-            if key == "local":
-                filters["deployment"] = "local"
-            else:
-                filters["deployment"] = "local"
+            required_keys.add("local")
         elif key == "docker":
-            filters["deployment"] = "docker"
+            required_keys.add("docker")
         elif key == "deployment":
             deployment = str(value if value is not True else "").strip().lower()
             if deployment in {"self-hosted", "self_hosted", "on-prem", "on_prem"}:
                 deployment = "local"
             if deployment in {"local", "docker"}:
-                filters[key] = deployment
+                required_keys.add(deployment)
             else:
                 unsupported.append(key)
         elif key in _FILTER_CONSTRAINTS:
             if value is not True and str(value).strip():
-                filters[key] = value
+                deferred_filters[key] = value
             else:
                 unsupported.append(key)
         elif key in _QUERY_CONSTRAINTS:
             query_ids.append(key)
         else:
             unsupported.append(key)
-    return filters, query_ids, sorted(set(unsupported))
+    # A single deployment filter is only a narrowing hint. Preserve every
+    # canonical hard ID in the deterministic query contract when requirements
+    # overlap (e.g. local + docker).
+    if "docker" in required_keys:
+        filters["deployment"] = "docker"
+    elif "local" in required_keys:
+        filters["deployment"] = "local"
+    query_ids.extend(sorted(required_keys))
+    filters.update(deferred_filters)
+    return filters, sorted(set(query_ids)), sorted(set(unsupported))
 
 
 def _constraint_suffix(constraints: Mapping[str, Any], locale: str) -> str:

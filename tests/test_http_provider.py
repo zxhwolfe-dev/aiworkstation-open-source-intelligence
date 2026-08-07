@@ -174,6 +174,31 @@ class HttpProviderTests(unittest.TestCase):
         self.assertIn("web UI", seen["query"])
         self.assertNotIn("Docker", seen["query"])
 
+    def test_multiple_required_constraints_are_order_independent(self) -> None:
+        bodies: list[dict[str, Any]] = []
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            if path.endswith("/selector"):
+                bodies.append(dict(body))
+                return 200, {"evidence_status": "available", "items": [], "no_match_reason": "No exact match."}
+            raise AssertionError((method, path, query, body))
+        provider = AIWorkstationHttpProvider("https://example.test", transport=RouterTransport(handler))
+        first = {"self_hosted": "required", "docker": "required", "web_ui": "required", "no_code": "preferred"}
+        second = {"docker": "required", "web_ui": "required", "self_hosted": "required", "no_code": "preferred"}
+        provider.search_projects({"query": "RAG", "constraints": first, "locale": "en"})
+        provider.search_projects({"query": "RAG", "constraints": second, "locale": "en"})
+        self.assertEqual(len(bodies), 2)
+        for body in bodies:
+            self.assertEqual(body["filters"], {"deployment": "docker"})
+            query = body["query"].lower()
+            self.assertIn("self-hosted/local", query)
+            self.assertIn("docker", query)
+            self.assertIn("web ui", query)
+            self.assertNotIn("no-code", query)
+        self.assertEqual(
+            bodies[0]["query"].lower().split("\n", 1)[1],
+            bodies[1]["query"].lower().split("\n", 1)[1],
+        )
+
     def test_unsupported_required_constraint_fails_explicitly(self) -> None:
         provider = AIWorkstationHttpProvider("https://example.test", transport=RouterTransport(lambda *args: (200, {})))
         with self.assertRaises(UpstreamContractError) as raised:
