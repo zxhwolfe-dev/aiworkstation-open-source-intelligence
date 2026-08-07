@@ -11,29 +11,11 @@ import argparse
 import asyncio
 import json
 from typing import Any, Sequence
-from urllib.parse import urlparse
 
 from mcp import Client
 
 from .contracts import TOOL_NAMES, utc_now_iso
-
-
-def _validate_endpoint(url: str, *, allow_http_localhost: bool) -> str:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("MCP endpoint must use http or https")
-    if parsed.username or parsed.password:
-        raise ValueError("MCP endpoint URL must not contain credentials")
-    if parsed.query or parsed.fragment:
-        raise ValueError("MCP endpoint URL must not contain query or fragment")
-    if not parsed.hostname:
-        raise ValueError("MCP endpoint hostname is required")
-    local_hosts = {"localhost", "127.0.0.1", "::1"}
-    if parsed.scheme != "https" and not (
-        allow_http_localhost and parsed.hostname.lower() in local_hosts
-    ):
-        raise ValueError("Remote MCP endpoints must use HTTPS; HTTP is allowed only for localhost")
-    return url
+from .endpoint_policy import validate_mcp_endpoint
 
 
 def _annotation_summary(tool: Any) -> dict[str, Any]:
@@ -168,7 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        url = _validate_endpoint(args.url, allow_http_localhost=True)
+        url = validate_mcp_endpoint(args.url, allow_http_localhost=True)
         report = asyncio.run(
             smoke_remote_endpoint(
                 url,
