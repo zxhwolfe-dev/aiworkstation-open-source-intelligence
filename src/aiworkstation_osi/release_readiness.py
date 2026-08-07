@@ -29,14 +29,27 @@ REQUIRED_REPOSITORY_PATHS = (
     ".github/workflows/ci.yml",
     ".github/workflows/live-contract-validation.yml",
     ".github/workflows/alpha-package.yml",
+    ".github/workflows/release.yml",
+    ".github/workflows/publish-pypi.yml",
+    ".github/workflows/publish-ghcr.yml",
     ".dockerignore",
     "Dockerfile",
     "compose.hosted.example.yml",
     "README.md",
+    "README.zh-CN.md",
     "CHANGELOG.md",
+    "LICENSE",
+    "TERMS.md",
     "SECURITY.md",
     "PRIVACY.md",
     "SUPPORT.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "ROADMAP.md",
+    "docs/QUICKSTART.md",
+    "docs/FAQ.md",
+    "docs/MODEL-AND-DATA-FLOW.md",
+    "docs/openai-plugin-submission.md",
     "docs/architecture.md",
     "docs/m1-alpha.md",
     "docs/codex-setup.md",
@@ -223,7 +236,7 @@ def evaluate_release_readiness(
 
     try:
         plugin_report = validate_plugin_package(repository_root)
-    except Exception as exc:  # report generation must not hide validation failure
+    except Exception as exc:
         plugin_report = {
             "local_skills_ready": False,
             "public_submission_ready": False,
@@ -392,11 +405,11 @@ def evaluate_release_readiness(
 
     public_launch_ready = False
     public_launch_blockers = [
-        "software license has not been selected",
-        "public privacy policy and terms are not final",
+        "service-specific hosted privacy/terms and operational retention policy are not final",
         "native per-user OAuth/identity and revocation are not delivered",
         "production quotas, rate limiting and abuse controls are not fully delivered",
-        "public directory submission review has not occurred",
+        "canonical public MCP connection has not completed platform review",
+        "public directory submission review/publish has not occurred",
     ]
 
     return {
