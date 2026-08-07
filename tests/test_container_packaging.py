@@ -23,7 +23,7 @@ class ContainerPackagingTests(unittest.TestCase):
         self.assertIn("HEALTHCHECK", self.dockerfile)
         self.assertNotIn("OSI_MCP_HTTP_PUBLIC_BIND_ACK", self.dockerfile)
 
-    def test_compose_example_is_host_loopback_only(self) -> None:
+    def test_compose_example_is_host_loopback_only_and_allowlisted(self) -> None:
         self.assertIn('"127.0.0.1:8000:8000"', self.compose)
         self.assertNotIn('"0.0.0.0:8000:8000"', self.compose)
         self.assertIn("OSI_PROVIDER: http", self.compose)
@@ -31,6 +31,12 @@ class ContainerPackagingTests(unittest.TestCase):
             "OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network",
             self.compose,
         )
+        self.assertIn(
+            "OSI_MCP_HTTP_ALLOWED_HOSTS: 127.0.0.1:8000,localhost:8000",
+            self.compose,
+        )
+        self.assertIn('OSI_MCP_HTTP_ALLOWED_ORIGINS: ""', self.compose)
+        self.assertIn('OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES: "262144"', self.compose)
 
     def test_compose_drops_linux_privileges(self) -> None:
         self.assertIn("read_only: true", self.compose)
