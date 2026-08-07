@@ -66,9 +66,10 @@ DEFAULT_FORMAL_QUERY = {
     "zh": "找支持 Docker、Web 界面和私有部署的 RAG 知识库项目。",
 }
 DEFAULT_NO_MATCH_QUERY = {
-    "en": "Find an open-source AI project that is cloud-only, fully offline, and requires no local installation.",
-    "zh": "找一个只能使用云服务、同时必须完全离线、并且不能进行任何本地安装的开源 AI 项目。",
+    "en": "Find an open-source AI project.",
+    "zh": "找一个开源 AI 项目。",
 }
+DEFAULT_NO_MATCH_FILTERS = {"category": "__osi_contract_no_match_v1__"}
 
 
 def _hash_text(value: str) -> str:
@@ -164,6 +165,7 @@ def capture_public_contracts(
     project_id: str,
     formal_query: str,
     no_match_query: str,
+    no_match_filters: Mapping[str, Any] | None = None,
     timeout: float = 30.0,
 ) -> dict[str, Any]:
     """Capture four sanitized public response fixtures and a manifest."""
@@ -211,6 +213,7 @@ def capture_public_contracts(
         body={
             "lang": locale,
             "query": no_match_query,
+            "filters": dict(no_match_filters or DEFAULT_NO_MATCH_FILTERS),
             "use_model": False,
             "client_id": "aiworkstation-osi-contract-capture",
         },
@@ -237,7 +240,9 @@ def capture_public_contracts(
         "selector-no-match.json": _fixture(
             "selector-no-match",
             no_match,
-            request_fingerprint=_hash_text(f"{locale}:selector-no-match:{no_match_query}"),
+            request_fingerprint=_hash_text(
+                f"{locale}:selector-no-match:{json.dumps(dict(no_match_filters or DEFAULT_NO_MATCH_FILTERS), sort_keys=True, separators=(',', ':'))}"
+            ),
         ),
     }
     for filename, payload in fixtures.items():

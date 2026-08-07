@@ -243,13 +243,77 @@ def _selector_projects(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     return list(deduplicated.values())
 
 
+_CONSTRAINT_ALIASES = {
+    "self_hosted": "local",
+    "self-hosted": "local",
+    "web_ui": "webui",
+    "web-ui": "webui",
+}
+_QUERY_CONSTRAINTS = {"local", "docker", "webui", "no_code", "privacy", "chinese", "free"}
+_FILTER_CONSTRAINTS = {"deployment", "category", "use_case", "resource_type", "license_name", "layer"}
+
+
+def _constraint_plan(constraints: Mapping[str, Any]) -> tuple[dict[str, Any], list[str], list[str]]:
+    """Return public selector filters, query-native IDs, and unsupported required IDs."""
+    filters: dict[str, Any] = {}
+    query_ids: list[str] = []
+    unsupported: list[str] = []
+    for raw_key, raw_value in constraints.items():
+        key = _CONSTRAINT_ALIASES.get(str(raw_key).strip().lower(), str(raw_key).strip().lower())
+        if isinstance(raw_value, Mapping):
+            status = str(raw_value.get("status") or raw_value.get("polarity") or "required").lower()
+            value = raw_value.get("value") or raw_value.get("id") or True
+        else:
+            rendered = str(raw_value).strip().lower()
+            if rendered in {"required", "preferred", "not_required", "off", "unspecified"}:
+                status, value = rendered, True
+            else:
+                status, value = "required", raw_value
+        if status in {"preferred", "not_required", "off", "unspecified"}:
+            continue
+        if status != "required":
+            continue
+        if key in {"local", "self_hosted"}:
+            if key == "local":
+                filters["deployment"] = "local"
+            else:
+                filters["deployment"] = "local"
+        elif key == "docker":
+            filters["deployment"] = "docker"
+        elif key == "deployment":
+            deployment = str(value if value is not True else "").strip().lower()
+            if deployment in {"self-hosted", "self_hosted", "on-prem", "on_prem"}:
+                deployment = "local"
+            if deployment in {"local", "docker"}:
+                filters[key] = deployment
+            else:
+                unsupported.append(key)
+        elif key in _FILTER_CONSTRAINTS:
+            if value is not True and str(value).strip():
+                filters[key] = value
+            else:
+                unsupported.append(key)
+        elif key in _QUERY_CONSTRAINTS:
+            query_ids.append(key)
+        else:
+            unsupported.append(key)
+    return filters, query_ids, sorted(set(unsupported))
+
+
 def _constraint_suffix(constraints: Mapping[str, Any], locale: str) -> str:
-    if not constraints:
+    filters, query_ids, unsupported = _constraint_plan(constraints)
+    if not query_ids and not filters and not unsupported:
         return ""
-    rendered = json.dumps(constraints, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    if locale == "zh":
-        return f"\n结构化约束（保持 required/preferred/not_required 极性）：{rendered}"
-    return f"\nStructured constraints (preserve required/preferred/not_required polarity): {rendered}"
+    labels = {"local": "self-hosted/local", "webui": "web UI", "no_code": "no-code", "privacy": "privacy", "chinese": "Chinese", "free": "free", "docker": "Docker"}
+    rendered = ", ".join(labels.get(key, key) for key in query_ids)
+    if filters:
+        rendered_parts = ([rendered] if rendered else []) + [f"{key}={value}" for key, value in sorted(filters.items())]
+        rendered = ", ".join(rendered_parts)
+    suffix = ("required constraints: " if locale != "zh" else "必须约束：") + rendered if rendered else ""
+    if unsupported:
+        marker = ", ".join(unsupported)
+        suffix += ("\nUnsupported required constraints: " if locale != "zh" else "\n不支持的必须约束：") + marker
+    return "\n" + suffix
 
 
 class AIWorkstationHttpProvider:
@@ -292,11 +356,18 @@ class AIWorkstationHttpProvider:
         constraints: Mapping[str, Any],
         locale: str,
     ) -> JsonResponse:
+        filters, _query_ids, unsupported = _constraint_plan(constraints)
+        if unsupported:
+            raise UpstreamContractError(
+                "Unsupported required constraint(s)",
+                details={"unsupported_constraints": unsupported},
+            )
         response = self._request(
             "POST",
             f"{PUBLIC_API_PREFIX}/selector",
             body={
                 "query": query + _constraint_suffix(constraints, locale),
+                "filters": filters,
                 "lang": locale,
                 "use_model": False,
                 "client_id": "aiworkstation-osi-mcp-alpha",

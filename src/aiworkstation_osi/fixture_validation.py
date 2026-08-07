@@ -249,7 +249,7 @@ def validate_contract_directory(directory: Path) -> dict[str, Any]:
         formal_rows = _selector_projects(no_match_payload)
         formal_ids = {_project_id(row) for row in formal_rows if _project_id(row)}
         if formal_ids:
-            errors.append("selector-no-match: impossible-query fixture contains formal projects")
+            errors.append("selector-no-match: no-match fixture contains formal projects")
         if not str(no_match_payload.get("no_match_reason") or "").strip():
             errors.append("selector-no-match: explicit no_match_reason is missing")
         _validate_near_matches(

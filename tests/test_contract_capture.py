@@ -61,7 +61,7 @@ class FixtureTransport:
                 "query": body.get("query") if body else "",
                 "client_id": body.get("client_id") if body else "",
                 "items": [],
-                "no_match_reason": "No exact match." if "cloud-only" in str(body) else "",
+                "no_match_reason": "No exact match." if (body or {}).get("filters", {}).get("category") == "__osi_contract_no_match_v1__" else "",
                 "claim_refs": ["internal"],
             }
         else:
@@ -141,6 +141,29 @@ def collect_keys(value: Any) -> set[str]:
 
 
 class ContractCaptureTests(unittest.TestCase):
+    def test_no_match_capture_sends_structured_filter(self) -> None:
+        class RecordingTransport(FixtureTransport):
+            def __init__(self) -> None:
+                self.no_match_body: dict[str, Any] | None = None
+
+            def request(self, method: str, path: str, *, query=None, body=None, timeout=30.0):
+                if path.endswith("/selector") and body and body.get("filters"):
+                    self.no_match_body = dict(body)
+                return super().request(method, path, query=query, body=body, timeout=timeout)
+
+        transport = RecordingTransport()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            capture_public_contracts(
+                transport=transport,
+                output_dir=Path(temp_dir),
+                locale="en",
+                project_id="infiniflow/ragflow",
+                formal_query="Find a project.",
+                no_match_query="Find an open-source AI project.",
+            )
+        self.assertIsNotNone(transport.no_match_body)
+        self.assertEqual(transport.no_match_body["filters"], {"category": "__osi_contract_no_match_v1__"})
+
     def test_sanitizer_removes_internal_fields_and_bounds_content(self) -> None:
         value = {
             "query": "private query",
@@ -186,6 +209,7 @@ class ContractCaptureTests(unittest.TestCase):
             self.assertIn("<truncated", detail["payload"]["item"]["summary"])
             formal = json.loads((output_dir / "selector-formal.json").read_text(encoding="utf-8"))
             self.assertTrue(formal["request_fingerprint"].startswith("sha256:"))
+            self.assertNotEqual(formal["request_fingerprint"], json.loads((output_dir / "selector-no-match.json").read_text(encoding="utf-8"))["request_fingerprint"])
 
     def test_full_name_route_is_url_encoded(self) -> None:
         transport = EncodedRouteTransport()

@@ -123,7 +123,7 @@ class FixtureValidationTests(unittest.TestCase):
 
         self.assertFalse(report["ok"])
         self.assertTrue(
-            any("impossible-query fixture contains formal projects" in value for value in report["errors"])
+            any("no-match fixture contains formal projects" in value for value in report["errors"])
         )
 
     def test_detail_without_direct_snapshot_is_warning_when_list_identity_is_safe(self) -> None:

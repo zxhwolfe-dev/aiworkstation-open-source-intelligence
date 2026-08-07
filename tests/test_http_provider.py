@@ -117,6 +117,7 @@ class HttpProviderTests(unittest.TestCase):
             if path.endswith("/selector"):
                 self.assertEqual(body["use_model"], False)
                 self.assertIn("required", body["query"])
+                self.assertEqual(body["filters"], {"deployment": "docker"})
                 return 200, {
                     "evidence_status": "available",
                     "result_kind": "projects",
@@ -151,6 +152,33 @@ class HttpProviderTests(unittest.TestCase):
         self.assertEqual(result.data["projects"][0]["project_id"], "infiniflow/ragflow")
         self.assertTrue(any(fact.field.endswith(".license") for fact in result.verified_facts))
         self.assertFalse(any(risk.code == "MOCK_DATA" for risk in result.risks))
+
+    def test_structured_required_constraints_use_filters_and_aliases(self) -> None:
+        seen: dict[str, Any] = {}
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            if path.endswith("/selector"):
+                seen.update(body)
+                return 200, {"evidence_status": "available", "items": [], "no_match_reason": "No match."}
+            raise AssertionError((method, path, query, body))
+        provider = AIWorkstationHttpProvider("https://example.test", transport=RouterTransport(handler))
+        provider.search_projects({
+            "query": "RAG",
+            "constraints": {
+                "self_hosted": "required", "web_ui": "required",
+                "docker": "preferred", "no_code": "not_required",
+            },
+            "locale": "en",
+        })
+        self.assertEqual(seen["filters"], {"deployment": "local"})
+        self.assertIn("local", seen["query"])
+        self.assertIn("web UI", seen["query"])
+        self.assertNotIn("Docker", seen["query"])
+
+    def test_unsupported_required_constraint_fails_explicitly(self) -> None:
+        provider = AIWorkstationHttpProvider("https://example.test", transport=RouterTransport(lambda *args: (200, {})))
+        with self.assertRaises(UpstreamContractError) as raised:
+            provider.search_projects({"query": "RAG", "constraints": {"cloud_only": "required"}, "locale": "en"})
+        self.assertIn("cloud_only", raised.exception.details["unsupported_constraints"])
 
     def test_partial_selector_requires_public_notice(self) -> None:
         def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):

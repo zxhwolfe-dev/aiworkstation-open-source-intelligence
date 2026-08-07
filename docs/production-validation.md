@@ -188,7 +188,7 @@ open_world_hint = true
 
 Exercise discovery, named-project fact and license verification, Dify/RAGFlow
 comparison, alternatives, stack composition and an impossible requirement set.
-The impossible set must remain an honest no-match result.
+The no-match fixture uses an explicit deterministic structured filter and must remain an honest no-match result.
 
 ## 6. Validate the Skills-only external alpha gate
 

@@ -160,7 +160,7 @@ def replay_contract_directory(directory: Path) -> dict[str, Any]:
         {
             "id": "no-match-replay",
             "ok": no_match_ok,
-            "message": "Captured impossible-query response remains an explicit no-match through the provider.",
+            "message": "Captured no-match response remains an explicit no-match through the provider.",
             "details": {
                 "total": int(no_match_data.get("total") or 0),
                 "no_match_reason": no_match_data.get("no_match_reason"),
