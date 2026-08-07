@@ -16,10 +16,10 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .alpha_bundle import build_alpha_bundle
+from .endpoint_policy import validate_mcp_endpoint
 from .fixture_replay import replay_contract_directory
 from .fixture_validation import validate_contract_directory
 from .plugin_validation import validate_plugin_package
-from .remote_smoke import _validate_endpoint
 
 READINESS_SCHEMA_VERSION = "osi.release-readiness.v2"
 
@@ -54,6 +54,7 @@ REQUIRED_REPOSITORY_PATHS = (
     "schemas/tool-result.schema.json",
     "evals/cases.json",
     "evals/plugin-cases.json",
+    "src/aiworkstation_osi/endpoint_policy.py",
     "src/aiworkstation_osi/http_server.py",
     "src/aiworkstation_osi/remote_smoke.py",
     "tests/test_http_server.py",
@@ -154,14 +155,14 @@ def _remote_endpoint_gate(remote_mcp_url: str) -> tuple[dict[str, Any], list[str
             blockers,
         )
     try:
-        normalized = _validate_endpoint(value, allow_http_localhost=False)
+        normalized = validate_mcp_endpoint(value, allow_http_localhost=False)
     except ValueError as exc:
         blockers.append(f"hosted MCP endpoint is invalid: {exc}")
         return (
             _check(
                 "hosted-mcp-endpoint",
                 False,
-                "Hosted MCP endpoint must be a credential-free HTTPS URL.",
+                "Hosted MCP endpoint must be a credential-free HTTPS /mcp URL.",
                 supplied=True,
                 endpoint=value,
                 error=str(exc),
@@ -172,7 +173,7 @@ def _remote_endpoint_gate(remote_mcp_url: str) -> tuple[dict[str, Any], list[str
         _check(
             "hosted-mcp-endpoint",
             True,
-            "Hosted MCP endpoint is a credential-free HTTPS URL.",
+            "Hosted MCP endpoint is a credential-free HTTPS /mcp URL.",
             supplied=True,
             endpoint=normalized,
         ),
