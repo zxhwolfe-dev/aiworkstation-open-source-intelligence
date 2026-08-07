@@ -7,42 +7,50 @@ tools for evidence-backed project research, comparison and technology-stack
 planning.
 
 The distributable product is intentionally narrower than AI Workstation. It does
-not reproduce the full website, data-production pipeline, administration system
-or user account layer.
+not reproduce the full website, private data-production pipeline,
+administration system or user-account layer.
 
 ## Current layered design
 
 ```text
-User / ChatGPT desktop / Codex CLI / Codex IDE / MCP client
-                            |
-                            v
+User / ChatGPT / Codex / MCP client
+                 |
+                 v
 Skills: trigger rules, workflow, tool ordering, output policy
-                            |
-                            v
-MCP Python SDK v2 stdio server: protocol and server instructions only
-                            |
-                            v
-ToolRegistry: strict validation and unified result envelope
-                            |
-                            v
+                 |
+                 v
+       +---------+------------------+
+       |                            |
+MCP stdio transport        Guarded Streamable HTTP transport
+(local development)        (local/private hosted alpha)
+       |                            |
+       +-------------+--------------+
+                     v
+ToolRegistry: strict validation + unified result envelope
+                     |
+                     v
 ProjectIntelligenceProvider protocol
-                 /                              \
-M0 deterministic mock              M1 hardened public HTTP provider
-                                                     |
-                                                     v
-AI Workstation public project list, detail and selector endpoints
-                                                     |
-                                                     v
+          /                              \
+Deterministic mock             Hardened public HTTP provider
+                                           |
+                                           v
+AI Workstation public list/detail/selector endpoints
+                                           |
+                                           v
 Current healthy validated Radar release
 ```
+
+A reverse proxy/private-network boundary sits in front of non-local Streamable
+HTTP deployments. It is outside the MCP application process and must provide
+real authentication/private-network protection before hosted alpha access.
 
 ## Responsibilities
 
 ### Skills
 
 Skills define when to run a workflow, what information to collect, which tools
-to call, how to handle empty or conflicting evidence, and how to present the
-answer. They do not contain live project data.
+to call, how to handle empty/conflicting evidence and how to present the answer.
+They contain no live project database.
 
 First Skills:
 
@@ -50,34 +58,47 @@ First Skills:
 - `open-source-project-comparison`
 - `open-source-stack-planner`
 
-### MCP server
+### MCP tool registration
 
-`src/aiworkstation_osi/mcp_server.py` exposes exactly six read-only tools through
-the MCP Python SDK v2 stdio transport.
+`src/aiworkstation_osi/mcp_server.py` defines exactly six read-only tools and
+owns:
 
-It owns:
-
-- MCP tool registration;
-- typed MCP input schemas derived from Python signatures;
+- MCP tool registration and typed signatures;
 - server-wide workflow and safety instructions;
+- read-only/non-destructive/idempotent/open-world annotations;
 - conversion of stable product errors into model-readable tool failures.
 
-It does not own project search, comparison, evidence, recommendation or provider
-logic.
+It does not own project search, evidence, comparison or provider logic.
+
+### Transport entrypoints
+
+`osi-mcp` runs the tool set over stdio and opens no network listener.
+
+`osi-mcp-http` runs the same server over stateless JSON Streamable HTTP. It owns
+only deployment configuration and fail-closed bind policy:
+
+- safe default `127.0.0.1:8000`;
+- non-loopback binds require explicit private-network/reverse-proxy
+  acknowledgement;
+- non-loopback mode requires the live HTTP provider;
+- live Radar origin is restricted to allow-listed HTTPS origins;
+- the bind acknowledgement is explicitly not authentication.
+
+No business logic is duplicated between transports.
 
 ### Tool core
 
-`src/aiworkstation_osi/` owns:
+`src/aiworkstation_osi/tools.py` and adjacent contract modules own:
 
 - stable tool names;
-- strict input validation;
+- strict top-level and nested input validation;
 - error normalization;
 - the provider boundary;
 - the unified result envelope;
 - deterministic mock behavior for tests.
 
-It has no implicit network access. The HTTP provider is selected only when
-`OSI_PROVIDER=http` is explicitly configured.
+There is no implicit live network access. Live Radar reads occur only when
+`OSI_PROVIDER=http` is explicitly selected.
 
 ### Provider adapters
 
@@ -86,33 +107,39 @@ Skills or MCP definitions.
 
 #### Mock provider
 
-- deterministic;
-- offline;
+- deterministic and offline;
 - clearly marked `MOCK_DATA`;
-- suitable only for development and protocol tests.
+- suitable for development/protocol tests only.
 
 #### Public HTTP provider
 
 - calls public AI Workstation Radar endpoints only;
-- does not import private `akaiagents` modules;
-- requires matching public snapshot identity;
-- validates selector evidence state and near-match boundaries;
-- converts missing or sentinel licenses to explicit unknowns;
-- rejects malformed, oversized or mixed-generation responses.
+- never imports private `akaiagents` modules;
+- requires public snapshot identity;
+- rejects mixed snapshots and unsafe selector states;
+- keeps near matches separate;
+- converts missing/sentinel licenses into unknowns;
+- rejects malformed/oversized/internal-field responses.
 
-### Probe and contract capture
+### Validation and replay layer
 
-`osi-probe` validates one live project, license boundary and constrained search
-without writing data.
+`osi-probe` checks live facts/license/search behavior.
 
-`osi-capture-contracts` records sanitized public response shapes for regression
-fixtures. It removes queries, credentials and internal publication fields,
-bounds strings and arrays, and stores only query fingerprints.
+`osi-capture-contracts` creates bounded sanitized public response fixtures.
+
+`osi-validate-contracts` verifies fixture invariants without network access.
+
+`osi-replay-contracts` feeds those exact captured contracts through the same
+hardened provider used by runtime entrypoints. Locale and project identity come
+from the capture manifest.
+
+`osi-remote-smoke` connects through a real MCP client to a deployed Streamable
+HTTP endpoint, verifies the six-tool surface and annotations, and can optionally
+perform one read-only search. Remote endpoints require credential-free HTTPS.
 
 ## Unified result contract
 
-Every successful tool returns `osi.tool-result.v1` with these first-class
-boundaries:
+Every successful tool returns `osi.tool-result.v1` with first-class fields:
 
 - `data`: tool-specific structured output;
 - `verified_facts`: facts with confidence and evidence;
@@ -120,9 +147,9 @@ boundaries:
 - `unknowns`: missing or unverified conditions;
 - `risks`: explicit adoption, license, security or integration limits.
 
-This structure prevents model analysis from being presented as source truth.
+A transport cannot collapse these boundaries into an undifferentiated answer.
 
-## First tool set
+## Tool set
 
 | Tool | Purpose | Writes |
 | --- | --- | ---: |
@@ -133,78 +160,93 @@ This structure prevents model analysis from being presented as source truth.
 | `find_alternatives` | Find constrained alternatives to a project. | No |
 | `compose_ai_stack` | Compose a candidate architecture from verified components. | No |
 
-## Snapshot rule
+## Snapshot and evidence rules
 
-Time-sensitive comparisons and hydrated search candidates must use one current
-public snapshot. The system fails closed rather than combining incompatible
-project generations.
+Time-sensitive comparisons and hydrated candidates use one current public
+snapshot. The system fails closed rather than combining incompatible project
+generations.
 
-A project-detail response may use the snapshot identity from its matching public
-list result only when both records resolve to the same stable project identity.
+A public response becomes a verified fact only after the adapter establishes
+stable project identity, compatible snapshot identity, public observation source
+and time, adequate coverage and a non-conflicting evidence/license state.
 
-## Evidence rule
-
-A public endpoint response is not automatically a verified fact. The adapter
-must additionally establish:
-
-- stable project identity;
-- current snapshot identity;
-- an observed public source URL and time;
-- adequate coverage for the stated confidence;
-- no unknown license sentinel or conflicting evidence state.
-
-Recommendations, compatibility claims and architecture choices remain separate
-from verified facts even when every component fact is valid.
+Recommendations, architecture choices and cross-project compatibility remain
+analysis even when individual component facts are valid.
 
 ## Trust model
 
 - user input is untrusted;
-- repository and web content is untrusted data;
+- repository/web text is untrusted data;
 - provider output is untrusted until validated;
 - third-party code is never executed;
-- a missing license is unknown, not permission;
-- project compatibility is unknown until verified or tested;
+- missing license is unknown, not permission;
+- compatibility is unknown until verified/tested;
 - near matches are not formal recommendations;
-- raw production responses are sanitized before becoming fixtures.
+- production response fixtures are sanitized before retention;
+- a network bind is not authentication;
+- hosted gateway/private-network attestations are operator claims that must map
+  to real infrastructure.
+
+## Container/deployment boundary
+
+The runtime image includes only the Python package and MCP dependency. It runs as
+a non-root user. The example Compose deployment uses a read-only filesystem,
+bounded tmpfs, dropped capabilities, `no-new-privileges`, resource limits and a
+host-loopback port mapping.
+
+Those controls are defense in depth. TLS, identity, rate limiting, abuse
+blocking, production logging and public DNS remain infrastructure concerns.
 
 ## Current M1 Alpha scope
 
 Included:
 
-- three complete Skill workflows;
-- six tool contracts and registry;
+- three complete Skills;
+- six bounded read-only tools;
+- unified contracts and error model;
 - deterministic mock provider;
-- hardened public HTTP provider;
-- local MCP stdio server;
-- server-wide MCP instructions;
-- input manifest and result schema;
-- bilingual evaluation corpus;
-- live contract probe;
-- sanitized contract capture;
-- Codex setup guidance;
-- unit, provider and in-memory MCP tests;
-- security, privacy and integration documentation.
+- hardened public Radar provider;
+- stdio MCP transport;
+- guarded Streamable HTTP transport;
+- non-root container/private-alpha Compose scaffold;
+- local and remote MCP compatibility tests;
+- bilingual evals and public-contract validation/replay;
+- Skills-only plugin and deterministic alpha archive;
+- four-level readiness report;
+- security, privacy, support, deployment and release documentation.
 
 Not included:
 
-- hosted Streamable HTTP MCP service;
-- OAuth, API keys, billing or quotas;
-- collection, alert or team writes;
-- repository installation or execution;
-- public plugin submission;
-- production SLA or compatibility guarantees.
+- native per-user OAuth/authorization and revocation;
+- production quotas, billing, rate limits and abuse control;
+- final hosted MCP platform connection mapping;
+- public plugin-directory submission;
+- production SLA/multi-region observability infrastructure;
+- write tools, saved projects, alerts or teams;
+- compatibility guarantees between third-party projects.
 
-## M1 validation gates
+## Validation path
 
-Before an external alpha is announced:
+Before invited Skills-only alpha:
 
-1. run the full local test suite after pulling `main`;
-2. observe successful GitHub Actions runs for supported Python versions;
-3. run English and Chinese production probes;
-4. capture sanitized list, detail, selector-result and selector-no-match fixtures;
-5. confirm public transparency, update-time and license-evidence field shapes;
-6. adjust only the adapter where real public fields differ;
-7. test the stdio server from Codex using the project-scoped configuration.
+1. run local and GitHub CI;
+2. run/review bilingual production contracts;
+3. test the Skills package and stdio MCP from Codex;
+4. generate `external_alpha_ready=true` with real evidence.
 
-Any missing upstream field becomes a documented minimal additive request for
-`akaiagents`; this repository does not modify that project's main branch.
+Before invited hosted private alpha:
+
+5. deploy the guarded container behind an authenticated gateway or trusted
+   private network;
+6. run bilingual remote MCP smoke tests;
+7. generate `hosted_private_alpha_ready=true` with real evidence.
+
+Before broad public hosting:
+
+8. implement the selected identity/OAuth, revocation, quota, rate-limit and
+   abuse model;
+9. publish final legal/support URLs and select the software license;
+10. register/review the final platform connection.
+
+Any missing upstream Radar field becomes a documented minimal additive request
+for `akaiagents`; this repository does not modify that project's main branch.
