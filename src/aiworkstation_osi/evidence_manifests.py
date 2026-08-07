@@ -174,18 +174,26 @@ def validate_live_validation_evidence(
     contracts = payload.get("contracts") if isinstance(payload.get("contracts"), Mapping) else {}
     contracts_en = _safe_relative(bundle_root, contracts.get("en"))
     contracts_zh = _safe_relative(bundle_root, contracts.get("zh"))
+    required_contract_files = (
+        "manifest.json",
+        "project-list.json",
+        "project-detail.json",
+        "selector-formal.json",
+        "selector-no-match.json",
+    )
     for locale, directory in (("en", contracts_en), ("zh", contracts_zh)):
         if directory is None or not directory.is_dir():
             errors.append(f"{locale} contract directory from live evidence is unavailable")
             continue
-        required_files = {
-            "manifest.json",
-            "project-list.json",
-            "project-detail.json",
-            "selector-formal.json",
-            "selector-no-match.json",
-        }
-        missing = sorted(name for name in required_files if not (directory / name).is_file())
+        missing: list[str] = []
+        for name in required_contract_files:
+            fixture = directory / name
+            if not fixture.is_file():
+                missing.append(name)
+                continue
+            relative = fixture.relative_to(bundle_root).as_posix()
+            if relative not in files:
+                errors.append(f"live validation digest manifest does not cover {relative}")
         if missing:
             errors.append(f"{locale} contract directory is incomplete: {', '.join(missing)}")
 
