@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from aiworkstation_osi.codex_acceptance import WORKFLOW_VERSION, evaluate_ledger
 from aiworkstation_osi.contracts import TOOL_NAMES
 from aiworkstation_osi.evidence_readiness import (
     evaluate_evidence_readiness,
@@ -14,23 +16,45 @@ from aiworkstation_osi.evidence_readiness import (
 
 
 class EvidenceReadinessTests(unittest.TestCase):
-    def _report(self, path: Path, **overrides) -> Path:
+    def _report(
+        self,
+        path: Path,
+        *,
+        successful_tools: tuple[str, ...] = TOOL_NAMES,
+        **overrides,
+    ) -> Path:
+        ledger_path = path.with_name(path.stem + "-ledger.jsonl").resolve()
+        events = [
+            {
+                "schema_version": "osi.codex-acceptance-ledger.v1",
+                "timestamp": "2026-08-07T00:00:00Z",
+                "level": "INFO",
+                "event": "tool_invocation",
+                "tool": tool,
+                "outcome": "success",
+                "duration_ms": 1.0,
+                "error_code": "",
+            }
+            for tool in successful_tools
+        ]
+        ledger_path.write_text(
+            "".join(json.dumps(event) + "\n" for event in events),
+            encoding="utf-8",
+        )
+        ledger = evaluate_ledger(events)
         payload = {
             "schema_version": "osi.codex-acceptance.v1",
-            "ok": True,
+            "workflow_version": WORKFLOW_VERSION,
+            "ok": ledger["ok"],
             "commit": "candidate-sha",
             "provider": "http",
             "base_url": "https://aiworkstation.cn",
             "codex_version": "codex-cli test",
             "codex_completed": True,
             "codex_returncode": 0,
-            "ledger": {
-                "expected_tools": list(TOOL_NAMES),
-                "successful_tools": list(TOOL_NAMES),
-                "missing_tools": [],
-                "success_counts": {tool: 1 for tool in TOOL_NAMES},
-                "event_count": len(TOOL_NAMES),
-            },
+            "ledger": ledger,
+            "ledger_path": str(ledger_path),
+            "ledger_sha256": hashlib.sha256(ledger_path.read_bytes()).hexdigest(),
         }
         payload.update(overrides)
         path.write_text(json.dumps(payload), encoding="utf-8")
@@ -61,21 +85,34 @@ class EvidenceReadinessTests(unittest.TestCase):
     def test_mock_or_incomplete_tool_evidence_cannot_satisfy_live_gate(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            report_path = self._report(root / "codex.json", provider="mock")
-            payload = json.loads(report_path.read_text(encoding="utf-8"))
-            missing = TOOL_NAMES[-1]
-            payload["ledger"]["successful_tools"] = list(TOOL_NAMES[:-1])
-            payload["ledger"]["missing_tools"] = [missing]
-            payload["ledger"]["success_counts"][missing] = 0
-            report_path.write_text(json.dumps(payload), encoding="utf-8")
+            report_path = self._report(
+                root / "codex.json",
+                successful_tools=TOOL_NAMES[:-1],
+                provider="mock",
+            )
             with patch("aiworkstation_osi.evidence_readiness._git_head", return_value="candidate-sha"):
                 result = validate_codex_acceptance_report(report_path, root=root)
 
         self.assertFalse(result["ok"])
         errors = " ".join(result["errors"])
+        self.assertIn("did not pass", errors)
         self.assertIn("live HTTP provider", errors)
         self.assertIn("all six tools", errors)
         self.assertIn("missing tools", errors)
+
+    def test_tampered_ledger_digest_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            report_path = self._report(root / "codex.json")
+            payload = json.loads(report_path.read_text(encoding="utf-8"))
+            Path(payload["ledger_path"]).write_text("{}\n", encoding="utf-8")
+            with patch("aiworkstation_osi.evidence_readiness._git_head", return_value="candidate-sha"):
+                result = validate_codex_acceptance_report(report_path, root=root)
+
+        self.assertFalse(result["ok"])
+        errors = " ".join(result["errors"])
+        self.assertIn("digest", errors)
+        self.assertIn("summary", errors)
 
     def test_wrapper_derives_codex_gate_from_report_instead_of_manual_boolean(self) -> None:
         fake_base = {
