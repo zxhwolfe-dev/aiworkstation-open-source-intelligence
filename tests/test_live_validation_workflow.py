@@ -73,7 +73,7 @@ class LiveValidationWorkflowTests(unittest.TestCase):
 
     def test_forbidden_key_scan_targets_json_keys_not_free_text(self) -> None:
         self.assertIn("forbidden_key_pattern", self.content)
-        self.assertIn('\"[[:space:]]*:', self.content)
+        self.assertIn('"[[:space:]]*:', self.content)
         for marker in (
             "authorization",
             "cookie",
