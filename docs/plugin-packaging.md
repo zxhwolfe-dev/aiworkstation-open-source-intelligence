@@ -1,10 +1,23 @@
 # Plugin Packaging and Distribution
 
-The repository is a valid **Skills-only Codex plugin package** for local
-installation and invited alpha testing. It is not yet a public-directory
-submission and does not bundle or reference the live MCP connection.
+The repository is a valid **Skills-only plugin package** and also contains the separately installable read-only MCP runtime. The first broad directory submission should remain Skills-only; the hosted MCP connection can be added later after public-hosting gates are complete.
 
-## Current package
+## Public package identity
+
+- Name: `aiworkstation-open-source-intelligence`
+- Display name: `AI Open Source Intelligence`
+- Version: `0.1.0`
+- License: Apache-2.0
+- Website: https://aiworkstation.cn/githubai/
+- Repository: https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence
+- Privacy: `PRIVACY.md`
+- Terms: `TERMS.md`
+- Support: `SUPPORT.md`
+- Security: `SECURITY.md`
+
+The Apache-2.0 license covers this public repository, not private AI Workstation databases, unpublished datasets, private backend systems, or trademarks.
+
+## Current plugin surface
 
 ```text
 .
@@ -14,66 +27,22 @@ submission and does not bundle or reference the live MCP connection.
 │   └── plugins/
 │       └── marketplace.json
 └── skills/
-    ├── open-source-project-research/
-    │   └── SKILL.md
-    ├── open-source-project-comparison/
-    │   └── SKILL.md
-    └── open-source-stack-planner/
-        └── SKILL.md
+    ├── open-source-project-research/SKILL.md
+    ├── open-source-project-comparison/SKILL.md
+    └── open-source-stack-planner/SKILL.md
 ```
 
-Only `plugin.json` belongs in `.codex-plugin/`. Skills, future MCP mappings and
-future visual assets remain at the plugin root.
+Only `plugin.json` belongs in `.codex-plugin/`.
 
-## Why the package is Skills-only today
+## Why the first directory release is Skills-only
 
-The repository contains a local stdio MCP server, but the plugin manifest does
-not declare `mcpServers` or `apps` yet.
+The repository also contains a local stdio MCP server, but a public plugin should not claim a bundled or registered live MCP connection until installation and hosting are portable and reviewed.
 
-A bundled `.mcp.json` needs a portable command guaranteed to exist after plugin
-installation. The current `osi-mcp` command belongs to a project-specific Python
-environment and cannot be assumed to exist on an arbitrary user's machine.
+A Skills-only release is still useful: it gives ChatGPT/Codex the exact research, comparison, evidence, constraint, license, and architecture workflow. When live tools are absent, the Skills are explicitly required not to invent current project facts.
 
-An `.app.json` mapping requires a registered MCP connection technical ID. That
-ID should be committed only after the publishing organization and endpoint are
-final. A broad hosted release also needs a production-grade public MCP endpoint,
-authentication and abuse controls.
+The live data layer remains available to developers who separately install/configure the read-only MCP runtime.
 
-Publishing a broken MCP reference would be worse than publishing a clear
-Skills-only alpha. The current package exposes the three workflows, while
-developers can connect the local MCP server separately through
-[`codex-setup.md`](codex-setup.md).
-
-## Manifest decisions
-
-`.codex-plugin/plugin.json` includes:
-
-- stable kebab-case identity;
-- semantic version;
-- publisher, repository and product links;
-- the `./skills/` package path;
-- install-surface descriptions;
-- read/research/compare capabilities;
-- starter prompts;
-- brand color;
-- an explicit statement that live project facts require a separately configured
-  MCP connection.
-
-It intentionally omits:
-
-- `license`, because no open-source license has been granted;
-- public legal URLs, because plugin-specific legal pages are not final;
-- `mcpServers`, because there is no portable bundled MCP command yet;
-- `apps`, because there is no final registered hosted MCP technical ID;
-- image paths, because final icon, logo and screenshots are not ready.
-
-Do not add placeholder or inaccurate legal, license, asset or MCP fields merely
-to make the manifest look complete.
-
-## Repo-scoped marketplace
-
-`.agents/plugins/marketplace.json` exposes the repository-root plugin as a local
-entry. Codex can register the repository marketplace:
+## Install from the repository marketplace
 
 ```bash
 codex plugin marketplace add zxhwolfe-dev/aiworkstation-open-source-intelligence --ref main
@@ -87,12 +56,7 @@ codex plugin marketplace add /ABSOLUTE/PATH/TO/aiworkstation-open-source-intelli
 codex plugin marketplace list
 ```
 
-Local marketplace installation tests only the packaged Skills. Configure the
-stdio MCP server separately until the plugin receives a valid MCP mapping.
-
-## Offline package validation
-
-Run:
+## Validate the plugin package
 
 ```bash
 python -m pip install -e ".[mcp]"
@@ -101,46 +65,28 @@ osi-validate-plugin --root .
 
 The validator checks:
 
-- manifest identity and semantic version;
-- package paths that remain inside the plugin root;
-- the rule that `.codex-plugin/` contains only `plugin.json`;
-- Skill directory presence, frontmatter names and descriptions;
-- install-surface descriptions, prompts, color and read-only capabilities;
-- optional `.mcp.json` and `.app.json` targets when declared;
-- marketplace identity, local source path, policy and category;
-- intentional public-release blockers such as missing license and legal URLs.
+- stable plugin identity and semantic version;
+- Skills paths and frontmatter;
+- repository marketplace identity;
+- read-only capabilities;
+- public website/listing metadata;
+- Apache-2.0 license declaration;
+- public privacy and terms URLs;
+- optional MCP/app mappings when declared.
 
-The command exits successfully when the local Skills package is structurally
-ready. Its report keeps `public_submission_ready=false` while legal or
-publication gates remain unresolved.
+`public_submission_ready=true` means the repository's **Skills metadata package** has the required local public fields; it does not mean that a platform has reviewed or published the plugin.
 
-Low-level checks:
-
-```bash
-python -m json.tool .codex-plugin/plugin.json >/dev/null
-python -m json.tool .agents/plugins/marketplace.json >/dev/null
-python -m unittest tests.test_plugin_package -v
-python -m unittest tests.test_plugin_validation -v
-```
-
-Then verify locally:
-
-- the marketplace appears as `AI Workstation Local Plugins`;
-- the plugin appears as `AI Open Source Intelligence`;
-- all three Skills are available;
-- starter prompts cover project research, comparison and stack planning;
-- the package does not claim write access or a live MCP connection;
-- a Skill without MCP access discloses that current facts are unavailable.
-
-## Deterministic alpha ZIP
-
-Build a reviewable Skills-only archive:
+## Deterministic Skills bundle
 
 ```bash
 osi-build-alpha --root . --output-dir dist/alpha
+(
+  cd dist/alpha
+  sha256sum --check SHA256SUMS
+)
 ```
 
-The output directory contains:
+The output contains:
 
 ```text
 aiworkstation-open-source-intelligence-skills-0.1.0.zip
@@ -148,123 +94,96 @@ SHA256SUMS
 bundle-report.json
 ```
 
-Verify the archive:
+The ZIP includes:
 
-```bash
-(
-  cd dist/alpha
-  sha256sum --check SHA256SUMS
-)
-```
-
-The builder:
-
-- reads the package name and version from `plugin.json`;
-- includes only the two distribution manifests, three Skill directories and a
-  reviewed documentation/security/privacy allowlist;
-- rejects symlinks, non-UTF-8 files, oversized files and credential-like text;
-- writes fixed timestamps and permissions for reproducible ZIP bytes;
-- embeds `BUNDLE-MANIFEST.json` with per-file size and SHA-256 values;
-- emits an external archive checksum and machine-readable report;
-- explicitly declares `distribution_mode=skills-only` and
-  `live_mcp_bundled=false`.
+- plugin + marketplace manifests;
+- all three Skills;
+- English and Chinese README/quickstart documentation;
+- License and Terms;
+- Security, Privacy, and Support documents;
+- FAQ, Roadmap, and alpha-tester guidance;
+- an embedded per-file SHA-256 manifest.
 
 It excludes:
 
-- `src/` and the local MCP implementation;
-- `tests/` and `.github/`;
-- `pyproject.toml` and editable-install assumptions;
-- temporary captures and validation artifacts;
-- credentials, local configuration and environment files.
+- Python runtime implementation;
+- MCP source;
+- tests and GitHub Actions;
+- editable-install assumptions;
+- environment files and credentials;
+- temporary validation artifacts.
 
-Two builds from the same source tree must produce identical archive bytes. The
-unit suite checks reproducibility, package contents and checksums.
+Two builds from the same tree must be byte-identical.
 
-## Manual packaging workflow
+## GitHub release
 
-The repository includes:
+The guarded workflow `.github/workflows/release.yml`:
 
-```text
-.github/workflows/alpha-package.yml
+1. requires a semantic `vX.Y.Z` tag input;
+2. verifies the tag equals plugin/package version;
+3. runs the test and plugin gates;
+4. builds the deterministic Skills bundle;
+5. creates a GitHub release or pre-release;
+6. attaches the Skills ZIP, `SHA256SUMS`, and bundle report.
+
+The workflow requires an explicit manual dispatch and repository `contents: write` only for the release job.
+
+## PyPI distribution
+
+`.github/workflows/publish-pypi.yml` prepares the Python/CLI/MCP package for PyPI using Trusted Publishing.
+
+Before the first run:
+
+1. confirm the PyPI project name is available or create the project;
+2. configure a GitHub environment named `pypi`;
+3. configure PyPI Trusted Publishing for this repository/workflow/environment;
+4. verify version uniqueness;
+5. manually dispatch the workflow and type `PUBLISH`.
+
+The workflow runs tests, builds wheel/sdist, runs `twine check`, uploads a build artifact, and then publishes through OIDC. It does not store a long-lived PyPI API token in the repository.
+
+After publishing, intended installation is:
+
+```bash
+pip install "aiworkstation-open-source-intelligence[mcp]"
 ```
 
-This workflow is manually triggered and read-only. It:
+## GHCR container distribution
 
-1. installs the reviewed source tree;
-2. runs the full unit suite;
-3. validates the plugin package;
-4. builds the deterministic archive;
-5. verifies `SHA256SUMS`;
-6. inspects the ZIP for required and forbidden paths;
-7. uploads the package only if all gates pass.
+`.github/workflows/publish-ghcr.yml` builds and pushes the repository Docker image to:
 
-The workflow never creates a release or tag and has no repository write
-permission. A human still decides whether the resulting artifact is fit for an
-invited alpha.
+```text
+ghcr.io/zxhwolfe-dev/aiworkstation-open-source-intelligence
+```
 
-## Add the MCP connection later
+It runs on `v*` tags or explicit manual dispatch and uses `GITHUB_TOKEN` package permission.
 
-Choose exactly one packaging route after live validation.
+Publishing an image does **not** mean the HTTP MCP endpoint is approved for unrestricted public hosting. The container remains subject to the authentication/gateway/quotas/abuse requirements documented in `docs/hosted-mcp.md`.
 
-### Route A: registered MCP connection
+## OpenAI Skills-only submission
 
-Use this for hosted ChatGPT/plugin testing:
+Use [`openai-plugin-submission.md`](openai-plugin-submission.md) for:
 
-1. deploy a hardened MCP endpoint;
-2. validate authentication, host checks, rate limits and logging;
-3. register the endpoint with the intended publishing organization;
-4. copy the final technical ID;
-5. add a root `.app.json` mapping;
-6. add the matching manifest field;
-7. test the installed combined plugin in a new chat.
+- store/listing copy;
+- five starter prompts;
+- five positive review cases;
+- three negative/boundary cases;
+- privacy/safety statements;
+- release notes;
+- final publisher checklist.
 
-Do not commit an organization-specific technical ID until the publisher and
-endpoint are final.
+The directory release and the public MCP release are separate milestones.
 
-### Route B: bundled MCP server
+## Add a hosted MCP connection later
 
-Use this only when installation supplies a portable executable without manual
-project setup:
+Only after public-hosting gates are complete:
 
-1. define a root `.mcp.json` server map;
-2. ensure the command works from the installed plugin cache;
-3. avoid hard-coded developer paths;
-4. add the matching manifest field;
-5. test enable/disable and approval policy from a clean install.
+1. choose a canonical public HTTPS MCP hostname;
+2. deploy behind reviewed identity/authentication controls;
+3. add revocation, quotas, rate limiting, abuse controls, monitoring, and retention policy;
+4. run bilingual remote MCP validation;
+5. register/verify the connection with the target platform;
+6. add the final registered MCP mapping to the plugin package;
+7. re-run directory tests before publishing the combined Skills+MCP version.
 
-The current editable Python installation does not satisfy this portability gate.
-
-## External-alpha gates
-
-Use [`external-alpha-checklist.md`](external-alpha-checklist.md). At minimum:
-
-- standard CI succeeds on supported Python versions;
-- the manual live contract workflow passes in Chinese and English;
-- captured fixtures pass validation, replay and manual sanitization review;
-- the Skills-only package validates and its checksum is verified;
-- the archive is tested in a clean environment;
-- critical and high-severity findings are closed or block the release;
-- testers receive [`alpha-tester-guide.md`](alpha-tester-guide.md).
-
-## Public submission gates
-
-Do not enter a broad public submission flow until:
-
-- the intended publisher identity is verified;
-- public website, support contact, privacy policy and terms are ready;
-- English and Chinese evaluation cases pass;
-- GitHub Actions and public Radar validation pass;
-- any MCP endpoint has production authentication and abuse controls;
-- all six tools expose correct names, schemas and read-only annotations;
-- reviewer prompts and test cases are ready;
-- country availability and policy attestations are decided;
-- a software license is selected before the manifest claims one.
-
-## References
-
-- Plugin packaging and distribution documentation
-- ChatGPT/plugin connection and testing documentation
-- Codex MCP configuration documentation
-
-Verify current platform requirements from the official provider documentation
-before a public submission because directory and manifest rules may change.
+See `docs/public-launch-decisions.md` and `ROADMAP.md`.
