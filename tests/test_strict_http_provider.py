@@ -49,7 +49,28 @@ def project_card() -> dict[str, Any]:
     }
 
 
-def project_detail(license_name: Any) -> dict[str, Any]:
+def project_detail(
+    license_name: Any,
+    *,
+    direct_license_evidence: bool = True,
+) -> dict[str, Any]:
+    sources = [
+        {
+            "source_label": "README",
+            "source_path": "README.md",
+            "section_heading": "Deployment",
+            "excerpt": "Run the service with Docker.",
+        }
+    ]
+    if direct_license_evidence:
+        sources.append(
+            {
+                "source_label": "License",
+                "source_path": "LICENSE",
+                "section_heading": "License",
+                "excerpt": "Licensed under the Apache License, Version 2.0.",
+            }
+        )
     return {
         "owner": "owner",
         "repo": "sample",
@@ -61,19 +82,27 @@ def project_detail(license_name: Any) -> dict[str, Any]:
         "archived": False,
         "interpretation": {
             "coverage_level": "EN_L2",
-            "transparency": {"source_count": 2},
+            "transparency": {
+                "published_at": "2026-08-05T10:00:00Z",
+                "source_updated_at": "2026-08-05T09:30:00Z",
+                "quality_label": "Deterministically validated and independently reviewed",
+                "sources": sources,
+            },
         },
     }
 
 
-def detail_handler(license_name: Any):
+def detail_handler(license_name: Any, *, direct_license_evidence: bool = True):
     def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
         if path.endswith("/projects"):
             return 200, {"snapshot_id": "snapshot-1", "items": [project_card()]}
         if path.endswith("/projects/sample"):
             return 200, {
                 "snapshot_id": "snapshot-1",
-                "item": project_detail(license_name),
+                "item": project_detail(
+                    license_name,
+                    direct_license_evidence=direct_license_evidence,
+                ),
             }
         raise AssertionError((method, path, query, body))
 
@@ -81,6 +110,46 @@ def detail_handler(license_name: Any):
 
 
 class StrictHttpProviderTests(unittest.TestCase):
+    def test_direct_license_source_becomes_verified_fact_with_official_url(self) -> None:
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(detail_handler("Apache-2.0")),
+        )
+        output = provider.get_license_evidence({"project_id": "owner/sample", "locale": "en"})
+
+        self.assertEqual(output.data["license"], "Apache-2.0")
+        self.assertEqual(output.data["evidence_status"], "verified")
+        self.assertEqual(output.data["evidence_count"], 1)
+        self.assertEqual(len(output.verified_facts), 1)
+        fact = output.verified_facts[0]
+        self.assertEqual(fact.field, "license")
+        self.assertEqual(fact.evidence[0].source_type, "official_license_source")
+        self.assertEqual(
+            fact.evidence[0].source_url,
+            "https://github.com/owner/sample/blob/HEAD/LICENSE",
+        )
+        self.assertEqual(fact.evidence[0].observed_at, "2026-08-05T09:30:00Z")
+
+    def test_license_label_without_direct_source_is_downgraded_to_unknown(self) -> None:
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(
+                detail_handler("Apache-2.0", direct_license_evidence=False)
+            ),
+        )
+        detail = provider.get_project_facts({"project_id": "owner/sample", "locale": "en"})
+        license_output = provider.get_license_evidence(
+            {"project_id": "owner/sample", "locale": "en"}
+        )
+
+        self.assertNotIn("license", detail.data["project"])
+        self.assertFalse(any(fact.field == "license" for fact in detail.verified_facts))
+        self.assertEqual(detail.data["license_evidence_status"], "unknown")
+        self.assertIsNone(license_output.data["license"])
+        self.assertEqual(license_output.data["evidence_status"], "unknown")
+        self.assertTrue(any("direct License evidence" in value for value in license_output.unknowns))
+        self.assertIn("LICENSE_UNVERIFIED", {risk.code for risk in license_output.risks})
+
     def test_unknown_license_sentinel_is_not_promoted_to_verified_fact(self) -> None:
         provider = AIWorkstationHttpProvider(
             "https://example.test",
@@ -89,6 +158,7 @@ class StrictHttpProviderTests(unittest.TestCase):
         output = provider.get_license_evidence({"project_id": "owner/sample", "locale": "en"})
 
         self.assertIsNone(output.data["license"])
+        self.assertEqual(output.data["evidence_status"], "unknown")
         self.assertFalse(output.verified_facts)
         self.assertTrue(any("License evidence" in value for value in output.unknowns))
         self.assertIn("LICENSE_UNVERIFIED", {risk.code for risk in output.risks})
@@ -103,6 +173,26 @@ class StrictHttpProviderTests(unittest.TestCase):
         self.assertEqual(output.data["license"], "OTHER")
         self.assertEqual(output.verified_facts[0].value, "OTHER")
         self.assertIn("NON_STANDARD_LICENSE", {risk.code for risk in output.risks})
+
+    def test_license_tool_does_not_leak_unrelated_detail_unknowns(self) -> None:
+        def handler(method: str, path: str, query: Mapping[str, Any], body: Mapping[str, Any]):
+            if path.endswith("/projects"):
+                return 200, {"snapshot_id": "snapshot-1", "items": [project_card()]}
+            if path.endswith("/projects/sample"):
+                item = project_detail("Apache-2.0")
+                item.pop("deployment", None)
+                item.pop("updated_at", None)
+                return 200, {"snapshot_id": "snapshot-1", "item": item}
+            raise AssertionError((method, path, query, body))
+
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(handler),
+        )
+        output = provider.get_license_evidence({"project_id": "owner/sample", "locale": "en"})
+
+        self.assertEqual(output.data["license"], "Apache-2.0")
+        self.assertEqual(output.unknowns, ())
 
     def test_retryable_http_status_is_provider_unavailable(self) -> None:
         provider = AIWorkstationHttpProvider(
