@@ -28,19 +28,54 @@ MAX_DEPTH = 10
 REDACTED_QUERY_TEXT = "<redacted-query>"
 
 REMOVED_KEYS = {
-    "authorization", "api_key", "apikey", "access_token", "refresh_token",
-    "bearer_token", "cookie", "cookies", "secret", "password", "email",
-    "client_id", "request_id", "query", "prompt", "raw", "raw_content",
-    "evidence_ids", "claim_refs", "publication_version", "source_hash",
-    "validated_version", "assignment_version", "prompt_version",
+    "authorization",
+    "api_key",
+    "apikey",
+    "access_token",
+    "refresh_token",
+    "bearer_token",
+    "cookie",
+    "cookies",
+    "secret",
+    "password",
+    "email",
+    "client_id",
+    "request_id",
+    "query",
+    "prompt",
+    "raw",
+    "raw_content",
+    "evidence_ids",
+    "claim_refs",
+    "publication_version",
+    "source_hash",
+    "validated_version",
+    "assignment_version",
+    "prompt_version",
+    # Public selector continuation tokens currently encode the requirement spec,
+    # including the original user query. Captured artifacts must never retain it.
     "requirement_token",
 }
+
+# Selector query-analysis structures can contain the original query or derived
+# paraphrases. The hardened provider/replay path does not consume them, so a
+# shareable validation capture removes them completely rather than trying to
+# sanitize every possible future field inside those structures.
 SELECTOR_REMOVED_KEYS = frozenset(
-    REMOVED_KEYS | {"understanding", "query_analysis", "requirement_spec"}
+    REMOVED_KEYS | {
+        "understanding",
+        "query_analysis",
+        "requirement_spec",
+    }
 )
 
 SAFE_HEADERS = {
-    "cache-control", "content-type", "date", "etag", "last-modified", "x-request-id",
+    "cache-control",
+    "content-type",
+    "date",
+    "etag",
+    "last-modified",
+    "x-request-id",
 }
 
 DEFAULT_FORMAL_QUERY = {
@@ -65,7 +100,11 @@ def _validate_timeout(timeout: float) -> None:
 
 def _redact_query_text(value: str, redact_texts: Sequence[str]) -> str:
     """Remove exact request text wherever retained public output still echoes it."""
+
     redacted = value
+    # Longest first avoids a shorter supplied phrase partially masking a longer
+    # one before it can be replaced. Case-insensitive matching covers harmless
+    # upstream casing changes without trying to infer paraphrases.
     for text in sorted(
         {str(item) for item in redact_texts if str(item or "").strip()},
         key=len,
@@ -83,6 +122,7 @@ def sanitize_public_value(
     removed_keys: frozenset[str] | set[str] = frozenset(REMOVED_KEYS),
 ) -> Any:
     """Return a bounded JSON-safe copy with sensitive/internal fields removed."""
+
     if depth > MAX_DEPTH:
         return "<max-depth>"
     if isinstance(value, Mapping):
@@ -129,7 +169,11 @@ def _fixture(
     redact_texts: Sequence[str] = (),
     removed_keys: frozenset[str] | set[str] = frozenset(REMOVED_KEYS),
 ) -> dict[str, Any]:
-    headers = {key.lower(): value for key, value in response.headers.items() if key.lower() in SAFE_HEADERS}
+    headers = {
+        key.lower(): value
+        for key, value in response.headers.items()
+        if key.lower() in SAFE_HEADERS
+    }
     return {
         "schema_version": FIXTURE_SCHEMA_VERSION,
         "scenario": scenario,
@@ -189,6 +233,7 @@ def capture_public_contracts(
     timeout: float = 30.0,
 ) -> dict[str, Any]:
     """Capture four sanitized public response fixtures and a manifest."""
+
     if locale not in {"zh", "en"}:
         raise ValueError("locale must be zh or en")
     if not project_id.strip():
@@ -217,7 +262,12 @@ def capture_public_contracts(
     formal = transport.request(
         "POST",
         f"{PUBLIC_API_PREFIX}/selector",
-        body={"lang": locale, "query": formal_query, "use_model": False, "client_id": "aiworkstation-osi-contract-capture"},
+        body={
+            "lang": locale,
+            "query": formal_query,
+            "use_model": False,
+            "client_id": "aiworkstation-osi-contract-capture",
+        },
         timeout=timeout,
     )
     _require_success(formal, "selector-formal")
@@ -237,21 +287,25 @@ def capture_public_contracts(
 
     fixtures = {
         "project-list.json": _fixture(
-            "project-list", listing,
+            "project-list",
+            listing,
             request_fingerprint=_hash_text(f"{locale}:project-list:{project_id}"),
         ),
         "project-detail.json": _fixture(
-            "project-detail", detail,
+            "project-detail",
+            detail,
             request_fingerprint=_hash_text(f"{locale}:project-detail:{project_id}"),
         ),
         "selector-formal.json": _fixture(
-            "selector-formal", formal,
+            "selector-formal",
+            formal,
             request_fingerprint=_hash_text(f"{locale}:selector-formal:{formal_query}"),
             redact_texts=(formal_query,),
             removed_keys=SELECTOR_REMOVED_KEYS,
         ),
         "selector-no-match.json": _fixture(
-            "selector-no-match", no_match,
+            "selector-no-match",
+            no_match,
             request_fingerprint=_hash_text(
                 f"{locale}:selector-no-match:{json.dumps(dict(no_match_filters or DEFAULT_NO_MATCH_FILTERS), sort_keys=True, separators=(',', ':'))}"
             ),
@@ -314,7 +368,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             timeout=args.timeout,
         )
     except (ProviderUnavailableError, UpstreamContractError, ValueError) as exc:
-        print(json.dumps({"ok": False, "error": {"code": getattr(exc, "code", "INVALID_CONFIGURATION"), "message": str(exc)}}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": {
+                        "code": getattr(exc, "code", "INVALID_CONFIGURATION"),
+                        "message": str(exc),
+                    },
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 1
     print(json.dumps({"ok": True, **manifest}, ensure_ascii=False, indent=2))
     return 0
