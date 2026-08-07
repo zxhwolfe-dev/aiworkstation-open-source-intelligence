@@ -27,6 +27,7 @@ osi-replay-contracts = "aiworkstation_osi.fixture_replay:main"
 osi-validate-plugin = "aiworkstation_osi.plugin_validation:main"
 osi-build-alpha = "aiworkstation_osi.alpha_bundle:main"
 osi-readiness = "aiworkstation_osi.release_readiness:main"
+osi-codex-acceptance = "aiworkstation_osi.codex_acceptance:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
