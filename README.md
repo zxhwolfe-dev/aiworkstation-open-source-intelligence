@@ -5,7 +5,7 @@ open-source AI projects with explicit evidence and uncertainty boundaries.
 
 ## Status
 
-**M1 Alpha / pre-release.** The repository contains:
+**M1 Alpha / pre-release.** The repository now contains:
 
 - three complete Skill workflows;
 - a validated Skills-only Codex plugin package and repo-scoped marketplace;
@@ -13,15 +13,19 @@ open-source AI projects with explicit evidence and uncertainty boundaries.
 - a transport-neutral Python core;
 - a deterministic offline mock provider;
 - a fail-closed HTTP provider for AI Workstation's public Radar API;
-- an MCP Python SDK v2 stdio server with server-wide safety instructions;
+- stdio and guarded Streamable HTTP MCP transports;
 - live public-contract probes, sanitized capture, validation and offline replay;
 - a deterministic Skills-only alpha ZIP builder with SHA-256 checksums;
-- a consolidated code/live/operator release-readiness report;
-- automated unit, plugin, MCP, workflow and packaging tests.
+- a consolidated four-level release-readiness report;
+- a non-root container and localhost-only hosted-alpha compose example;
+- remote MCP compatibility smoke tests;
+- automated unit, plugin, MCP, workflow, packaging and deployment-policy tests.
 
-This is not yet a hosted public MCP service or a public-directory release. The
-live HTTP provider is opt-in and must pass production contract validation before
-an external release.
+This is **not yet a broad public hosted MCP service or public-directory
+release**. The hosted transport is ready for local/private-alpha deployment
+behind a trusted private network or authenticated TLS gateway. Native public
+OAuth, production quotas/rate limiting/abuse controls, legal publication gates
+and platform registration remain deliberately unresolved.
 
 ## Product boundaries
 
@@ -33,15 +37,15 @@ Every tool result separates:
 4. risks and limitations.
 
 The first release is read-only. It does not execute repository code, mutate
-GitHub projects, save collections, authenticate users or process payments.
+GitHub projects, save collections, authenticate end users or process payments.
 
-## First Skills
+## Skills
 
 - `open-source-project-research`
 - `open-source-project-comparison`
 - `open-source-stack-planner`
 
-## First tools
+## Tools
 
 - `search_ai_projects`
 - `get_project_facts`
@@ -63,11 +67,13 @@ GitHub projects, save collections, authenticate users or process payments.
 ├── evals/                       bilingual tool and workflow cases
 ├── tests/                       unit, provider, workflow and MCP tests
 ├── examples/                    invocation and Codex configuration examples
-├── docs/                        architecture, setup and release runbooks
+├── docs/                        architecture, deployment and release runbooks
+├── Dockerfile
+├── compose.hosted.example.yml
 ├── CHANGELOG.md
-├── AGENTS.md
 ├── SECURITY.md
-└── PRIVACY.md
+├── PRIVACY.md
+└── SUPPORT.md
 ```
 
 ## Local setup
@@ -81,9 +87,14 @@ osi-validate-plugin --root .
 osi-readiness --root .
 ```
 
-The default readiness command verifies the code tree only. It should report
-`code_ready=true` while keeping `external_alpha_ready=false` until live captures,
-CI results, Codex testing and human review are supplied.
+Before real operational evidence exists, the expected readiness state is:
+
+```text
+code_ready=true
+external_alpha_ready=false
+hosted_private_alpha_ready=false
+public_launch_ready=false
+```
 
 ## Install the local Skills plugin
 
@@ -100,12 +111,10 @@ For a local clone:
 codex plugin marketplace add /ABSOLUTE/PATH/TO/aiworkstation-open-source-intelligence
 ```
 
-Restart the ChatGPT desktop app, open the Plugins Directory, choose
-`AI Workstation Local Plugins`, and install `AI Open Source Intelligence`.
-
-The plugin currently installs the three Skills only. It deliberately does not
-claim a bundled or registered MCP connection. Connect the local stdio server
-separately until a portable bundled command or hosted MCP endpoint is ready.
+The plugin package installs the three Skills only. It deliberately does not yet
+claim a bundled or registered live MCP connection. Configure the stdio MCP
+server separately until the hosted connection identity and authorization model
+are stable.
 
 See [`docs/plugin-packaging.md`](docs/plugin-packaging.md).
 
@@ -120,11 +129,12 @@ osi-m0 invoke search_ai_projects \
   --arguments '{"query":"self-hosted RAG with Docker and web UI"}'
 ```
 
-The returned `MOCK_DATA` risk is intentional.
+`MOCK_DATA` warnings are intentional and prevent fixture output from being
+mistaken for current verified project intelligence.
 
 ## Public Radar HTTP provider
 
-Enable the public AI Workstation adapter explicitly:
+Enable the live read-only adapter explicitly:
 
 ```bash
 export OSI_PROVIDER=http
@@ -137,27 +147,20 @@ osi-m0 invoke get_project_facts \
   --arguments '{"project_id":"infiniflow/ragflow","locale":"en"}'
 ```
 
-The adapter:
+The adapter requires public snapshot identity, rejects mixed snapshots and
+unsafe selector contracts, keeps near matches outside formal recommendations,
+turns missing/sentinel licenses into explicit unknowns, flags non-standard
+license labels and never imports private `akaiagents` modules.
 
-- uses public read endpoints only;
-- requires public snapshot identity for project facts;
-- rejects mixed-snapshot comparisons;
-- requires selector evidence status to be `available` or disclosed `partial`;
-- keeps near matches outside formal recommendations;
-- converts missing and sentinel license values to explicit unknowns;
-- flags non-standard license labels for manual review;
-- rejects leaked internal selector fields and unsafe contract shapes;
-- never imports private `akaiagents` modules.
+## stdio MCP server
 
-## MCP server
-
-Run a local stdio MCP server for Codex or another MCP host:
+Run a local MCP server for Codex or another stdio-capable host:
 
 ```bash
 OSI_PROVIDER=mock osi-mcp
 ```
 
-Use the public HTTP provider:
+Use live Radar data:
 
 ```bash
 OSI_PROVIDER=http \
@@ -165,15 +168,54 @@ AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn \
 osi-mcp
 ```
 
-The server exposes exactly six read-only tools. Its instructions lead with the
-fact/recommendation boundary, prohibition on repository execution, license
-caveat and recommended tool sequence. Tests connect in memory without opening a
-subprocess or network port.
+The server exposes exactly six annotated read-only tools and preserves the
+fact/recommendation/unknown/risk boundary.
 
-For Codex setup, see [`docs/codex-setup.md`](docs/codex-setup.md) and
-[`examples/codex-config.toml`](examples/codex-config.toml).
+See [`docs/codex-setup.md`](docs/codex-setup.md).
 
-## Validate the public contract
+## Guarded Streamable HTTP MCP
+
+Validate the default local configuration without opening a socket:
+
+```bash
+osi-mcp-http --check-config
+```
+
+Run a loopback-only development endpoint:
+
+```bash
+OSI_PROVIDER=mock osi-mcp-http
+```
+
+The MCP endpoint is then:
+
+```text
+http://127.0.0.1:8000/mcp
+```
+
+Verify it with a real MCP client:
+
+```bash
+osi-remote-smoke --url http://127.0.0.1:8000/mcp
+```
+
+A non-loopback bind requires an explicit private-network/reverse-proxy
+acknowledgement, the live HTTP provider and an allow-listed HTTPS Radar origin.
+That acknowledgement is **not authentication**. Do not expose the endpoint
+directly to the Internet without a trusted authenticated TLS gateway or future
+native OAuth.
+
+Container/private-alpha example:
+
+```bash
+docker build -t aiworkstation-osi-mcp:0.1.0 .
+docker compose -f compose.hosted.example.yml up --build
+```
+
+The example maps only `127.0.0.1:8000` on the host and drops container
+capabilities. See [`docs/hosted-mcp.md`](docs/hosted-mcp.md).
+
+## Validate the public Radar contract
 
 Run both language probes:
 
@@ -182,7 +224,7 @@ osi-probe --base-url https://aiworkstation.cn --locale en
 osi-probe --base-url https://aiworkstation.cn --locale zh
 ```
 
-Capture, validate and replay sanitized response shapes:
+Capture, validate and replay one language:
 
 ```bash
 osi-capture-contracts \
@@ -191,29 +233,21 @@ osi-capture-contracts \
   --project-id infiniflow/ragflow \
   --output-dir tmp/public-validation/contracts-en
 
-osi-validate-contracts --directory tmp/public-validation/contracts-en
+osi-validate-contracts \
+  --directory tmp/public-validation/contracts-en
+
 osi-replay-contracts \
   --directory tmp/public-validation/contracts-en \
-  --project-id infiniflow/ragflow \
-  --locale en
+  --output tmp/public-validation/replay-en.json
 ```
 
-The capture removes query text, credentials, client IDs and internal publication
-fields; bounds strings and lists; and records fingerprints instead of prompts.
+Replay derives locale and project identity from the sanitized capture manifest.
+The manual `live-contract-validation` workflow runs the bilingual chain and
+uploads artifacts only after validation, replay and forbidden-key scanning pass.
 
-A manually triggered workflow performs the complete bilingual validation chain
-and uploads an artifact only after validation, replay and sanitization succeed:
-
-```text
-.github/workflows/live-contract-validation.yml
-```
-
-See [`docs/live-validation-workflow.md`](docs/live-validation-workflow.md) and
-[`docs/production-validation.md`](docs/production-validation.md).
+See [`docs/production-validation.md`](docs/production-validation.md).
 
 ## Build the Skills-only alpha package
-
-Create a deterministic ZIP for invited Skills-only testers:
 
 ```bash
 osi-build-alpha --root . --output-dir dist/alpha
@@ -223,62 +257,50 @@ osi-build-alpha --root . --output-dir dist/alpha
 )
 ```
 
-The archive contains the plugin manifests, three Skills, public documentation,
-changelog and an embedded file manifest with individual SHA-256 hashes. It
-excludes Python source, tests, CI workflows, `pyproject.toml` and the live MCP
-server, so it does not imply live Radar access.
+The archive contains the plugin manifests, three Skills, changelog, security,
+privacy, support and tester documentation plus an embedded per-file SHA-256
+manifest. It excludes Python runtime code and the live MCP server so the package
+does not imply live-data access by itself.
 
-The manually triggered packaging workflow runs all release gates before
-uploading the archive:
+The manual `.github/workflows/alpha-package.yml` workflow runs release gates
+before uploading the archive.
+
+## Readiness levels
+
+`osi-readiness` distinguishes:
 
 ```text
-.github/workflows/alpha-package.yml
+code_ready
+external_alpha_ready
+hosted_private_alpha_ready
+public_launch_ready
 ```
 
-See [`docs/alpha-tester-guide.md`](docs/alpha-tester-guide.md) and
-[`docs/external-alpha-checklist.md`](docs/external-alpha-checklist.md).
-
-## Produce the final alpha-readiness report
-
-After downloading and reviewing both live contract directories:
-
-```bash
-osi-readiness \
-  --root . \
-  --contracts-en /path/to/contracts-en \
-  --contracts-zh /path/to/contracts-zh \
-  --ci-python310-passed \
-  --ci-python312-passed \
-  --codex-tested \
-  --artifact-reviewed \
-  --live-validation-run-id 123456789 \
-  --reviewer "Reviewer name" \
-  --require-external-alpha \
-  --output tmp/external-alpha-readiness.json
-```
-
-The command validates and replays the supplied captures, but CI, Codex and human
-review flags remain explicit operator attestations. It never claims those gates
-were independently observed. Public-launch readiness intentionally remains false
-until software licensing, public legal/support pages and hosted MCP protections
-are complete.
+For a Skills-only invited alpha, supply real bilingual contract captures plus
+CI, Codex and review evidence. For a hosted private alpha, additionally supply a
+credential-free HTTPS MCP endpoint, successful remote smoke-test attestation and
+protected gateway/private-network attestation.
 
 See [`docs/release-readiness.md`](docs/release-readiness.md).
 
 ## Architecture
 
 ```text
-User / plugin or MCP host
-     |
-Three packaged Skills
-     |
-MCP Python SDK v2 stdio server
-     |
-Transport-neutral ToolRegistry
-     |
+User / plugin / MCP host
+          |
+Three Skills
+          |
+  +-------+----------------+
+  |                        |
+stdio MCP             Streamable HTTP MCP
+  |                 (guarded private alpha)
+  +-----------+------------+
+              |
+       ToolRegistry
+              |
 Mock provider OR hardened AI Workstation HTTP provider
-     |
-Current healthy validated Radar release
+              |
+ Current healthy validated Radar release
 ```
 
 `zxhwolfe-dev/akaiagents` remains a read-only reference and private data
@@ -295,6 +317,8 @@ contracts rather than importing its private Python modules.
 - [`docs/live-validation-workflow.md`](docs/live-validation-workflow.md)
 - [`docs/production-validation.md`](docs/production-validation.md)
 - [`docs/release-readiness.md`](docs/release-readiness.md)
+- [`docs/hosted-mcp.md`](docs/hosted-mcp.md)
+- [`docs/public-launch-decisions.md`](docs/public-launch-decisions.md)
 - [`docs/alpha-tester-guide.md`](docs/alpha-tester-guide.md)
 - [`docs/external-alpha-checklist.md`](docs/external-alpha-checklist.md)
 - [`schemas/tool-manifest.json`](schemas/tool-manifest.json)
@@ -302,23 +326,28 @@ contracts rather than importing its private Python modules.
 - [`docs/security-and-privacy.md`](docs/security-and-privacy.md)
 - [`docs/error-codes.md`](docs/error-codes.md)
 
-## Remaining M1 validation
+## What still requires real-world execution or publisher decisions
 
-1. Observe successful standard CI runs on Python 3.10 and 3.12.
-2. Run the manual live validation workflow against the intended production
-   origin and review its English and Chinese artifacts.
-3. Install and test the Skills plugin through the repo marketplace.
-4. Test the stdio server from Codex using the project-scoped configuration.
-5. Close any public-contract differences found in production responses.
-6. Generate an external-alpha readiness report with real run and reviewer
-   evidence.
-7. Select a software license, public legal pages and support contact before a
-   broad public launch.
-8. Add hosted Streamable HTTP only after authentication, host validation, rate
-   limiting, abuse controls and deployment policy are designed.
+Code-side M1 Alpha is now substantially complete. Remaining gates are:
+
+1. observe successful local tests and GitHub Actions on Python 3.10/3.12;
+2. run and review bilingual production contract validation;
+3. install the Skills package and test stdio MCP from Codex;
+4. deploy the guarded HTTP service behind a protected gateway/private network;
+5. run English and Chinese `osi-remote-smoke` against the deployed endpoint;
+6. generate real external/hosted-alpha readiness reports;
+7. fix only production contract/runtime differences demonstrated by those runs;
+8. choose software license and publish final legal/support URLs;
+9. implement the chosen per-user OAuth/identity, revocation, quota, rate-limit
+   and abuse-control model before broad public hosting;
+10. register and review the final hosted MCP/plugin connection with the target
+    distribution platform.
+
+The decisions that cannot safely be invented in code are documented in
+[`docs/public-launch-decisions.md`](docs/public-launch-decisions.md).
 
 ## License
 
 No open-source license has been granted yet. The repository is public for
 pre-release inspection and development; reuse rights will be defined before the
-first public package release.
+first broad public package release.
