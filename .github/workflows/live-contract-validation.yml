@@ -1,6 +1,17 @@
 name: live-contract-validation
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/live-contract-validation.yml"
+      - ".codex-plugin/**"
+      - ".agents/**"
+      - "schemas/**"
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
   workflow_dispatch:
     inputs:
       base_url:
@@ -21,8 +32,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: live-contract-validation
-  cancel-in-progress: false
+  group: live-contract-validation-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -30,8 +41,8 @@ jobs:
     timeout-minutes: 30
     env:
       VALIDATION_ROOT: tmp/live-contract-validation
-      BASE_URL: ${{ inputs.base_url }}
-      PROJECT_ID: ${{ inputs.project_id }}
+      BASE_URL: ${{ inputs.base_url || 'https://aiworkstation.cn' }}
+      PROJECT_ID: ${{ inputs.project_id || 'infiniflow/ragflow' }}
 
     steps:
       - name: Check out repository
