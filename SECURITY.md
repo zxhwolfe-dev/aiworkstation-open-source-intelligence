@@ -2,14 +2,25 @@
 
 ## Supported versions
 
-This repository is pre-alpha. Only the latest commit on `main` is considered for
-security fixes. No production service or public MCP endpoint is shipped yet.
+This repository is M1 Alpha / pre-release. Only the latest commit on `main` is
+considered for security fixes.
+
+A guarded Streamable HTTP transport and container scaffold are available for
+local/private-alpha testing, but no broad public MCP service is approved or
+supported yet. Native end-user OAuth, production quota/rate-limit/abuse controls
+and final public-service policies remain release blockers.
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a vulnerability involving credentials, private
-data, prompt injection that crosses a trust boundary, or a potential remote-code
-execution path.
+Do not open a public issue for a vulnerability involving:
+
+- credentials, tokens or private data;
+- authentication or gateway bypass;
+- prompt injection that crosses a trust boundary;
+- remote code execution or third-party repository execution;
+- unsafe write behavior;
+- data leakage from Radar/public-contract responses;
+- container or hosted MCP isolation failures.
 
 Until a dedicated security mailbox is published, use the private contact method
 listed on the AI Workstation website and include:
@@ -18,15 +29,37 @@ listed on the AI Workstation website and include:
 - reproduction steps;
 - expected and observed behavior;
 - impact and required preconditions;
+- deployment mode: mock, live stdio, local HTTP or hosted private alpha;
 - suggested mitigation, when available.
 
-Do not include real secrets, customer data or malicious payloads that could harm
+Do not include real secrets, customer data or weaponized payloads that could harm
 third parties.
 
-## Security guarantees in M0
+## Current security guarantees
 
-- all declared tools are read-only;
+- all six product tools are read-only;
 - the default provider performs no network access;
-- third-party repository code is never executed;
-- mock data is explicitly marked and cannot be presented as verified facts;
-- production integration is blocked on fail-closed public-release validation.
+- third-party repository code is never executed or installed;
+- mock data is explicitly marked and cannot be presented as verified live facts;
+- live Radar integration fails closed on required identity/evidence contracts;
+- Streamable HTTP defaults to loopback and mock data;
+- non-loopback binds require explicit private-network/reverse-proxy
+  acknowledgement and the live provider;
+- the bind acknowledgement is not authentication;
+- remote MCP smoke URLs reject embedded credentials and require HTTPS outside
+  localhost;
+- the example container runs non-root, drops capabilities and maps only to host
+  loopback;
+- Skills-only alpha bundles exclude runtime MCP source and scan for common
+  credential-like material.
+
+## Not a public-hosting guarantee
+
+The repository does not currently guarantee that an Internet-exposed deployment
+is secure merely because `osi-mcp-http` starts successfully. Public hosting also
+requires real identity/authentication, revocation, TLS gateway controls, rate
+limits, abuse blocking, production logging/monitoring, secret management and
+incident response.
+
+See `docs/security-and-privacy.md`, `docs/hosted-mcp.md` and
+`docs/public-launch-decisions.md` before any hosted rollout.
