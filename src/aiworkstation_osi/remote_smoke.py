@@ -12,10 +12,13 @@ import asyncio
 import json
 from typing import Any, Sequence
 
-from mcp import Client
-
 from .contracts import TOOL_NAMES, utc_now_iso
 from .endpoint_policy import validate_mcp_endpoint
+
+# Backward-compatible private alias used by existing tests/release tooling. The
+# policy itself lives in a dependency-free module so importing it does not
+# require the optional MCP runtime.
+_validate_endpoint = validate_mcp_endpoint
 
 
 def _annotation_summary(tool: Any) -> dict[str, Any]:
@@ -35,6 +38,10 @@ async def smoke_remote_endpoint(
     invoke_search: bool = False,
     locale: str = "en",
 ) -> dict[str, Any]:
+    # Lazy import keeps dependency-free policy/readiness tooling functional when
+    # the project is installed without the optional ``mcp`` extra.
+    from mcp import Client
+
     checks: list[dict[str, Any]] = []
     async with Client(url) as client:
         listed = await client.list_tools()
