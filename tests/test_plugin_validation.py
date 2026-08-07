@@ -11,16 +11,16 @@ from aiworkstation_osi.plugin_validation import validate_plugin_package
 class PluginValidationTests(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[1]
 
-    def test_current_repository_is_local_skills_ready_but_not_public_ready(self) -> None:
+    def test_current_repository_is_local_and_public_metadata_ready(self) -> None:
         report = validate_plugin_package(self.ROOT)
 
         self.assertTrue(report["local_skills_ready"])
-        self.assertFalse(report["public_submission_ready"])
+        self.assertTrue(report["public_submission_ready"])
         self.assertEqual(report["summary"]["errors"], 0)
         rendered = " ".join(report["warnings"])
-        self.assertIn("software license", rendered)
-        self.assertIn("privacy policy", rendered)
-        self.assertIn("terms", rendered)
+        self.assertNotIn("software license", rendered)
+        self.assertNotIn("privacy policy", rendered)
+        self.assertNotIn("terms", rendered)
         self.assertIn("Skills-only", rendered)
 
     def test_invalid_identity_relative_path_and_missing_marketplace_fail(self) -> None:
