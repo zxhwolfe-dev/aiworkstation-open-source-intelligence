@@ -127,23 +127,32 @@ jobs:
             exit 1
           fi
 
-      - name: Write validation summary
+      - name: Write validation summary and evidence manifest
         run: |
           set -euo pipefail
           python - <<'PY'
+          import hashlib
           import json
           import os
+          from datetime import datetime, timezone
           from pathlib import Path
 
           root = Path(os.environ["VALIDATION_ROOT"])
           rows = []
+          probe_status = {}
+          replay_status = {}
           for locale in ("en", "zh"):
               probe = json.loads((root / f"probe-{locale}.json").read_text(encoding="utf-8"))
               replay = json.loads((root / f"replay-{locale}.json").read_text(encoding="utf-8"))
+              probe_status[locale] = probe.get("ok") is True
+              replay_status[locale] = replay.get("ok") is True
               rows.append(
                   f"| {locale} | {probe.get('ok')} | {replay.get('ok')} | "
                   f"{len(probe.get('checks') or [])} | {len(probe.get('errors') or [])} |"
               )
+
+          if not all(probe_status.values()) or not all(replay_status.values()):
+              raise SystemExit("validation evidence cannot be written from failed probes or replay")
 
           summary = [
               "# Live Radar contract validation",
@@ -164,6 +173,40 @@ jobs:
           github_summary = os.environ.get("GITHUB_STEP_SUMMARY")
           if github_summary:
               Path(github_summary).write_text(rendered, encoding="utf-8")
+
+          protected_files = {}
+          for path in sorted(root.rglob("*")):
+              if not path.is_file() or path.name == "validation-evidence.json":
+                  continue
+              relative = path.relative_to(root).as_posix()
+              protected_files[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+
+          evidence = {
+              "schema_version": "osi.live-validation-evidence.v1",
+              "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+              "workflow": "live-contract-validation",
+              "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+              "commit": os.environ.get("GITHUB_SHA", ""),
+              "repository": os.environ.get("GITHUB_REPOSITORY", ""),
+              "base_url": os.environ["BASE_URL"].rstrip("/"),
+              "project_id": os.environ["PROJECT_ID"].strip(),
+              "contracts": {"en": "contracts-en", "zh": "contracts-zh"},
+              "checks": {
+                  "probe_en": True,
+                  "probe_zh": True,
+                  "contract_validate_en": True,
+                  "contract_validate_zh": True,
+                  "replay_en": True,
+                  "replay_zh": True,
+                  "forbidden_key_scan": True,
+              },
+              "files": protected_files,
+          }
+          (root / "validation-evidence.json").write_text(
+              json.dumps(evidence, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
           PY
 
       - name: Upload sanitized validation bundle
