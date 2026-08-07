@@ -29,6 +29,9 @@ jobs:
       - name: Install package with MCP runtime
         run: python -m pip install --upgrade pip && python -m pip install -e ".[mcp]"
 
+      - name: Compile Python sources
+        run: python -m compileall -q src tests
+
       - name: Validate JSON artifacts
         run: |
           python -m json.tool .codex-plugin/plugin.json >/dev/null
@@ -58,6 +61,8 @@ jobs:
               raise SystemExit(f"code readiness failed: {report.get('code_blockers')}")
           if report.get("external_alpha_ready") is not False:
               raise SystemExit("ordinary CI must not attest live external-alpha gates")
+          if report.get("hosted_private_alpha_ready") is not False:
+              raise SystemExit("ordinary CI must not attest hosted private-alpha gates")
           PY
 
       - name: Build deterministic Skills-only alpha bundle
@@ -87,6 +92,9 @@ jobs:
               "skills/open-source-project-research/SKILL.md",
               "skills/open-source-project-comparison/SKILL.md",
               "skills/open-source-stack-planner/SKILL.md",
+              "SECURITY.md",
+              "PRIVACY.md",
+              "SUPPORT.md",
           }
           missing = sorted(required - names)
           forbidden = sorted(name for name in names if name.startswith("src/") or name == "pyproject.toml")
@@ -110,10 +118,19 @@ jobs:
           osi-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
 
-      - name: Validate container packaging
+      - name: Validate container packaging and hosted config
         if: matrix.python-version == '3.12'
         run: |
           set -euo pipefail
-          docker build -t aiworkstation-osi-mcp:ci .
-          docker run --rm aiworkstation-osi-mcp:ci osi-mcp-http --check-config >/dev/null
           docker compose -f compose.hosted.example.yml config >/dev/null
+          docker compose -f compose.hosted.example.yml build osi-mcp
+
+          # The image itself still starts in safe loopback/mock mode when no
+          # deployment environment is supplied.
+          docker run --rm aiworkstation-osi-mcp:local \
+            osi-mcp-http --check-config >/dev/null
+
+          # Exercise the actual Compose hosted-alpha environment without opening
+          # a listening service or publishing ports.
+          docker compose -f compose.hosted.example.yml run --rm --no-deps \
+            osi-mcp osi-mcp-http --check-config >/dev/null
