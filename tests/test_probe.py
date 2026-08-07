@@ -16,7 +16,11 @@ class PublicContractProbeTests(unittest.TestCase):
             "verified_facts": [{"field": "license"}],
         }
         license_result = {
-            "data": {"license": "Apache-2.0"},
+            "data": {
+                "license": "Apache-2.0",
+                "evidence_status": "verified",
+                "evidence_count": 1,
+            },
             "unknowns": [],
             "risks": [{"code": "NOT_LEGAL_ADVICE"}],
         }
@@ -32,6 +36,37 @@ class PublicContractProbeTests(unittest.TestCase):
         checks = evaluate_probe(facts, license_result, search)
         self.assertTrue(all(check["ok"] for check in checks))
 
+    def test_license_label_without_direct_evidence_fails_probe_boundary(self) -> None:
+        facts = {
+            "data": {
+                "found": True,
+                "snapshot_id": "snapshot-1",
+                "project": {"project_id": "owner/repo"},
+            },
+            "verified_facts": [{"field": "project_id"}],
+        }
+        license_result = {
+            "data": {
+                "license": "Apache-2.0",
+                "evidence_status": "unknown",
+                "evidence_count": 0,
+            },
+            "unknowns": [],
+            "risks": [{"code": "NOT_LEGAL_ADVICE"}],
+        }
+        search = {
+            "data": {
+                "evidence_status": "available",
+                "total": 1,
+                "snapshot_id": "snapshot-1",
+                "no_match_reason": "",
+            }
+        }
+
+        by_id = {check["id"]: check for check in evaluate_probe(facts, license_result, search)}
+        self.assertFalse(by_id["license-boundary"]["ok"])
+        self.assertEqual(by_id["license-boundary"]["details"]["evidence_count"], 0)
+
     def test_explicit_unknown_license_is_acceptable_but_missing_search_reason_is_not(self) -> None:
         facts = {
             "data": {
@@ -42,7 +77,11 @@ class PublicContractProbeTests(unittest.TestCase):
             "verified_facts": [{"field": "project_id"}],
         }
         license_result = {
-            "data": {"license": None},
+            "data": {
+                "license": None,
+                "evidence_status": "unknown",
+                "evidence_count": 0,
+            },
             "unknowns": ["License evidence is unknown."],
             "risks": [{"code": "NOT_LEGAL_ADVICE"}, {"code": "LICENSE_UNVERIFIED"}],
         }
@@ -66,8 +105,8 @@ class PublicContractProbeTests(unittest.TestCase):
             "verified_facts": [],
         }
         license_result = {
-            "data": {"license": None},
-            "unknowns": ["Unknown"],
+            "data": {"license": None, "evidence_status": "unknown", "evidence_count": 0},
+            "unknowns": ["Unknown license evidence"],
             "risks": [{"code": "NOT_LEGAL_ADVICE"}],
         }
         search = {
