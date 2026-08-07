@@ -1,12 +1,12 @@
 # akaiagents Read-Only Integration Map
 
-This document records the M0 analysis of `zxhwolfe-dev/akaiagents`. It is an
-integration plan, not a request to change that repository.
+This document records the current integration contract with
+`zxhwolfe-dev/akaiagents`. That repository remains read-only from this project.
 
-## Relevant current public surfaces
+## Relevant public surfaces
 
-The existing Radar implementation already exposes read-oriented FastAPI
-surfaces under `/api/v1/ai/githubai`, including:
+The Radar implementation exposes read-oriented FastAPI surfaces under
+`/api/v1/ai/githubai`, including:
 
 - `GET /overview`
 - `GET /projects`
@@ -16,17 +16,13 @@ surfaces under `/api/v1/ai/githubai`, including:
 - `GET /skill-sources/{source_id}`
 - `POST /selector`
 
-The public-contract tests require ETags for overview, project lists, project
-details and Skills. The project-list contract defaults to 24 rows and accepts a
-maximum of 200. Keyword project searches use a short public cache. Maintenance,
-observability and refresh routes are protected and are outside this project's
-read-only scope.
+Maintenance, observability and refresh routes are outside this project's scope.
 
 ## Confirmed public projection shapes
 
 ### Project list
 
-The release projection tests show a response containing:
+The public list/release projection includes fields such as:
 
 - `items`
 - `page_ids`
@@ -39,12 +35,12 @@ The release projection tests show a response containing:
 - `public_total`
 - `snapshot_id`
 
-Chinese list and keyword search read from the materialized public projection
-instead of scanning the internal catalog.
+The M1 provider requires non-empty snapshot identity before project facts can be
+promoted to the verified result boundary.
 
 ### Project detail release artifact
 
-`github_ai_radar_public_details.py` declares
+`github_ai_radar_public_details.py` currently declares
 `githubai.public_detail.v4`. Its immutable artifact contains:
 
 - `project_id`
@@ -52,19 +48,57 @@ instead of scanning the internal catalog.
 - locale-specific reviewed payloads in `locales`
 - locale-specific public final project items in `items`
 
-The materialized public item includes compact project facts, related public
-cards and an `interpretation` payload. The reviewed detail includes a
-`coverage_level` and public-safe `transparency` generated from the matching
-publication.
+The final public item contains compact project facts plus `interpretation`. The
+reviewed interpretation includes `coverage_level` and a public-safe
+`transparency` object built from the matching validated publication.
 
-This is the preferred source for `get_project_facts`; the adapter must still
-select which individual fields qualify as verified facts.
+The current public transparency implementation exposes:
+
+- `content_level`
+- `published_at`
+- `source_updated_at`
+- `quality_label`
+- up to five direct `sources`
+
+Each source currently exposes:
+
+- `source_label`
+- `source_path`
+- `section_heading`
+- `excerpt`
+
+The public evidence builder validates source/evidence/quality artifacts against
+the same source hash before producing this transparency projection. Direct
+source labels include README, Release, License, repository metadata, project
+manifest and manually verified material.
+
+### Direct license evidence boundary
+
+The distribution provider no longer treats a project-level `license` label by
+itself as sufficient verified evidence.
+
+For `get_license_evidence`:
+
+1. the project/detail snapshot must pass the normal public-release checks;
+2. the license value must not be an unknown sentinel;
+3. `transparency.sources` must contain a direct `License` source with a public
+   excerpt;
+4. the adapter derives the corresponding official GitHub URL from stable
+   `owner/repository` identity and the already-sanitized `source_path`;
+5. only then is `license` emitted in `verified_facts`.
+
+If the project has a license label but no direct public License source, the label
+is removed from the verified project projection and the result becomes an
+explicit `LICENSE_UNVERIFIED` unknown/risk state.
+
+This is intentionally stricter than simply trusting repository metadata. It
+prevents the product's strongest legal-adjacent fact from outrunning the public
+evidence contract.
 
 ### Selector
 
-The retrieval evaluation invokes `POST /selector` with a natural-language
-query, locale and optional retrieval diagnostics. The public smoke contract
-allows high-level fields including:
+`POST /selector` supports the high-level public contract needed by this project,
+including:
 
 - `result_kind`, `resource_kind`, `items` and `skills`
 - `constraints`, `requirements`, `assumptions` and clarification questions
@@ -75,60 +109,78 @@ allows high-level fields including:
 - `near_matches`, `relaxation_options` and `relaxation_context`
 - `catalog_status`, `retrieval_status` and degradation indicators
 
-Near matches must remain outside formal recommendations, have exactly one
-blocking constraint, and never leak internal evidence IDs, source hashes or
-publication versions. A no-result response is valid only when the evidence index
-is available or partial and an explicit verified no-match reason is present.
+Near matches must remain outside formal recommendations, contain exactly one
+blocking constraint and never expose internal evidence IDs, source hashes or
+publication versions. A no-result response is accepted only when the evidence
+index is available/explicitly partial and a public no-match reason is present.
 
 ## Production adapter mapping
 
-| M0 tool | Existing source | Adapter responsibility |
+| Tool | Existing Radar source | Adapter responsibility |
 | --- | --- | --- |
-| `search_ai_projects` | `POST /selector`, public project list | Convert explicit constraints, preserve no-match reasons, stable IDs and near-match boundaries. |
-| `get_project_facts` | `GET /projects/{project_id}` | Project only current detail fields into the unified fact/evidence envelope. |
-| `get_license_evidence` | Project detail transparency and public evidence fields | Return observed license material and time; never infer a missing license. |
-| `compare_ai_projects` | Multiple same-snapshot project-detail reads; selector comparison when suitable | Build a matrix while keeping recommendations separate from facts. |
-| `find_alternatives` | Selector alternatives/near matches plus project details | Verify every alternative and expose any relaxed constraint. |
-| `compose_ai_stack` | Selector solution and project-role results plus project details | Orchestrate reads; label architecture and compatibility as recommendations. |
+| `search_ai_projects` | `POST /selector`, public project list/detail | Preserve hard constraints, no-match reasons, stable IDs, evidence state and near-match boundaries; hydrate current facts. |
+| `get_project_facts` | `GET /projects/{project_id}` | Project only current same-snapshot public fields into the fact/evidence envelope. |
+| `get_license_evidence` | Project detail + direct `transparency.sources` License evidence | Require direct public License evidence; never infer permission from a label or missing license. |
+| `compare_ai_projects` | Multiple same-snapshot project-detail reads | Keep factual comparisons separate from scenario-specific recommendations. |
+| `find_alternatives` | Selector candidates plus project details | Resolve source aliases, exclude the source project and verify current alternatives. |
+| `compose_ai_stack` | Selector solution/project-role results plus project details | Verify individual components; label architecture and compatibility as recommendations. |
 
 ## Required fail-closed checks
 
-Before production use, the adapter must verify:
+The current adapter enforces or is designed to validate:
 
-1. project list and detail responses expose a non-empty matching `snapshot_id`;
-2. all project records come from one current healthy public release or an
-   explicitly compatible snapshot;
-3. project IDs are stable and resolve to public records;
-4. evidence URLs and observation times are present for fields presented as
-   verified facts;
-5. selector `evidence_status` is `available` or explicitly `partial` with a
-   public notice;
-6. missing or conflicting evidence becomes `unknowns`, not a guessed value;
-7. near matches never enter the formal recommendation list automatically;
-8. archived or non-public projects are not silently substituted;
-9. internal fields such as source hashes, evidence IDs and publication versions
-   are not exposed;
-10. upstream errors preserve the last healthy result only when the upstream
-    contract explicitly marks that result as safe stale data.
+1. non-empty compatible public snapshot identity;
+2. stable project identity;
+3. selector evidence status and partial-evidence notice;
+4. direct license evidence before verified license output;
+5. missing/conflicting evidence as `unknowns`, not guessed values;
+6. formal recommendation / near-match separation;
+7. maximum near-match count and one-blocker rule;
+8. no internal source hashes, evidence IDs or publication versions in selector
+   output;
+9. archived and missing projects explicitly;
+10. retryable upstream unavailability separately from contract errors;
+11. malformed or oversized JSON rejected;
+12. upstream HTTP redirects rejected before they can leave the configured Radar
+    origin.
 
-## Remaining M1 confirmations
+## Small additive upstream improvement worth considering later
 
-The six public product tool names do not yet exist as one dedicated external API
-contract. M0 therefore keeps a provider protocol and deterministic mock instead
-of coupling directly to private Python modules.
+The current `build_public_transparency()` source rows intentionally expose
+`source_label`, `source_path`, `section_heading` and `excerpt`, but not the
+already-computable official `source_url` or stable `source_type`.
 
-Before implementing the live provider, confirm from representative production
-responses:
+`github_ai_radar_public_evidence.py` already computes official evidence URLs for
+the selector evidence index. Therefore a useful additive API improvement would
+be to expose these two public-safe fields on each detail transparency source:
 
-- the exact location and shape of public transparency/evidence URLs;
-- the observation time for each fact and the project repository update time;
-- how `coverage_level` should map to public confidence;
-- the license source, ambiguity state and missing-license representation;
-- whether project detail HTTP responses expose `snapshot_id` directly alongside
-  the final `item`;
-- stable handling of explicit project identity aliases;
-- cache and timeout behavior expected for anonymous external clients.
+```json
+{
+  "source_type": "license",
+  "source_label": "License",
+  "source_path": "LICENSE",
+  "source_url": "https://github.com/owner/repo/blob/HEAD/LICENSE",
+  "section_heading": "...",
+  "excerpt": "..."
+}
+```
 
-If any field is unavailable, document the smallest additive public API change
-needed in `akaiagents`; do not import its private modules or modify its main
-branch from this repository.
+Benefits:
+
+- no label-based inference in downstream clients;
+- no need for this repository to derive a GitHub URL from `source_path`;
+- stronger field-level provenance for license/deployment facts;
+- easier compatibility for non-GitHub evidence sources later.
+
+This is **not required to continue M1 Alpha** because the current public
+transparency is sufficient for conservative License verification. If implemented,
+it should be an additive public-contract change in `akaiagents`; this repository
+must not import its private evidence artifacts to obtain the missing fields.
+
+## Live-validation rule
+
+Any future upstream change is justified only by representative production
+captures showing that a required public field cannot be safely obtained through
+the existing routes. First document the smallest additive public API change,
+then modify `akaiagents` separately. Do not weaken the distribution adapter to
+make an incomplete production response appear verified.
