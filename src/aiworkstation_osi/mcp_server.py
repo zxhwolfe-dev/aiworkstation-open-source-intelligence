@@ -6,6 +6,7 @@ The server uses deterministic mock data unless ``OSI_PROVIDER=http`` is set.
 
 from __future__ import annotations
 
+from time import perf_counter
 from typing import Any, Literal
 
 from mcp.server import MCPServer
@@ -13,6 +14,7 @@ from mcp.types import ToolAnnotations
 
 from .app import create_registry_from_env
 from .errors import ToolError
+from .telemetry import emit_tool_event
 from .tools import ToolRegistry
 
 SERVER_INSTRUCTIONS = (
@@ -26,11 +28,7 @@ SERVER_INSTRUCTIONS = (
 
 
 def _read_only_annotations(title: str) -> ToolAnnotations:
-    """Describe the actual side-effect profile to MCP hosts.
-
-    The tools may read a changing public service, so they operate in the open
-    world, but they never modify the public service or local environment.
-    """
+    """Describe the actual side-effect profile to MCP hosts."""
 
     return ToolAnnotations(
         title=title,
@@ -42,12 +40,48 @@ def _read_only_annotations(title: str) -> ToolAnnotations:
 
 
 def _invoke(registry: ToolRegistry, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    started = perf_counter()
+    request_id = str(arguments.get("request_id") or "")
     try:
-        return registry.invoke(tool_name, arguments).to_dict()
+        result = registry.invoke(tool_name, arguments).to_dict()
     except ToolError as exc:
+        emit_tool_event(
+            level="WARNING",
+            tool=tool_name,
+            outcome="tool_error",
+            duration_ms=(perf_counter() - started) * 1000,
+            request_id=request_id,
+            error_code=exc.code,
+        )
         # MCP SDK v2 converts ordinary tool exceptions into model-readable tool
         # errors. Only stable public code/message text is forwarded.
         raise ValueError(f"{exc.code}: {exc.message}") from None
+    except Exception:
+        emit_tool_event(
+            level="ERROR",
+            tool=tool_name,
+            outcome="unexpected_error",
+            duration_ms=(perf_counter() - started) * 1000,
+            request_id=request_id,
+            error_code="UNEXPECTED_ERROR",
+        )
+        raise
+
+    data = result.get("data") if isinstance(result.get("data"), dict) else {}
+    result_count = data.get("total") if isinstance(data.get("total"), int) else None
+    emit_tool_event(
+        level="INFO",
+        tool=tool_name,
+        outcome="success",
+        duration_ms=(perf_counter() - started) * 1000,
+        request_id=request_id,
+        extra={
+            "result_count": result_count,
+            "unknown_count": len(result.get("unknowns") or []),
+            "risk_count": len(result.get("risks") or []),
+        },
+    )
+    return result
 
 
 def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
