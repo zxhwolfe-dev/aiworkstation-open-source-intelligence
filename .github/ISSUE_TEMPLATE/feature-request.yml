@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose a product, workflow, tool, developer-experience, or distribution improvement.
+title: "[Feature] "
+labels: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Describe the user decision or workflow that is difficult today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Skills
+        - MCP tools
+        - Evidence / license
+        - Search / ranking
+        - Comparison
+        - Stack planning
+        - CLI / SDK
+        - Packaging / installation
+        - Hosted MCP
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Evidence, privacy, or read-only implications
+      description: Explain whether the idea changes fact boundaries, accesses new data, adds write behavior, or requires authentication.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Suggested acceptance criteria
