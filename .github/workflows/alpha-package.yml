@@ -73,6 +73,7 @@ jobs:
               "docs/external-alpha-checklist.md",
               "SECURITY.md",
               "PRIVACY.md",
+              "SUPPORT.md",
           }
           missing = sorted(expected - names)
           forbidden = sorted(
@@ -110,7 +111,7 @@ jobs:
                   f"- Packaged files: `{report['file_count']}`",
                   "- Live MCP bundled: `false`",
                   "",
-                  "The package contains the three reviewed Skills and distribution documentation only.",
+                  "The package contains the three reviewed Skills plus security, privacy and support documentation.",
               ]
           ) + "\n"
           Path("dist/alpha/SUMMARY.md").write_text(summary, encoding="utf-8")
