@@ -8,11 +8,18 @@ changes, not public availability.
 ### Added
 
 - Guarded stateless JSON Streamable HTTP MCP server with loopback-safe defaults,
-  explicit non-loopback acknowledgement and allow-listed live Radar origins.
+  explicit non-loopback acknowledgement, MCP Host/origin allowlists, request
+  body caps and allow-listed live Radar origins.
 - Non-root Docker image, minimal build context and localhost-only hardened
   Compose example for private hosted-alpha deployment.
 - `osi-remote-smoke` for real remote MCP tool discovery, read-only annotation
   validation and optional bilingual structured search calls.
+- A real CI Streamable-HTTP round trip that starts the local server, connects
+  with an MCP client, discovers the six tools and invokes one read-only search.
+- Privacy-minimized structured tool telemetry written to stderr. It records tool
+  name, outcome, duration, public error code and safe aggregate counts; query
+  text, constraints, project IDs and raw request IDs are not accepted by the
+  telemetry event API.
 - Four-level `osi-readiness` v2 report distinguishing code, Skills-only external
   alpha, hosted private alpha and broad public-launch readiness.
 - Hosted MCP deployment runbook, public-launch decision register and alpha
@@ -29,30 +36,49 @@ changes, not public availability.
 
 ### Changed
 
-- CI now validates the guarded HTTP configuration, builds the container on
-  Python 3.12, verifies the Compose configuration, and smoke-tests the expanded
-  CLI surface.
+- Verified project facts now distinguish validated repository/public metadata
+  from analysis/editorial projection fields. Summary, deployment classification,
+  categories and use cases remain visible in `data.project` but are not promoted
+  to `verified_facts` merely because they appear in the public detail JSON.
+- Verified licenses now require a direct public `License` transparency source
+  with a public excerpt. A license label without direct evidence is downgraded to
+  an explicit unknown and `LICENSE_UNVERIFIED` risk.
+- `get_project_facts` exposes `field_evidence_status` so clients can distinguish
+  `verified_public_metadata`, `verified_direct_evidence`,
+  `public_projection_only` and `unknown` values.
+- Live probes require an observed license to report `evidence_status=verified`
+  and a positive direct evidence count; otherwise the license must remain an
+  explicit unknown.
+- CI validates the guarded HTTP configuration, builds the container on Python
+  3.12, verifies the Compose configuration, runs Python compile checks and
+  smoke-tests the expanded CLI surface.
 - Live contract replay derives locale and project identity from the captured
   manifest instead of accepting duplicate identity flags.
-- Skills-only alpha bundles now include `SECURITY.md`, `PRIVACY.md` and
-  `SUPPORT.md` while continuing to exclude runtime source and MCP code.
-- Release-readiness gates now require explicit protected-gateway/private-network
-  and remote-MCP evidence before declaring hosted private-alpha readiness.
-- README and M1 documentation now describe the actual Skills-only, stdio and
-  guarded hosted distribution boundaries.
+- Skills-only alpha bundles include `SECURITY.md`, `PRIVACY.md` and `SUPPORT.md`
+  while continuing to exclude runtime source and MCP code.
+- Release-readiness gates require explicit protected-gateway/private-network and
+  remote-MCP evidence before declaring hosted private-alpha readiness.
+- README, schemas and M1 documentation describe the actual fact/evidence,
+  Skills-only, stdio and guarded hosted distribution boundaries.
 
 ### Security
 
+- Public Radar HTTP redirects are rejected before they can leave the configured
+  upstream origin; a 3xx is treated as a contract change, not followed silently.
 - Non-loopback Streamable HTTP binds are rejected unless the operator opts into
-  the live provider and explicitly acknowledges a reverse-proxy/private-network
-  deployment.
+  the live provider, supplies explicit MCP Host allowlists and acknowledges a
+  reverse-proxy/private-network deployment.
+- The MCP SDK receives explicit Host/origin transport-security settings for
+  non-loopback binds to reduce DNS-rebinding and Host-header risk.
 - The bind acknowledgement is never treated as authentication; a fake
   "assume authentication" switch is rejected.
-- Remote smoke URLs must use HTTPS outside localhost and may not embed
-  credentials, query strings or fragments.
+- Remote smoke URLs must use HTTPS outside localhost, use the canonical `/mcp`
+  path and may not embed credentials, query strings or fragments.
 - The example container runs as a non-root user with a read-only filesystem,
   dropped capabilities, `no-new-privileges`, bounded resources and host-loopback
   port exposure.
+- Telemetry defaults to warnings/errors and never logs user query or structured
+  request bodies.
 
 ## [0.1.0] - 2026-08-06
 
