@@ -139,6 +139,25 @@ class EvidenceManifestTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("en contract directory", " ".join(result["errors"]))
 
+    def test_live_validation_requires_hash_coverage_for_each_contract_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = self._live_bundle(root)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["files"].pop("contracts-en/project-detail.json")
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            result = validate_live_validation_evidence(
+                path,
+                candidate_commit="candidate-sha",
+                expected_base_url="https://aiworkstation.cn",
+            )
+
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "digest manifest does not cover contracts-en/project-detail.json",
+            " ".join(result["errors"]),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
