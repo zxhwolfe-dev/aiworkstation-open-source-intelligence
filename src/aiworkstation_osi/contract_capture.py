@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import urllib.parse
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -24,6 +25,7 @@ CAPTURE_SCHEMA_VERSION = "osi.public-contract-capture.v1"
 MAX_STRING_LENGTH = 500
 MAX_LIST_ITEMS = 20
 MAX_DEPTH = 10
+REDACTED_QUERY_TEXT = "<redacted-query>"
 
 REMOVED_KEYS = {
     "authorization",
@@ -50,6 +52,9 @@ REMOVED_KEYS = {
     "validated_version",
     "assignment_version",
     "prompt_version",
+    # Public selector continuation tokens currently encode the requirement spec,
+    # including the original user query. Captured artifacts must never retain it.
+    "requirement_token",
 }
 
 SAFE_HEADERS = {
@@ -81,7 +86,28 @@ def _validate_timeout(timeout: float) -> None:
         raise ValueError("timeout must be greater than 0 and no more than 240 seconds")
 
 
-def sanitize_public_value(value: Any, *, depth: int = 0) -> Any:
+def _redact_query_text(value: str, redact_texts: Sequence[str]) -> str:
+    """Remove exact request text wherever the public response echoes it."""
+
+    redacted = value
+    # Longest first avoids a shorter supplied phrase partially masking a longer
+    # one before it can be replaced. Case-insensitive matching covers harmless
+    # upstream casing changes without trying to infer paraphrases.
+    for text in sorted(
+        {str(item) for item in redact_texts if str(item or "").strip()},
+        key=len,
+        reverse=True,
+    ):
+        redacted = re.sub(re.escape(text), REDACTED_QUERY_TEXT, redacted, flags=re.IGNORECASE)
+    return redacted
+
+
+def sanitize_public_value(
+    value: Any,
+    *,
+    depth: int = 0,
+    redact_texts: Sequence[str] = (),
+) -> Any:
     """Return a bounded JSON-safe copy with sensitive/internal fields removed."""
 
     if depth > MAX_DEPTH:
@@ -92,23 +118,41 @@ def sanitize_public_value(value: Any, *, depth: int = 0) -> Any:
             key = str(raw_key)
             if key.lower() in REMOVED_KEYS:
                 continue
-            sanitized[key] = sanitize_public_value(child, depth=depth + 1)
+            sanitized[key] = sanitize_public_value(
+                child,
+                depth=depth + 1,
+                redact_texts=redact_texts,
+            )
         return sanitized
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        rows = [sanitize_public_value(child, depth=depth + 1) for child in value[:MAX_LIST_ITEMS]]
+        rows = [
+            sanitize_public_value(
+                child,
+                depth=depth + 1,
+                redact_texts=redact_texts,
+            )
+            for child in value[:MAX_LIST_ITEMS]
+        ]
         if len(value) > MAX_LIST_ITEMS:
             rows.append({"_truncated_items": len(value) - MAX_LIST_ITEMS})
         return rows
     if isinstance(value, str):
-        if len(value) <= MAX_STRING_LENGTH:
-            return value
-        return value[:MAX_STRING_LENGTH] + f"… <truncated {len(value) - MAX_STRING_LENGTH} chars>"
+        sanitized_text = _redact_query_text(value, redact_texts)
+        if len(sanitized_text) <= MAX_STRING_LENGTH:
+            return sanitized_text
+        return sanitized_text[:MAX_STRING_LENGTH] + f"… <truncated {len(sanitized_text) - MAX_STRING_LENGTH} chars>"
     if value is None or isinstance(value, (bool, int, float)):
         return value
     return str(value)[:MAX_STRING_LENGTH]
 
 
-def _fixture(scenario: str, response: JsonResponse, *, request_fingerprint: str) -> dict[str, Any]:
+def _fixture(
+    scenario: str,
+    response: JsonResponse,
+    *,
+    request_fingerprint: str,
+    redact_texts: Sequence[str] = (),
+) -> dict[str, Any]:
     headers = {
         key.lower(): value
         for key, value in response.headers.items()
@@ -121,7 +165,7 @@ def _fixture(scenario: str, response: JsonResponse, *, request_fingerprint: str)
         "observed_at": response.observed_at,
         "status": response.status,
         "headers": headers,
-        "payload": sanitize_public_value(response.payload),
+        "payload": sanitize_public_value(response.payload, redact_texts=redact_texts),
     }
 
 
@@ -236,6 +280,7 @@ def capture_public_contracts(
             "selector-formal",
             formal,
             request_fingerprint=_hash_text(f"{locale}:selector-formal:{formal_query}"),
+            redact_texts=(formal_query,),
         ),
         "selector-no-match.json": _fixture(
             "selector-no-match",
@@ -243,6 +288,7 @@ def capture_public_contracts(
             request_fingerprint=_hash_text(
                 f"{locale}:selector-no-match:{json.dumps(dict(no_match_filters or DEFAULT_NO_MATCH_FILTERS), sort_keys=True, separators=(',', ':'))}"
             ),
+            redact_texts=(no_match_query,),
         ),
     }
     for filename, payload in fixtures.items():
@@ -262,6 +308,7 @@ def capture_public_contracts(
             "max_string_length": MAX_STRING_LENGTH,
             "max_list_items": MAX_LIST_ITEMS,
             "stores_query_text": False,
+            "query_text_redaction": "exact_case_insensitive",
         },
     }
     (output_dir / "manifest.json").write_text(
