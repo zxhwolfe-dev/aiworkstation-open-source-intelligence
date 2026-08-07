@@ -116,6 +116,7 @@ jobs:
           osi-validate-plugin --help >/dev/null
           osi-build-alpha --help >/dev/null
           osi-readiness --help >/dev/null
+          osi-codex-acceptance --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
 
       - name: End-to-end Streamable HTTP MCP round trip
