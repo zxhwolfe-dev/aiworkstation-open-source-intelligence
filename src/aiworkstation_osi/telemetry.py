@@ -3,6 +3,10 @@
 Events are written to stderr so stdio MCP protocol output on stdout is never
 polluted. Tool arguments, queries, constraints, project IDs and raw request IDs
 are intentionally not accepted by the event API.
+
+When ``OSI_ACCEPTANCE_LEDGER_PATH`` is set to an absolute path, the same bounded
+tool event is also appended as JSONL for local Codex acceptance testing. The
+ledger is operator-controlled and never contains tool arguments or result data.
 """
 
 from __future__ import annotations
@@ -12,6 +16,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 LOG_LEVELS = {"OFF": 100, "ERROR": 40, "WARNING": 30, "INFO": 20}
@@ -36,6 +41,39 @@ def _timestamp() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _append_acceptance_event(payload: Mapping[str, Any]) -> None:
+    """Best-effort append of one argument-free event for Codex acceptance runs."""
+
+    configured = str(os.getenv("OSI_ACCEPTANCE_LEDGER_PATH") or "").strip()
+    if not configured:
+        return
+    path = Path(configured).expanduser()
+    if not path.is_absolute():
+        return
+    safe = {
+        key: payload.get(key)
+        for key in (
+            "schema_version",
+            "timestamp",
+            "level",
+            "event",
+            "tool",
+            "outcome",
+            "duration_ms",
+            "error_code",
+        )
+    }
+    safe["schema_version"] = "osi.codex-acceptance-ledger.v1"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(safe, ensure_ascii=False, separators=(",", ":")))
+            handle.write("\n")
+    except OSError:
+        # Acceptance evidence must never become an availability dependency.
+        return
+
+
 def emit_tool_event(
     *,
     level: str,
@@ -50,8 +88,6 @@ def emit_tool_event(
 
     normalized_level = str(level or "INFO").strip().upper()
     severity = LOG_LEVELS.get(normalized_level, LOG_LEVELS["INFO"])
-    if severity < _configured_threshold():
-        return
 
     safe_extra: dict[str, Any] = {}
     for key, value in (extra or {}).items():
@@ -79,4 +115,7 @@ def emit_tool_event(
         "error_code": str(error_code)[:128],
         **safe_extra,
     }
+    _append_acceptance_event(payload)
+    if severity < _configured_threshold():
+        return
     print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), file=sys.stderr, flush=True)
