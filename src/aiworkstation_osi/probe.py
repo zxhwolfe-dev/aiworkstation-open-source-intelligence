@@ -62,13 +62,19 @@ def evaluate_probe(
         else {}
     )
     license_value = license_data.get("license")
+    evidence_status = str(license_data.get("evidence_status") or "")
+    evidence_count = int(license_data.get("evidence_count") or 0)
     explicit_unknown = bool(license_result.get("unknowns"))
+    verified_license = bool(license_value) and evidence_status == "verified" and evidence_count > 0
+    explicit_unknown_license = not license_value and explicit_unknown
     checks.append(
         _check(
             "license-boundary",
-            bool(license_value) or explicit_unknown,
-            "License is evidence-backed or explicitly unknown; it is never silently inferred.",
+            verified_license or explicit_unknown_license,
+            "License is backed by direct public License evidence or explicitly unknown; it is never silently inferred.",
             license=license_value,
+            evidence_status=evidence_status,
+            evidence_count=evidence_count,
             explicit_unknown=explicit_unknown,
         )
     )
@@ -87,16 +93,16 @@ def evaluate_probe(
     )
 
     search_data = search.get("data") if isinstance(search.get("data"), Mapping) else {}
-    evidence_status = str(search_data.get("evidence_status") or "")
+    selector_evidence_status = str(search_data.get("evidence_status") or "")
     search_snapshot = str(search_data.get("snapshot_id") or "")
     project_count = int(search_data.get("total") or 0)
     no_match_reason = str(search_data.get("no_match_reason") or "").strip()
     checks.append(
         _check(
             "selector-evidence",
-            evidence_status in {"available", "partial"},
+            selector_evidence_status in {"available", "partial"},
             "Selector discloses usable evidence status.",
-            evidence_status=evidence_status,
+            evidence_status=selector_evidence_status,
             notice=search_data.get("notice"),
         )
     )
