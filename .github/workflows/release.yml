@@ -1,0 +1,96 @@
+name: github-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0
+        required: true
+        type: string
+      prerelease:
+        description: Mark this release as a pre-release
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: github-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Validate tag format and package version
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "tag must look like v0.1.0" >&2
+            exit 1
+          }
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          tag = os.environ["TAG"]
+          plugin = json.loads(Path(".codex-plugin/plugin.json").read_text(encoding="utf-8"))
+          version = str(plugin["version"])
+          if tag != f"v{version}":
+              raise SystemExit(f"tag {tag} does not match plugin version {version}")
+          pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+          if not re.search(rf'(?m)^version\s*=\s*"{re.escape(version)}"\s*$', pyproject):
+              raise SystemExit("pyproject version does not match plugin version")
+          PY
+
+      - name: Install and run release gates
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[mcp]"
+          python -m compileall -q src tests
+          python -m unittest discover -s tests -v
+          osi-validate-plugin --root .
+
+      - name: Build deterministic Skills bundle
+        run: |
+          osi-build-alpha --root . --output-dir dist/alpha
+          (cd dist/alpha && sha256sum --check SHA256SUMS)
+
+      - name: Create GitHub pre-release/release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          prerelease_flag=""
+          if [ "$PRERELEASE" = "true" ]; then
+            prerelease_flag="--prerelease"
+          fi
+          archive="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('dist/alpha/bundle-report.json').read_text())
+          print(report['archive'])
+          PY
+          )"
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            $prerelease_flag \
+            --title "$TAG — AI Open Source Intelligence" \
+            --notes-file docs/release-v0.1.0.md \
+            "$archive" \
+            dist/alpha/SHA256SUMS \
+            dist/alpha/bundle-report.json
