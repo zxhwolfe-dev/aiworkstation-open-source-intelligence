@@ -99,6 +99,8 @@ jobs:
           osi-m0 provider-info >/dev/null
           osi-m0 list-tools >/dev/null
           osi-m0 invoke search_ai_projects --arguments '{"query":"self-hosted RAG"}' >/dev/null
+          osi-mcp-http --check-config >/dev/null
+          osi-remote-smoke --help >/dev/null
           osi-probe --help >/dev/null
           osi-capture-contracts --help >/dev/null
           osi-validate-contracts --help >/dev/null
@@ -107,3 +109,11 @@ jobs:
           osi-build-alpha --help >/dev/null
           osi-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
+
+      - name: Validate container packaging
+        if: matrix.python-version == '3.12'
+        run: |
+          set -euo pipefail
+          docker build -t aiworkstation-osi-mcp:ci .
+          docker run --rm aiworkstation-osi-mcp:ci osi-mcp-http --check-config >/dev/null
+          docker compose -f compose.hosted.example.yml config >/dev/null
