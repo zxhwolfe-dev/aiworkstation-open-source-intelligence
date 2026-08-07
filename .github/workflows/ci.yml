@@ -178,3 +178,44 @@ jobs:
           # a listening service or publishing ports.
           docker compose -f compose.hosted.example.yml run --rm --no-deps \
             osi-mcp osi-mcp-http --check-config >/dev/null
+
+  evidence:
+    name: publish-ci-evidence
+    needs: test
+    runs-on: ubuntu-latest
+    if: ${{ success() }}
+    steps:
+      - name: Write candidate-bound CI evidence
+        env:
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p tmp/ci-evidence
+          generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          cat > tmp/ci-evidence/ci-evidence.json <<EOF
+          {
+            "schema_version": "osi.ci-evidence.v1",
+            "generated_at": "$generated_at",
+            "workflow": "ci",
+            "run_id": "$RUN_ID",
+            "run_attempt": "$RUN_ATTEMPT",
+            "commit": "$COMMIT_SHA",
+            "repository": "$REPOSITORY",
+            "ref_name": "$REF_NAME",
+            "python_versions": ["3.10", "3.12"],
+            "python310_passed": true,
+            "python312_passed": true
+          }
+          EOF
+
+      - name: Upload CI evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-evidence-${{ github.run_id }}
+          path: tmp/ci-evidence/ci-evidence.json
+          if-no-files-found: error
+          retention-days: 30
