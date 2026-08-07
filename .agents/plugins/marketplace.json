@@ -1,0 +1,20 @@
+{
+  "name": "aiworkstation-local-plugins",
+  "interface": {
+    "displayName": "AI Workstation Local Plugins"
+  },
+  "plugins": [
+    {
+      "name": "aiworkstation-open-source-intelligence",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

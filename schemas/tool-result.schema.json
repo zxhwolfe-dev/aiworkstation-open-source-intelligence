@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiworkstation.cn/schemas/osi/tool-result.schema.json",
+  "title": "AI Workstation Open Source Intelligence Tool Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tool",
+    "data",
+    "verified_facts",
+    "recommendations",
+    "unknowns",
+    "risks",
+    "generated_at",
+    "request_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "osi.tool-result.v1"},
+    "tool": {
+      "enum": [
+        "search_ai_projects",
+        "get_project_facts",
+        "get_license_evidence",
+        "compare_ai_projects",
+        "find_alternatives",
+        "compose_ai_stack"
+      ]
+    },
+    "data": {"type": "object"},
+    "verified_facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "value", "confidence", "evidence"],
+        "properties": {
+          "field": {"type": "string", "minLength": 1},
+          "value": {},
+          "confidence": {"enum": ["high", "medium", "low", "unknown"]},
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source_url", "observed_at", "source_type", "excerpt", "supports"],
+              "properties": {
+                "source_url": {"type": "string", "format": "uri"},
+                "observed_at": {"type": "string"},
+                "source_type": {"type": "string"},
+                "excerpt": {"type": "string"},
+                "supports": {"type": "array", "items": {"type": "string"}}
+              }
+            }
+          }
+        }
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["summary", "rationale", "assumptions"],
+        "properties": {
+          "summary": {"type": "string", "minLength": 1},
+          "rationale": {"type": "array", "items": {"type": "string"}},
+          "assumptions": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "unknowns": {"type": "array", "items": {"type": "string"}},
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "severity"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "message": {"type": "string", "minLength": 1},
+          "severity": {"enum": ["low", "medium", "high"]}
+        }
+      }
+    },
+    "generated_at": {"type": "string"},
+    "request_id": {"type": "string", "maxLength": 128}
+  }
+}

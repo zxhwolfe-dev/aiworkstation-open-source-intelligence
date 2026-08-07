@@ -1,0 +1,175 @@
+name: live-contract-validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Allowed public AI Workstation origin to validate
+        required: true
+        default: https://aiworkstation.cn
+        type: choice
+        options:
+          - https://aiworkstation.cn
+          - https://useaistation.com
+      project_id:
+        description: Stable public project ID used for detail checks
+        required: true
+        default: infiniflow/ragflow
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-contract-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VALIDATION_ROOT: tmp/live-contract-validation
+      BASE_URL: ${{ inputs.base_url }}
+      PROJECT_ID: ${{ inputs.project_id }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Validate workflow inputs
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import re
+          import urllib.parse
+
+          base_url = os.environ["BASE_URL"].rstrip("/")
+          project_id = os.environ["PROJECT_ID"].strip()
+          parsed = urllib.parse.urlparse(base_url)
+          allowed_hosts = {"aiworkstation.cn", "useaistation.com"}
+          if parsed.scheme != "https" or parsed.hostname not in allowed_hosts or parsed.path not in {"", "/"}:
+              raise SystemExit("base_url must be an allowed HTTPS AI Workstation origin")
+          if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", project_id):
+              raise SystemExit("project_id must use owner/repository form")
+          PY
+
+      - name: Install validation runtime
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[mcp]"
+
+      - name: Run offline quality gates
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -v
+          osi-validate-plugin --root .
+
+      - name: Run English and Chinese public probes
+        run: |
+          set -euo pipefail
+          mkdir -p "$VALIDATION_ROOT"
+          osi-probe \
+            --base-url "$BASE_URL" \
+            --locale en \
+            --project-id "$PROJECT_ID" \
+            --output "$VALIDATION_ROOT/probe-en.json"
+          osi-probe \
+            --base-url "$BASE_URL" \
+            --locale zh \
+            --project-id "$PROJECT_ID" \
+            --output "$VALIDATION_ROOT/probe-zh.json"
+
+      - name: Capture sanitized public contracts
+        run: |
+          set -euo pipefail
+          osi-capture-contracts \
+            --base-url "$BASE_URL" \
+            --locale en \
+            --project-id "$PROJECT_ID" \
+            --output-dir "$VALIDATION_ROOT/contracts-en"
+          osi-capture-contracts \
+            --base-url "$BASE_URL" \
+            --locale zh \
+            --project-id "$PROJECT_ID" \
+            --output-dir "$VALIDATION_ROOT/contracts-zh"
+
+      - name: Validate and replay captured contracts
+        run: |
+          set -euo pipefail
+          for locale in en zh; do
+            directory="$VALIDATION_ROOT/contracts-$locale"
+            osi-validate-contracts --directory "$directory"
+            # Replay intentionally derives locale and project identity from the
+            # sanitized capture manifest so the exact captured contract is tested.
+            osi-replay-contracts \
+              --directory "$directory" \
+              --output "$VALIDATION_ROOT/replay-$locale.json"
+          done
+
+      - name: Scan artifacts for forbidden JSON keys
+        run: |
+          set -euo pipefail
+          forbidden_key_pattern='"(authorization|cookie|cookies|api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|bearer[_-]?token|password|secret|email|client_id|request_id|query|prompt|raw|raw_content|source_hash|evidence_ids|claim_refs|publication_version|validated_version|assignment_version|prompt_version)"[[:space:]]*:'
+          if grep -RniE \
+            "$forbidden_key_pattern" \
+            "$VALIDATION_ROOT/contracts-en" \
+            "$VALIDATION_ROOT/contracts-zh"; then
+            echo "Forbidden or unsanitized JSON key found in captured artifacts." >&2
+            exit 1
+          fi
+
+      - name: Write validation summary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["VALIDATION_ROOT"])
+          rows = []
+          for locale in ("en", "zh"):
+              probe = json.loads((root / f"probe-{locale}.json").read_text(encoding="utf-8"))
+              replay = json.loads((root / f"replay-{locale}.json").read_text(encoding="utf-8"))
+              rows.append(
+                  f"| {locale} | {probe.get('ok')} | {replay.get('ok')} | "
+                  f"{len(probe.get('checks') or [])} | {len(probe.get('errors') or [])} |"
+              )
+
+          summary = [
+              "# Live Radar contract validation",
+              "",
+              f"- Base URL: `{os.environ['BASE_URL']}`",
+              f"- Project ID: `{os.environ['PROJECT_ID']}`",
+              "- Requests: anonymous and read-only",
+              "- Captures: sanitized and scanned before artifact upload",
+              "",
+              "| Locale | Probe passed | Replay passed | Probe checks | Probe errors |",
+              "| --- | ---: | ---: | ---: | ---: |",
+              *rows,
+              "",
+              "The workflow uploads an artifact only after probes, contract validation, replay, and forbidden-key scanning all pass.",
+          ]
+          rendered = "\n".join(summary) + "\n"
+          (root / "SUMMARY.md").write_text(rendered, encoding="utf-8")
+          github_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if github_summary:
+              Path(github_summary).write_text(rendered, encoding="utf-8")
+          PY
+
+      - name: Upload sanitized validation bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-contract-validation-${{ github.run_id }}
+          path: ${{ env.VALIDATION_ROOT }}
+          if-no-files-found: error
+          retention-days: 14

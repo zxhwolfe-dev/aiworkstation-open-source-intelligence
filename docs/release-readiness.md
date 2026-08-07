@@ -1,0 +1,167 @@
+# Release Readiness Report
+
+`osi-readiness` produces one machine-readable report that separates repository
+readiness, Skills-only external-alpha readiness, hosted private-alpha readiness
+and broad public-launch readiness.
+
+It runs offline. It does not call AI Workstation, query GitHub Actions, connect
+to the hosted MCP endpoint or infer that a human review occurred. Live and human
+claims enter only as explicit operator evidence.
+
+## Code-readiness check
+
+From the repository root:
+
+```bash
+osi-readiness --root . --output tmp/readiness.json
+```
+
+The default exit status reflects `code_ready`. Ordinary CI can therefore verify
+the source tree without falsely certifying production contracts, Codex testing,
+a hosted endpoint or human review.
+
+Code readiness validates:
+
+- required source, Skill, workflow, schema, deployment and release files;
+- the Skills-only plugin package;
+- Python, plugin and changelog version alignment;
+- two byte-identical deterministic alpha builds;
+- Skills-only distribution scope and absence of a bundled live-MCP claim.
+
+A healthy pre-validation tree is expected to look like:
+
+```json
+{
+  "code_ready": true,
+  "external_alpha_ready": false,
+  "hosted_private_alpha_ready": false,
+  "public_launch_ready": false
+}
+```
+
+## Skills-only external-alpha evidence
+
+After the live workflow has produced reviewed English and Chinese captures:
+
+```bash
+osi-readiness \
+  --root . \
+  --contracts-en /path/to/contracts-en \
+  --contracts-zh /path/to/contracts-zh \
+  --ci-python310-passed \
+  --ci-python312-passed \
+  --codex-tested \
+  --artifact-reviewed \
+  --live-validation-run-id REAL_RUN_ID \
+  --reviewer "REAL_REVIEWER" \
+  --require-external-alpha \
+  --output tmp/external-alpha-readiness.json
+```
+
+The command validates and replays both capture directories. CI, Codex, review,
+run ID and reviewer flags remain operator attestations; compare them with the
+actual run records before inviting testers.
+
+## Hosted private-alpha evidence
+
+A guarded Streamable HTTP endpoint adds another readiness level. It requires the
+entire Skills-only external-alpha gate plus a real protected remote endpoint.
+
+```bash
+osi-readiness \
+  --root . \
+  --contracts-en /path/to/contracts-en \
+  --contracts-zh /path/to/contracts-zh \
+  --ci-python310-passed \
+  --ci-python312-passed \
+  --codex-tested \
+  --artifact-reviewed \
+  --live-validation-run-id REAL_RUN_ID \
+  --reviewer "REAL_REVIEWER" \
+  --remote-mcp-tested \
+  --remote-mcp-url https://mcp.example.com/mcp \
+  --hosted-gateway-protected \
+  --require-hosted-alpha \
+  --output tmp/hosted-alpha-readiness.json
+```
+
+The remote URL must be credential-free HTTPS. `--remote-mcp-tested` means an
+operator actually ran the remote compatibility smoke test; the readiness command
+does not perform that network call. `--hosted-gateway-protected` means the
+endpoint is behind an authenticated TLS gateway or trusted private network.
+
+## Readiness levels
+
+### `code_ready`
+
+True only when the repository structure, plugin package, version alignment,
+deployment scaffolding and deterministic Skills-only bundle pass their offline
+checks.
+
+### `external_alpha_ready`
+
+True only when `code_ready` is true and all of the following are supplied and
+pass:
+
+- English contract validation and provider replay;
+- Chinese contract validation and provider replay;
+- Python 3.10 CI attestation;
+- Python 3.12 CI attestation;
+- local/Codex MCP integration attestation;
+- sanitized artifact review attestation;
+- live validation workflow run ID;
+- reviewer identity.
+
+This level is appropriate for distributing the Skills-only alpha package to an
+invited cohort.
+
+### `hosted_private_alpha_ready`
+
+True only when `external_alpha_ready` is true and all of the following are also
+present:
+
+- a credential-free HTTPS MCP endpoint URL;
+- attestation that `osi-remote-smoke` passed against the deployed endpoint;
+- attestation that an authenticated gateway or trusted private network protects
+the endpoint.
+
+This level is for invited hosted testing. It is not equivalent to a public
+Internet launch.
+
+### `public_launch_ready`
+
+Intentionally remains false in M1. Current blockers include:
+
+- software license not selected;
+- final public privacy policy and terms not published;
+- native per-user OAuth/identity and revocation not delivered;
+- production quotas, rate limiting and abuse controls not fully delivered;
+- public directory/platform review not completed.
+
+Do not change the readiness command merely to make these blockers disappear.
+Resolve the underlying product, infrastructure and legal decisions first.
+
+## Report integrity
+
+The v2 report separates:
+
+- `code_blockers`;
+- `operational_blockers`;
+- `hosted_alpha_blockers`;
+- `public_launch_blockers`;
+- plugin warnings;
+- individual checks and details;
+- explicit operator attestations.
+
+An attestation flag is evidence supplied by the operator, not proof generated by
+the tool. Record real workflow IDs, endpoint URLs and reviewer names.
+
+## CI behavior
+
+The standard CI workflow runs `osi-readiness` without live captures or
+attestations. It requires `code_ready=true` and requires
+`external_alpha_ready=false`; ordinary CI must not accidentally certify a live
+release.
+
+Use the manual live-validation workflow, remote smoke client and the v2
+readiness report together for private-alpha release decisions.

@@ -1,0 +1,108 @@
+name: Public Radar contract change
+description: Report a sanitized, reproducible difference between the documented adapter contract and a public Radar response.
+title: "[public contract] "
+labels:
+  - contract
+  - integration
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Submit only anonymous public, sanitized information. Do not paste raw queries, credentials, cookies, internal publication identifiers, or unreviewed fixture files. Run osi-capture-contracts and osi-validate-contracts before reporting.
+
+  - type: input
+    id: commit
+    attributes:
+      label: Adapter commit SHA
+    validations:
+      required: true
+
+  - type: dropdown
+    id: origin
+    attributes:
+      label: Public origin
+      options:
+        - https://aiworkstation.cn
+        - https://useaistation.com
+    validations:
+      required: true
+
+  - type: dropdown
+    id: locale
+    attributes:
+      label: Locale
+      options:
+        - en
+        - zh
+        - both
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scenario
+    attributes:
+      label: Contract scenario
+      options:
+        - Project list
+        - Project detail
+        - Selector formal result
+        - Selector no-match result
+        - Provider replay
+        - License normalization
+        - Snapshot identity
+        - Evidence or transparency
+    validations:
+      required: true
+
+  - type: input
+    id: project
+    attributes:
+      label: Public project ID
+      placeholder: owner/repository
+
+  - type: textarea
+    id: failure
+    attributes:
+      label: Sanitized failure summary
+      description: Include the stable error code, missing field, changed type, or failed invariant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected documented contract
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed sanitized shape
+      description: List field names and types only when possible. Do not paste raw content.
+    validations:
+      required: true
+
+  - type: textarea
+    id: commands
+    attributes:
+      label: Validation commands
+      description: Provide the probe, capture, validation, or replay commands used, with sensitive values removed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: minimal_change
+    attributes:
+      label: Smallest proposed resolution
+      description: State whether the adapter should change or an additive public API field is required. Do not propose importing private akaiagents modules.
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: The report contains no raw query text, credentials, private data, or internal publication fields.
+          required: true
+        - label: Captured artifacts were validated and manually reviewed before this report.
+          required: true

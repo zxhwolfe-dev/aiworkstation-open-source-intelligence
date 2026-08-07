@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://aiworkstation.cn/
+    about: Follow SECURITY.md and use a private AI Workstation contact route. Do not disclose vulnerabilities or secrets in a public issue.
+  - name: Product and documentation
+    url: https://aiworkstation.cn/githubai/
+    about: Review the public AI Open Source Radar product and current documentation before filing an issue.

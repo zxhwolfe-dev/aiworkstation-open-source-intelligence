@@ -1,0 +1,218 @@
+{
+  "schema_version": "osi.tool-manifest.v1",
+  "status": "m1-alpha",
+  "runtime_limits": {
+    "structured_max_depth": 6,
+    "structured_max_nodes": 200,
+    "structured_max_container_items": 50,
+    "structured_max_key_length": 128,
+    "structured_max_string_length": 1000
+  },
+  "tools": [
+    {
+      "name": "search_ai_projects",
+      "description": "Find open-source AI projects from explicit requirements and constraints.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["query"],
+        "$defs": {
+          "structuredValue": {
+            "anyOf": [
+              {"type": "string", "maxLength": 1000},
+              {"type": "number"},
+              {"type": "boolean"},
+              {"type": "null"},
+              {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}},
+              {
+                "type": "object",
+                "maxProperties": 50,
+                "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
+                "additionalProperties": {"$ref": "#/$defs/structuredValue"}
+              }
+            ]
+          }
+        },
+        "properties": {
+          "query": {"type": "string", "minLength": 1, "maxLength": 4000},
+          "constraints": {
+            "type": "object",
+            "maxProperties": 50,
+            "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.",
+            "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
+            "additionalProperties": {"$ref": "#/$defs/structuredValue"}
+          },
+          "locale": {"enum": ["zh", "en"], "default": "en"},
+          "source_mode": {"enum": ["required", "preferred", "off"], "default": "required"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "get_project_facts",
+      "description": "Return current evidence-backed facts for one project.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_id"],
+        "properties": {
+          "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
+          "locale": {"enum": ["zh", "en"], "default": "en"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "get_license_evidence",
+      "description": "Return observed license evidence without legal conclusions.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_id"],
+        "properties": {
+          "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
+          "locale": {"enum": ["zh", "en"], "default": "en"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "compare_ai_projects",
+      "description": "Compare two to five projects against explicit criteria.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_ids"],
+        "$defs": {
+          "structuredValue": {
+            "anyOf": [
+              {"type": "string", "maxLength": 1000},
+              {"type": "number"},
+              {"type": "boolean"},
+              {"type": "null"},
+              {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}},
+              {
+                "type": "object",
+                "maxProperties": 50,
+                "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
+                "additionalProperties": {"$ref": "#/$defs/structuredValue"}
+              }
+            ]
+          }
+        },
+        "properties": {
+          "project_ids": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1, "maxLength": 256}
+          },
+          "criteria": {
+            "type": "array",
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1, "maxLength": 256}
+          },
+          "context": {
+            "type": "object",
+            "maxProperties": 50,
+            "description": "JSON-compatible decision context. Runtime additionally limits total nodes and nesting depth.",
+            "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
+            "additionalProperties": {"$ref": "#/$defs/structuredValue"}
+          },
+          "locale": {"enum": ["zh", "en"], "default": "en"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "find_alternatives",
+      "description": "Find candidate alternatives to a named project.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_id"],
+        "$defs": {
+          "structuredValue": {
+            "anyOf": [
+              {"type": "string", "maxLength": 1000},
+              {"type": "number"},
+              {"type": "boolean"},
+              {"type": "null"},
+              {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}},
+              {
+                "type": "object",
+                "maxProperties": 50,
+                "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
+                "additionalProperties": {"$ref": "#/$defs/structuredValue"}
+              }
+            ]
+          }
+        },
+        "properties": {
+          "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
+          "constraints": {
+            "type": "object",
+            "maxProperties": 50,
+            "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.",
+            "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
+            "additionalProperties": {"$ref": "#/$defs/structuredValue"}
+          },
+          "locale": {"enum": ["zh", "en"], "default": "en"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "compose_ai_stack",
+      "description": "Compose a candidate stack from a business goal and constraints.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["business_goal"],
+        "$defs": {
+          "structuredValue": {
+            "anyOf": [
+              {"type": "string", "maxLength": 1000},
+              {"type": "number"},
+              {"type": "boolean"},
+              {"type": "null"},
+              {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}},
+              {
+                "type": "object",
+                "maxProperties": 50,
+                "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
+                "additionalProperties": {"$ref": "#/$defs/structuredValue"}
+              }
+            ]
+          }
+        },
+        "properties": {
+          "business_goal": {"type": "string", "minLength": 1, "maxLength": 4000},
+          "constraints": {
+            "type": "object",
+            "maxProperties": 50,
+            "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.",
+            "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
+            "additionalProperties": {"$ref": "#/$defs/structuredValue"}
+          },
+          "existing_stack": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1, "maxLength": 256}
+          },
+          "locale": {"enum": ["zh", "en"], "default": "en"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    }
+  ]
+}

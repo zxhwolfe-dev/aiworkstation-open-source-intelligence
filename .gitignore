@@ -7,6 +7,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 
 .venv/
 venv/
@@ -14,6 +16,10 @@ venv/
 node_modules/
 dist/
 build/
+*.egg-info/
+
+tmp/
+artifacts/
 
 .vscode/*
 !.vscode/settings.json

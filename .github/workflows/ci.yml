@@ -1,0 +1,178 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package with MCP runtime
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[mcp]"
+
+      - name: Compile Python sources
+        run: python -m compileall -q src tests
+
+      - name: Validate JSON artifacts
+        run: |
+          python -m json.tool .codex-plugin/plugin.json >/dev/null
+          python -m json.tool .agents/plugins/marketplace.json >/dev/null
+          python -m json.tool schemas/tool-manifest.json >/dev/null
+          python -m json.tool schemas/tool-result.schema.json >/dev/null
+          python -m json.tool evals/cases.json >/dev/null
+          python -m json.tool evals/plugin-cases.json >/dev/null
+
+      - name: Run unit and in-memory MCP tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Validate plugin package
+        run: osi-validate-plugin --root .
+
+      - name: Evaluate repository code readiness
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          osi-readiness --root . --output tmp/readiness.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("tmp/readiness.json").read_text(encoding="utf-8"))
+          if report.get("code_ready") is not True:
+              raise SystemExit(f"code readiness failed: {report.get('code_blockers')}")
+          if report.get("external_alpha_ready") is not False:
+              raise SystemExit("ordinary CI must not attest live external-alpha gates")
+          if report.get("hosted_private_alpha_ready") is not False:
+              raise SystemExit("ordinary CI must not attest hosted private-alpha gates")
+          PY
+
+      - name: Build deterministic Skills-only alpha bundle
+        run: |
+          set -euo pipefail
+          osi-build-alpha --root . --output-dir tmp/alpha-bundle
+          (
+            cd tmp/alpha-bundle
+            sha256sum --check SHA256SUMS
+          )
+          python - <<'PY'
+          import json
+          import zipfile
+          from pathlib import Path
+
+          root = Path("tmp/alpha-bundle")
+          report = json.loads((root / "bundle-report.json").read_text(encoding="utf-8"))
+          archive = Path(report["archive"])
+          if not archive.is_absolute():
+              archive = Path.cwd() / archive
+          with zipfile.ZipFile(archive) as bundle:
+              names = set(bundle.namelist())
+          required = {
+              "BUNDLE-MANIFEST.json",
+              ".codex-plugin/plugin.json",
+              ".agents/plugins/marketplace.json",
+              "skills/open-source-project-research/SKILL.md",
+              "skills/open-source-project-comparison/SKILL.md",
+              "skills/open-source-stack-planner/SKILL.md",
+              "SECURITY.md",
+              "PRIVACY.md",
+              "SUPPORT.md",
+          }
+          missing = sorted(required - names)
+          forbidden = sorted(name for name in names if name.startswith("src/") or name == "pyproject.toml")
+          if missing or forbidden:
+              raise SystemExit(f"invalid alpha archive: missing={missing} forbidden={forbidden}")
+          PY
+
+      - name: Smoke test local commands
+        run: |
+          osi-m0 provider-info >/dev/null
+          osi-m0 list-tools >/dev/null
+          osi-m0 invoke search_ai_projects --arguments '{"query":"self-hosted RAG"}' >/dev/null
+          osi-mcp-http --check-config >/dev/null
+          osi-remote-smoke --help >/dev/null
+          osi-probe --help >/dev/null
+          osi-capture-contracts --help >/dev/null
+          osi-validate-contracts --help >/dev/null
+          osi-replay-contracts --help >/dev/null
+          osi-validate-plugin --help >/dev/null
+          osi-build-alpha --help >/dev/null
+          osi-readiness --help >/dev/null
+          python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
+
+      - name: End-to-end Streamable HTTP MCP round trip
+        if: matrix.python-version == '3.12'
+        env:
+          OSI_PROVIDER: mock
+          OSI_MCP_HTTP_HOST: 127.0.0.1
+          OSI_MCP_HTTP_PORT: "8765"
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          osi-mcp-http >tmp/mcp-http.log 2>&1 &
+          server_pid=$!
+
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          python - <<'PY'
+          import socket
+          import time
+
+          deadline = time.monotonic() + 15
+          while True:
+              try:
+                  with socket.create_connection(("127.0.0.1", 8765), timeout=1):
+                      break
+              except OSError:
+                  if time.monotonic() >= deadline:
+                      raise SystemExit("Streamable HTTP MCP server did not become ready within 15 seconds")
+                  time.sleep(0.2)
+          PY
+
+          if ! osi-remote-smoke \
+            --url http://127.0.0.1:8765/mcp \
+            --invoke-search \
+            --locale en \
+            --output tmp/mcp-http-smoke.json; then
+            cat tmp/mcp-http.log >&2
+            exit 1
+          fi
+
+      - name: Validate container packaging and hosted config
+        if: matrix.python-version == '3.12'
+        run: |
+          set -euo pipefail
+          docker compose -f compose.hosted.example.yml config >/dev/null
+          docker compose -f compose.hosted.example.yml build osi-mcp
+
+          # The image itself still starts in safe loopback/mock mode when no
+          # deployment environment is supplied.
+          docker run --rm aiworkstation-osi-mcp:local \
+            osi-mcp-http --check-config >/dev/null
+
+          # Exercise the actual Compose hosted-alpha environment without opening
+          # a listening service or publishing ports.
+          docker compose -f compose.hosted.example.yml run --rm --no-deps \
+            osi-mcp osi-mcp-http --check-config >/dev/null

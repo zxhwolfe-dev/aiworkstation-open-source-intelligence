@@ -1,0 +1,15 @@
+# Default owner for this pre-release repository.
+* @zxhwolfe-dev
+
+# Security, distribution, and live-contract boundaries require explicit review.
+/SECURITY.md @zxhwolfe-dev
+/PRIVACY.md @zxhwolfe-dev
+/.github/workflows/ @zxhwolfe-dev
+/.codex-plugin/ @zxhwolfe-dev
+/.agents/plugins/ @zxhwolfe-dev
+/src/aiworkstation_osi/strict_http_provider.py @zxhwolfe-dev
+/src/aiworkstation_osi/mcp_server.py @zxhwolfe-dev
+/src/aiworkstation_osi/contract_capture.py @zxhwolfe-dev
+/src/aiworkstation_osi/fixture_validation.py @zxhwolfe-dev
+/src/aiworkstation_osi/fixture_replay.py @zxhwolfe-dev
+/src/aiworkstation_osi/alpha_bundle.py @zxhwolfe-dev
