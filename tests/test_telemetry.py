@@ -43,17 +43,6 @@ class TelemetryTests(unittest.TestCase):
 
     def test_tool_error_logs_public_code_not_invalid_input_value(self) -> None:
         stream = io.StringIO()
-        with patch.dict(os.environ, {"OSI_LOG_LEVEL": "WARNING"}, clear=False), redirect_stderr(stream):
-            with self.assertRaises(ValueError):
-                _invoke(
-                    create_default_registry(),
-                    "get_project_facts",
-                    {"project_id": "SENSITIVE BAD VALUE", "request_id": "request-secret"},
-                )
-
-        # The fixture provider accepts arbitrary non-empty IDs, so force a real
-        # validation failure with an oversized value instead.
-        stream = io.StringIO()
         sensitive_value = "SENSITIVE" * 40
         with patch.dict(os.environ, {"OSI_LOG_LEVEL": "WARNING"}, clear=False), redirect_stderr(stream):
             with self.assertRaises(ValueError):
