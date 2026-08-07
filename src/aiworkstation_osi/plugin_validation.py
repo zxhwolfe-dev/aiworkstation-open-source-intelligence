@@ -84,7 +84,7 @@ def _validate_component_path(
     path = _resolve_relative_path(root, manifest[field], field, errors)
     if path is None:
         return
-    if path.name != expected_name:
+    if path != (root / expected_name).resolve():
         errors.append(f"{field} must point to {expected_name}")
     if not path.is_file():
         errors.append(f"{field} target does not exist: {path}")
