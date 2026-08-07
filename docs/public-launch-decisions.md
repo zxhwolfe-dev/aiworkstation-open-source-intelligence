@@ -1,42 +1,43 @@
 # Public Launch Decisions
 
-The codebase can prepare a private alpha without making business, legal or
-infrastructure decisions on behalf of the publisher. The following decisions
-must be made explicitly before a broad public release.
+The repository can prepare and distribute a public Skills package without pretending that the hosted MCP service is already a production multi-user service. The decisions below are tracked separately by release layer.
 
-## 1. Software license
+## 1. Software license — RESOLVED for the public repository
 
-Current state: no open-source license is granted.
+The public `aiworkstation-open-source-intelligence` repository is licensed under **Apache-2.0**.
 
-Choose one of these product strategies before adding a `license` field to the
-plugin manifest:
+This decision covers the public repository only. It does not grant rights to:
 
-- open-source distribution under a recognized license;
-- source-available distribution under custom terms;
-- proprietary hosted product with only the Skills package publicly inspectable.
+- private AI Workstation databases;
+- unpublished Radar datasets;
+- private backend repositories or infrastructure;
+- hosted-service accounts/data;
+- AI Workstation trademarks.
 
-The choice affects reuse, forks, commercial redistribution and marketplace
-expectations. Do not infer permission from the repository being publicly
-readable.
+The data-production and private backend layer can remain proprietary while the public plugin/client/integration layer is open source.
 
-## 2. Public legal URLs
+## 2. Public distribution legal URLs — PREPARED for Skills-only release
 
-Publish final URLs for:
+The repository now publishes:
 
-- privacy policy;
-- terms of service;
-- support/contact;
-- security reporting, when separate from the repository policy.
+- `PRIVACY.md`;
+- `TERMS.md`;
+- `SUPPORT.md`;
+- `SECURITY.md`.
 
-The existing `PRIVACY.md`, `SECURITY.md` and `SUPPORT.md` describe the current
-repository and alpha posture. They are not automatically a substitute for legal
-review of a hosted paid service.
+The Skills-only plugin manifest points to public GitHub URLs for these documents. These repository/pre-release documents are adequate for public package transparency, but a future paid or multi-user hosted service should publish **service-specific** privacy/terms/retention information on the final product domain and replace the manifest URLs when appropriate.
 
-## 3. MCP hostname and deployment owner
+## 3. Publisher identity — PENDING PLATFORM VERIFICATION
+
+Recommended publisher identity: **AI Workstation**.
+
+Before directory submission, the publisher must complete whatever individual/business/developer verification the target platform currently requires and ensure that website, support, privacy, terms, logo, and listing ownership are consistent.
+
+## 4. Public MCP hostname and deployment owner — PENDING
 
 Decide:
 
-- canonical MCP hostname;
+- canonical MCP hostname (recommended pattern: `mcp.aiworkstation.cn`, subject to infrastructure review);
 - cloud/server owner;
 - deployment region;
 - backup region, if any;
@@ -45,98 +46,97 @@ Decide:
 - observability destination;
 - rollback owner.
 
-The repository's container example binds to host loopback only and is designed
-for a same-host proxy or private validation.
+The repository's container example binds to host loopback only and is designed for a same-host proxy or private validation.
 
-## 4. Authentication model
+## 5. Authentication model — PENDING for broad hosted MCP
 
-For public ChatGPT/plugin use, prefer per-user OAuth-style authorization over a
-shared static token.
+The current six tools are anonymous/read-only against the public Radar API in local/private testing. A broad public multi-user service must decide whether anonymous access is sufficient for a bounded free surface or whether per-user identity/OAuth is required.
 
-Decide:
+If accounts, paid quotas, saved work, team features, private data, or user-specific access are introduced, use a per-user identity model with explicit scopes, token lifetime, refresh/revocation, and account deletion rather than a shared static secret.
 
-- authorization server;
-- user/account identity source;
-- scopes;
-- token lifetime and refresh policy;
-- revocation path;
-- anonymous trial policy, if any;
-- service-to-service access policy.
+Do not expose the current hosted-alpha endpoint directly to the Internet without an authenticated gateway, trusted private network, or reviewed native authorization model.
 
-Do not expose the current hosted alpha endpoint directly to the Internet without
-an authenticated gateway or native MCP authorization.
+## 6. Quotas and commercial model — PENDING
 
-## 5. Quotas and commercial model
-
-Decide before adding billing code:
+Decide before broad public hosting:
 
 - anonymous/free calls per day;
 - authenticated free tier;
-- paid plan unit: calls, successful research tasks, seats or monthly package;
+- paid unit: tasks, calls, seats, or monthly plan;
 - per-tool cost ceilings;
 - timeout and hydration limits;
 - abuse thresholds;
-- team or API access policy.
+- team/API policy.
 
-Prefer measuring successful user tasks over raw calls when evaluating product
-value, while infrastructure rate limits still operate on requests.
+The current live Open Source Intelligence path uses deterministic retrieval with `use_model=false`, which avoids a second publisher-funded LLM call for ordinary project search. If model-assisted backend features are added later, give them separate quotas and cost ceilings.
 
-## 6. Logging and retention
+## 7. Logging and retention — PENDING for hosted service
 
 Decide:
 
 - whether complete prompts are ever stored;
-- default log retention;
+- operational-log retention;
 - security-log retention;
 - IP-address handling;
 - account identifier pseudonymization;
-- deletion and export process;
+- deletion/export/correction channels;
 - whether evaluation samples may be retained and under what consent.
 
-The recommended default is data minimization: operational metadata and stable
-request IDs without complete prompts or credentials.
+Recommended default: data minimization. Preserve operational metadata needed for reliability/security without retaining credentials or complete confidential prompts.
 
-## 7. Evidence freshness and service guarantees
+## 8. Evidence freshness and service guarantees — PENDING
 
 Define:
 
 - maximum acceptable project-fact age;
 - behavior during Radar degradation;
-- whether safe stale results are served;
-- how stale data is labeled;
-- uptime target for a paid service;
+- whether safe stale results may be served;
+- stale-result labeling;
+- uptime/incident targets for any paid service;
 - incident communication path.
 
 Do not silently fall back from verified current facts to model guesses.
 
-## 8. Public launch sequence
+## 9. Public release sequence
 
-Recommended order:
+### Skills-only public release
 
-1. pass normal CI;
-2. run bilingual live contract validation;
-3. test the local Skills package;
-4. test stdio MCP from Codex;
-5. deploy the guarded Streamable HTTP server behind a private/authenticated
-   gateway;
-6. run `osi-remote-smoke` against that endpoint;
-7. complete OAuth, quotas and abuse controls;
-8. publish legal/support URLs;
-9. register the hosted MCP connection with the target platform;
-10. update the plugin package with the real hosted connection only after the
-    connection identifier and endpoint are stable;
-11. invite a small external alpha cohort;
-12. expand distribution only after repeated-use and reliability metrics justify
-    it.
+1. finish External Alpha cohort feedback;
+2. run standard CI and bilingual live contract validation on the release candidate;
+3. run real Codex Skills/MCP acceptance;
+4. build deterministic Skills bundle and verify SHA-256;
+5. publish GitHub pre-release;
+6. complete publisher verification and listing assets;
+7. submit the Skills-only plugin using `docs/openai-plugin-submission.md`;
+8. publish only after platform review/approval.
 
-## Decisions that should not block private testing
+### Developer distribution
 
-The following can wait until the private alpha proves value:
+1. verify the PyPI package name;
+2. configure PyPI Trusted Publishing for `.github/workflows/publish-pypi.yml`;
+3. publish wheel/sdist;
+4. publish versioned Docker images to GHCR.
 
-- paid plan pricing;
-- team workspace design;
-- broad public directory submission;
-- screenshots and marketing assets;
+### Hosted MCP public release
+
+1. choose canonical hostname and deployment owner;
+2. deploy behind reviewed TLS/authentication controls;
+3. implement identity/revocation as required by product scope;
+4. implement quotas, rate limiting, and abuse controls;
+5. publish service-specific privacy/terms/retention policy;
+6. run remote English and Chinese MCP smoke tests;
+7. register/verify the hosted MCP connection with target platforms;
+8. update the plugin package only after the connection identity is stable;
+9. publish to the MCP Registry when the endpoint/package meets its current requirements.
+
+## Decisions that should not block the first Skills release
+
+These can wait until real usage proves value:
+
+- paid pricing;
+- team workspaces;
 - multi-region deployment;
 - saved collections and alerts;
-- write-capable MCP tools.
+- write-capable tools;
+- public hosted MCP;
+- publisher-funded model-assisted search.
