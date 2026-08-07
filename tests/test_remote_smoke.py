@@ -28,11 +28,22 @@ class RemoteSmokeEndpointTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _validate_endpoint("http://mcp.example.com/mcp", allow_http_localhost=True)
 
-    def test_credentials_query_fragment_and_non_http_schemes_are_rejected(self) -> None:
+    def test_canonical_mcp_path_is_required(self) -> None:
+        for url in (
+            "https://mcp.example.com",
+            "https://mcp.example.com/",
+            "https://mcp.example.com/api/mcp",
+            "https://mcp.example.com/sse",
+        ):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                _validate_endpoint(url, allow_http_localhost=True)
+
+    def test_credentials_query_fragment_invalid_port_and_non_http_schemes_are_rejected(self) -> None:
         for url in (
             "https://user:pass@mcp.example.com/mcp",
             "https://mcp.example.com/mcp?token=secret",
             "https://mcp.example.com/mcp#fragment",
+            "https://mcp.example.com:99999/mcp",
             "file:///tmp/mcp",
         ):
             with self.subTest(url=url), self.assertRaises(ValueError):
