@@ -1,7 +1,8 @@
 {
   "name": "aiworkstation-open-source-intelligence",
   "version": "0.1.0",
-  "description": "Read-only workflows for finding, verifying, comparing, and composing open-source AI projects; live evidence requires the separately configured MCP server.",
+  "description": "Evidence-backed research, comparison, license verification, and stack planning for open-source AI projects; live project evidence requires the separately configured read-only MCP server.",
+  "license": "Apache-2.0",
   "author": {
     "name": "AI Workstation",
     "url": "https://aiworkstation.cn"
@@ -14,13 +15,14 @@
     "technology-selection",
     "license-evidence",
     "rag",
-    "agents"
+    "agents",
+    "mcp"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "AI Open Source Intelligence",
-    "shortDescription": "Research workflows for open-source AI projects",
-    "longDescription": "Structure project research, comparison, and stack planning while keeping facts, recommendations, unknowns, and risks separate. Connect the companion read-only MCP server before claiming live verified project or license facts.",
+    "shortDescription": "Evidence-backed open-source AI research and selection",
+    "longDescription": "Research and evaluate open-source AI projects using evidence-backed workflows. Find projects from deployment and technical requirements, structure named-project verification, compare alternatives, and design candidate AI stacks while keeping verified facts, recommendations, unknowns, and risks explicitly separated. Live project evidence requires the separately configured read-only MCP server.",
     "developerName": "AI Workstation",
     "category": "Developer Tools",
     "capabilities": [
@@ -29,10 +31,15 @@
       "Compare"
     ],
     "websiteURL": "https://aiworkstation.cn/githubai/",
+    "supportURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/SUPPORT.md",
+    "privacyPolicyURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/TERMS.md",
     "defaultPrompt": [
-      "Find open-source AI projects that meet my deployment, license, and technical constraints. If the live tools are unavailable, give me the requirements and verification checklist instead of inventing facts.",
-      "Compare Dify and RAGFlow for an enterprise knowledge-base use case, clearly separating verified facts from assumptions.",
-      "Design a self-hosted open-source AI stack and mark every unverified compatibility or license condition."
+      "Find a self-hosted RAG platform with Docker and a Web UI. Keep hard requirements separate from preferences.",
+      "Compare Dify and RAGFlow for an enterprise knowledge-base use case, clearly separating verified facts from assumptions and unknowns.",
+      "Check what evidence I need before relying on an open-source AI project's license for commercial adoption.",
+      "Find alternatives to an open-source AI project while preserving my deployment constraints.",
+      "Design a self-hosted open-source AI stack for internal document question answering and mark every unverified compatibility or license condition."
     ],
     "brandColor": "#24292F"
   }
