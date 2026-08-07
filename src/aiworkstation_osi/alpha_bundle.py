@@ -22,6 +22,7 @@ REQUIRED_FILES = (
     "CHANGELOG.md",
     "SECURITY.md",
     "PRIVACY.md",
+    "SUPPORT.md",
     "docs/codex-setup.md",
     "docs/plugin-packaging.md",
     "docs/alpha-tester-guide.md",
