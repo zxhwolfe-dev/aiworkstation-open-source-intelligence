@@ -20,7 +20,7 @@ class PluginPackageTests(unittest.TestCase):
         entries = sorted(path.name for path in self.MANIFEST_PATH.parent.iterdir())
         self.assertEqual(entries, ["plugin.json"])
 
-    def test_identity_and_version_are_stable(self) -> None:
+    def test_identity_version_and_license_are_stable(self) -> None:
         self.assertRegex(
             self.manifest["name"],
             r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
@@ -34,6 +34,8 @@ class PluginPackageTests(unittest.TestCase):
             self.manifest["name"],
             "aiworkstation-open-source-intelligence",
         )
+        self.assertEqual(self.manifest["license"], "Apache-2.0")
+        self.assertTrue((self.ROOT / "LICENSE").is_file())
 
     def test_manifest_packages_all_three_skill_directories(self) -> None:
         skills_path = self.manifest["skills"]
@@ -74,21 +76,24 @@ class PluginPackageTests(unittest.TestCase):
             "developerName",
             "category",
             "websiteURL",
+            "supportURL",
+            "privacyPolicyURL",
+            "termsOfServiceURL",
             "defaultPrompt",
             "brandColor",
         ):
             self.assertTrue(interface[field], field)
-        self.assertGreaterEqual(len(interface["defaultPrompt"]), 3)
+        self.assertGreaterEqual(len(interface["defaultPrompt"]), 5)
         self.assertIn("Read", interface["capabilities"])
         self.assertNotIn("Write", interface["capabilities"])
 
-    def test_manifest_does_not_claim_ungranted_license_or_unready_mcp_binding(self) -> None:
-        self.assertNotIn("license", self.manifest)
+    def test_manifest_claims_public_legal_metadata_but_not_unready_mcp_binding(self) -> None:
+        interface = self.manifest["interface"]
+        self.assertIn("github.com", interface["privacyPolicyURL"])
+        self.assertIn("github.com", interface["termsOfServiceURL"])
+        self.assertIn("github.com", interface["supportURL"])
         self.assertNotIn("mcpServers", self.manifest)
         self.assertNotIn("apps", self.manifest)
-        interface = self.manifest["interface"]
-        self.assertNotIn("privacyPolicyURL", interface)
-        self.assertNotIn("termsOfServiceURL", interface)
 
     def test_repo_marketplace_points_to_plugin_root(self) -> None:
         self.assertEqual(self.marketplace["name"], "aiworkstation-local-plugins")
