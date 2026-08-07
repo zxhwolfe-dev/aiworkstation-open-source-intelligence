@@ -113,6 +113,15 @@ class StrictHttpProviderTests(unittest.TestCase):
             provider.get_project_facts({"project_id": "owner/sample", "locale": "en"})
         self.assertTrue(context.exception.retryable)
 
+    def test_redirect_status_from_any_transport_fails_closed(self) -> None:
+        provider = AIWorkstationHttpProvider(
+            "https://example.test",
+            transport=RouterTransport(lambda *_args: (302, {"detail": "moved"})),
+        )
+        with self.assertRaises(UpstreamContractError) as context:
+            provider.get_project_facts({"project_id": "owner/sample", "locale": "en"})
+        self.assertIn("redirect", context.exception.message.lower())
+
     def test_near_match_cannot_coexist_with_formal_recommendation(self) -> None:
         same_project = project_card()
 
@@ -221,10 +230,26 @@ class StrictHttpProviderTests(unittest.TestCase):
             BytesIO(b"<html>not found</html>"),
         )
         transport = SafeUrllibJsonTransport("https://example.test")
-        with patch("aiworkstation_osi.strict_http_provider.urllib.request.urlopen", side_effect=error):
+        with patch.object(transport, "_open", side_effect=error):
             response = transport.request("GET", "/missing")
         self.assertEqual(response.status, 404)
         self.assertEqual(response.payload, {})
+
+    def test_safe_transport_rejects_redirect_without_following_it(self) -> None:
+        error = urllib.error.HTTPError(
+            "https://example.test/projects",
+            302,
+            "Found",
+            {"Location": "https://redirect.invalid/elsewhere"},
+            BytesIO(b"{}"),
+        )
+        transport = SafeUrllibJsonTransport("https://example.test")
+        with patch.object(transport, "_open", side_effect=error):
+            with self.assertRaises(UpstreamContractError) as context:
+                transport.request("GET", "/projects")
+        self.assertIn("redirect", context.exception.message.lower())
+        self.assertEqual(context.exception.details["status"], 302)
+        self.assertTrue(context.exception.details["location_present"])
 
 
 if __name__ == "__main__":
