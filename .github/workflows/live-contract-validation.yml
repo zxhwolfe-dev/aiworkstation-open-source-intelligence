@@ -3,15 +3,6 @@ name: live-contract-validation
 on:
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/ci.yml"
-      - ".github/workflows/live-contract-validation.yml"
-      - ".codex-plugin/**"
-      - ".agents/**"
-      - "schemas/**"
-      - "src/**"
-      - "tests/**"
-      - "pyproject.toml"
   workflow_dispatch:
     inputs:
       base_url:
@@ -119,8 +110,6 @@ jobs:
           for locale in en zh; do
             directory="$VALIDATION_ROOT/contracts-$locale"
             osi-validate-contracts --directory "$directory"
-            # Replay intentionally derives locale and project identity from the
-            # sanitized capture manifest so the exact captured contract is tested.
             osi-replay-contracts \
               --directory "$directory" \
               --output "$VALIDATION_ROOT/replay-$locale.json"
