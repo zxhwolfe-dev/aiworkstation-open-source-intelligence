@@ -15,11 +15,12 @@ and final public-service policies remain release blockers.
 Do not open a public issue for a vulnerability involving:
 
 - credentials, tokens or private data;
-- authentication or gateway bypass;
+- authentication, Host/origin or gateway bypass;
 - prompt injection that crosses a trust boundary;
 - remote code execution or third-party repository execution;
 - unsafe write behavior;
 - data leakage from Radar/public-contract responses;
+- false promotion of analysis or indirect evidence into verified facts;
 - container or hosted MCP isolation failures.
 
 Until a dedicated security mailbox is published, use the private contact method
@@ -42,12 +43,21 @@ third parties.
 - third-party repository code is never executed or installed;
 - mock data is explicitly marked and cannot be presented as verified live facts;
 - live Radar integration fails closed on required identity/evidence contracts;
+- public Radar redirects are rejected rather than followed to another origin;
+- repository/public metadata is separated from editorial/analysis projection
+  fields before values enter `verified_facts`;
+- a license is verified only with direct public `License` transparency evidence;
 - Streamable HTTP defaults to loopback and mock data;
 - non-loopback binds require explicit private-network/reverse-proxy
-  acknowledgement and the live provider;
+  acknowledgement, the live provider and explicit MCP Host allowlists;
+- non-loopback mode passes Host/origin allowlists into MCP transport security for
+  DNS-rebinding/Host-header protection;
+- MCP request bodies have a bounded alpha default;
 - the bind acknowledgement is not authentication;
-- remote MCP smoke URLs reject embedded credentials and require HTTPS outside
-  localhost;
+- remote MCP smoke URLs reject embedded credentials, require HTTPS outside
+  localhost and require the canonical `/mcp` path;
+- runtime telemetry writes to stderr and does not accept query text, constraints,
+  project IDs or raw request IDs as event fields;
 - the example container runs non-root, drops capabilities and maps only to host
   loopback;
 - Skills-only alpha bundles exclude runtime MCP source and scan for common
@@ -57,9 +67,9 @@ third parties.
 
 The repository does not currently guarantee that an Internet-exposed deployment
 is secure merely because `osi-mcp-http` starts successfully. Public hosting also
-requires real identity/authentication, revocation, TLS gateway controls, rate
-limits, abuse blocking, production logging/monitoring, secret management and
-incident response.
+requires real per-user identity/authentication, revocation, TLS gateway controls,
+rate limits, abuse blocking, production logging/monitoring, secret management
+and incident response.
 
 See `docs/security-and-privacy.md`, `docs/hosted-mcp.md` and
 `docs/public-launch-decisions.md` before any hosted rollout.
