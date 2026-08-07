@@ -35,10 +35,9 @@ class CodexAcceptanceTests(unittest.TestCase):
         self.assertIn("--ephemeral", command)
         self.assertIn("--sandbox", command)
         self.assertIn("read-only", command)
-        self.assertIn("--ask-for-approval", command)
-        approval_index = command.index("--ask-for-approval")
-        self.assertEqual(command[approval_index + 1], "never")
         rendered = "\n".join(command)
+        self.assertIn('approval_policy="never"', rendered)
+        self.assertNotIn("--ask-for-approval", command)
         self.assertIn(f"mcp_servers.{SERVER_NAME}.required=true", rendered)
         self.assertIn(
             f'mcp_servers.{SERVER_NAME}.default_tools_approval_mode="approve"',
