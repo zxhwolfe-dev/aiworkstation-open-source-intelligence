@@ -54,6 +54,27 @@ PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SAFE_SOURCE_PATH_PATTERN = re.compile(r"^[A-Za-z0-9._/ -]{1,240}$")
 LICENSE_SOURCE_LABELS = {"license", "licence"}
 
+# These fields are repository/public-release metadata rather than model/editorial
+# conclusions. They may be promoted from a validated same-snapshot public detail
+# without claim-specific README evidence. Everything else remains public
+# projection data unless a stricter direct-evidence rule promotes it.
+VERIFIED_METADATA_FIELDS = {
+    "project_id",
+    "name",
+    "repository_url",
+    "homepage",
+    "languages",
+    "stars",
+    "updated_at",
+    "archived",
+}
+ANALYSIS_PROJECTION_FIELDS = {
+    "summary",
+    "deployment",
+    "categories",
+    "use_cases",
+}
+
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Prevent public Radar requests from leaving the configured origin."""
@@ -271,7 +292,7 @@ class SafeUrllibJsonTransport(UrllibJsonTransport):
 
 
 class AIWorkstationHttpProvider(BaseAIWorkstationHttpProvider):
-    """Fail-closed provider with strict selector and license boundaries."""
+    """Fail-closed provider with strict selector and field-evidence boundaries."""
 
     def __init__(
         self,
@@ -387,22 +408,33 @@ class AIWorkstationHttpProvider(BaseAIWorkstationHttpProvider):
             fallback_observed_at=str(output.data.get("observed_at") or ""),
         )
 
-        facts: list[VerifiedFact] = []
-        license_fact_confidence = "low"
-        for fact in output.verified_facts:
-            if fact.field != "license":
-                facts.append(fact)
-                continue
-            license_fact_confidence = fact.confidence
-            if normalized_license is not None and direct_license_evidence:
-                facts.append(
-                    VerifiedFact(
-                        field="license",
-                        value=normalized_license,
-                        confidence=fact.confidence,
-                        evidence=direct_license_evidence,
-                    )
+        # The base adapter intentionally mirrors the public detail projection.
+        # The hardened layer decides which values cross the stronger
+        # ``verified_facts`` boundary. Editorial/classification fields stay in
+        # ``data.project`` for workflows to inspect but are not facts by virtue
+        # of appearing in that JSON alone.
+        facts: list[VerifiedFact] = [
+            fact
+            for fact in output.verified_facts
+            if fact.field in VERIFIED_METADATA_FIELDS
+        ]
+        base_license_fact = next(
+            (fact for fact in output.verified_facts if fact.field == "license"),
+            None,
+        )
+        if (
+            base_license_fact is not None
+            and normalized_license is not None
+            and direct_license_evidence
+        ):
+            facts.append(
+                VerifiedFact(
+                    field="license",
+                    value=normalized_license,
+                    confidence=base_license_fact.confidence,
+                    evidence=direct_license_evidence,
                 )
+            )
 
         unknowns = list(output.unknowns)
         risks = list(output.risks)
@@ -435,8 +467,22 @@ class AIWorkstationHttpProvider(BaseAIWorkstationHttpProvider):
                     )
                 )
 
+        field_evidence_status: dict[str, str] = {}
+        for field in normalized_project:
+            if field in VERIFIED_METADATA_FIELDS:
+                field_evidence_status[field] = "verified_public_metadata"
+            elif field == "license":
+                field_evidence_status[field] = "verified_direct_evidence"
+            elif field in ANALYSIS_PROJECTION_FIELDS:
+                field_evidence_status[field] = "public_projection_only"
+            else:
+                field_evidence_status[field] = "public_projection_only"
+        if "license" not in normalized_project:
+            field_evidence_status["license"] = "unknown"
+
         data = dict(output.data)
         data["project"] = normalized_project
+        data["field_evidence_status"] = field_evidence_status
         data["license_evidence_status"] = "verified" if license_verified else "unknown"
         data["license_evidence_count"] = len(direct_license_evidence)
         return ProviderOutput(
