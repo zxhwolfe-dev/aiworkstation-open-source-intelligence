@@ -34,6 +34,16 @@ class LiveValidationWorkflowTests(unittest.TestCase):
         self.assertNotIn('--project-id "${{ inputs.project_id }}"', self.content)
         self.assertIn('os.environ["PROJECT_ID"]', self.content)
 
+    def test_replay_uses_capture_manifest_instead_of_duplicate_identity_flags(self) -> None:
+        replay_block = self.content.split("Validate and replay captured contracts", 1)[1].split(
+            "Scan artifacts for forbidden JSON keys", 1
+        )[0]
+        self.assertIn("osi-replay-contracts", replay_block)
+        self.assertIn('--directory "$directory"', replay_block)
+        self.assertIn('--output "$VALIDATION_ROOT/replay-$locale.json"', replay_block)
+        self.assertNotIn("--project-id", replay_block)
+        self.assertNotIn("--locale", replay_block)
+
     def test_validation_precedes_artifact_upload(self) -> None:
         scan_position = self.content.index("Scan artifacts for forbidden JSON keys")
         summary_position = self.content.index("Write validation summary")
