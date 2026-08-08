@@ -30,8 +30,6 @@ SERVER_INSTRUCTIONS = (
 
 
 def _read_only_annotations(title: str) -> ToolAnnotations:
-    """Describe the actual side-effect profile to MCP hosts."""
-
     return ToolAnnotations(
         title=title,
         read_only_hint=True,
@@ -85,8 +83,6 @@ def _invoke(registry: ToolRegistry, tool_name: str, arguments: dict[str, Any]) -
 
 
 def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
-    """Build an in-memory-testable MCP server without starting a transport."""
-
     active_registry = registry or create_registry_from_env()
     server = MCPServer(
         "AI Workstation Open Source Intelligence",
@@ -102,18 +98,10 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
         request_id: str = "",
     ) -> dict[str, Any]:
         """Find and verify open-source AI projects from explicit requirements."""
-
-        return _invoke(
-            active_registry,
-            "search_ai_projects",
-            {
-                "query": query,
-                "constraints": constraints or {},
-                "locale": locale,
-                "source_mode": source_mode,
-                "request_id": request_id,
-            },
-        )
+        return _invoke(active_registry, "search_ai_projects", {
+            "query": query, "constraints": constraints or {}, "locale": locale,
+            "source_mode": source_mode, "request_id": request_id,
+        })
 
     @server.tool(annotations=_read_only_annotations("Get verified project facts"))
     def get_project_facts(
@@ -122,12 +110,9 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
         request_id: str = "",
     ) -> dict[str, Any]:
         """Get current evidence-backed public facts for one project."""
-
-        return _invoke(
-            active_registry,
-            "get_project_facts",
-            {"project_id": project_id, "locale": locale, "request_id": request_id},
-        )
+        return _invoke(active_registry, "get_project_facts", {
+            "project_id": project_id, "locale": locale, "request_id": request_id,
+        })
 
     @server.tool(annotations=_read_only_annotations("Get project license evidence"))
     def get_license_evidence(
@@ -136,12 +121,9 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
         request_id: str = "",
     ) -> dict[str, Any]:
         """Get observed license evidence; the result is not legal advice."""
-
-        return _invoke(
-            active_registry,
-            "get_license_evidence",
-            {"project_id": project_id, "locale": locale, "request_id": request_id},
-        )
+        return _invoke(active_registry, "get_license_evidence", {
+            "project_id": project_id, "locale": locale, "request_id": request_id,
+        })
 
     @server.tool(annotations=_read_only_annotations("Compare open-source AI projects"))
     def compare_ai_projects(
@@ -152,18 +134,10 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
         request_id: str = "",
     ) -> dict[str, Any]:
         """Compare two to five projects in one explicit decision context."""
-
-        return _invoke(
-            active_registry,
-            "compare_ai_projects",
-            {
-                "project_ids": project_ids,
-                "criteria": criteria or [],
-                "context": context or {},
-                "locale": locale,
-                "request_id": request_id,
-            },
-        )
+        return _invoke(active_registry, "compare_ai_projects", {
+            "project_ids": project_ids, "criteria": criteria or [], "context": context or {},
+            "locale": locale, "request_id": request_id,
+        })
 
     @server.tool(annotations=_read_only_annotations("Find open-source project alternatives"))
     def find_alternatives(
@@ -173,17 +147,10 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
         request_id: str = "",
     ) -> dict[str, Any]:
         """Find verified candidate alternatives while preserving constraints."""
-
-        return _invoke(
-            active_registry,
-            "find_alternatives",
-            {
-                "project_id": project_id,
-                "constraints": constraints or {},
-                "locale": locale,
-                "request_id": request_id,
-            },
-        )
+        return _invoke(active_registry, "find_alternatives", {
+            "project_id": project_id, "constraints": constraints or {},
+            "locale": locale, "request_id": request_id,
+        })
 
     @server.tool(annotations=_read_only_annotations("Compose an open-source AI stack"))
     def compose_ai_stack(
@@ -194,31 +161,20 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
         request_id: str = "",
     ) -> dict[str, Any]:
         """Compose a candidate open-source AI stack and expose unknown compatibility."""
-
-        return _invoke(
-            active_registry,
-            "compose_ai_stack",
-            {
-                "business_goal": business_goal,
-                "constraints": constraints or {},
-                "existing_stack": existing_stack or [],
-                "locale": locale,
-                "request_id": request_id,
-            },
-        )
+        return _invoke(active_registry, "compose_ai_stack", {
+            "business_goal": business_goal, "constraints": constraints or {},
+            "existing_stack": existing_stack or [], "locale": locale, "request_id": request_id,
+        })
 
     @server.tool(annotations=_read_only_annotations("Get AI Open Source Radar overview"))
     def get_radar_overview(
         locale: Literal["zh", "en"] = "en",
         request_id: str = "",
     ) -> dict[str, Any]:
-        """Discover the current Radar rankings, collections, categories and scenarios."""
-
-        return _invoke(
-            active_registry,
-            "get_radar_overview",
-            {"locale": locale, "request_id": request_id},
-        )
+        """Discover current rankings, collections, categories, scenarios and filters."""
+        return _invoke(active_registry, "get_radar_overview", {
+            "locale": locale, "request_id": request_id,
+        })
 
     @server.tool(annotations=_read_only_annotations("Browse AI Open Source Radar projects"))
     def browse_radar_projects(
@@ -227,6 +183,10 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
         collection: str = "",
         category: str = "",
         scenario: str = "",
+        role: str = "",
+        topic: str = "",
+        github_topic: str = "",
+        radar_topic: str = "",
         use_case: str = "",
         resource_type: str = "",
         license: str = "",
@@ -237,52 +197,56 @@ def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
         locale: Literal["zh", "en"] = "en",
         request_id: str = "",
     ) -> dict[str, Any]:
-        """Browse rankings, collections, categories, scenarios or filtered projects."""
-
-        return _invoke(
-            active_registry,
-            "browse_radar_projects",
-            {
-                "query": query,
-                "ranking": ranking,
-                "collection": collection,
-                "category": category,
-                "scenario": scenario,
-                "use_case": use_case,
-                "resource_type": resource_type,
-                "license": license,
-                "deployment": deployment,
-                "layer": layer,
-                "limit": limit,
-                "offset": offset,
-                "locale": locale,
-                "request_id": request_id,
-            },
-        )
+        """Browse rankings, collections, categories, scenarios, topics or filtered projects."""
+        return _invoke(active_registry, "browse_radar_projects", {
+            "query": query,
+            "ranking": ranking,
+            "collection": collection,
+            "category": category,
+            "scenario": scenario,
+            "role": role,
+            "topic": topic,
+            "github_topic": github_topic,
+            "radar_topic": radar_topic,
+            "use_case": use_case,
+            "resource_type": resource_type,
+            "license": license,
+            "deployment": deployment,
+            "layer": layer,
+            "limit": limit,
+            "offset": offset,
+            "locale": locale,
+            "request_id": request_id,
+        })
 
     @server.tool(annotations=_read_only_annotations("Browse AI Open Source Radar Skills"))
     def browse_radar_skills(
+        skill_id: str = "",
         query: str = "",
         category: str = "",
+        kind: str = "",
+        license: str = "",
+        installable: bool = False,
+        sort: str = "",
         limit: int = 20,
         offset: int = 0,
         locale: Literal["zh", "en"] = "en",
         request_id: str = "",
     ) -> dict[str, Any]:
-        """Browse and search the AI Open Source Radar Skills library."""
-
-        return _invoke(
-            active_registry,
-            "browse_radar_skills",
-            {
-                "query": query,
-                "category": category,
-                "limit": limit,
-                "offset": offset,
-                "locale": locale,
-                "request_id": request_id,
-            },
-        )
+        """Browse/filter the Radar Skills library or open one Skill by ID."""
+        return _invoke(active_registry, "browse_radar_skills", {
+            "skill_id": skill_id,
+            "query": query,
+            "category": category,
+            "kind": kind,
+            "license": license,
+            "installable": installable,
+            "sort": sort,
+            "limit": limit,
+            "offset": offset,
+            "locale": locale,
+            "request_id": request_id,
+        })
 
     return server
 
@@ -292,7 +256,6 @@ mcp = build_mcp_server()
 
 def main() -> None:
     """Run the local stdio transport used by Codex and other MCP hosts."""
-
     mcp.run()
 
 
