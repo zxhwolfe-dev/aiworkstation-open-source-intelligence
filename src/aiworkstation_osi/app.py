@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
+from .full_radar_provider import FullRadarHttpProvider
 from .http_provider import DEFAULT_BASE_URL
 from .providers import MockProjectIntelligenceProvider, ProjectIntelligenceProvider
-from .strict_http_provider import AIWorkstationHttpProvider
 from .tools import ToolRegistry
 
 
@@ -47,7 +47,7 @@ def create_registry_from_env() -> ToolRegistry:
         if hydrate_limit < 1 or hydrate_limit > 5:
             raise ValueError("OSI_HYDRATE_LIMIT must be between 1 and 5")
         return create_default_registry(
-            AIWorkstationHttpProvider(
+            FullRadarHttpProvider(
                 base_url,
                 timeout=timeout,
                 hydrate_limit=hydrate_limit,
