@@ -120,11 +120,13 @@ This avoids a hidden second model bill on every ordinary project search.
 
 ## Identity boundary
 
-Hosted mode requires OAuth. The MCP verifier receives a standard access token, validates issuer/resource/scope and derives an internal entitlement identity from:
+Hosted mode requires OAuth. The initial WorkOS verifier receives a standard access token, validates the exact issuer and MCP Resource Indicator/audience, rejects refresh tokens presented as bearer access tokens, and derives an internal entitlement identity from:
 
 ```text
 issuer + subject -> SHA-256 -> oidc_<opaque-id>
 ```
+
+WorkOS custom MCP scopes are not required by default because the current WorkOS MCP contract uses resource/audience binding. The generic verifier can still enforce explicitly configured scopes for another provider that actually issues and exposes them.
 
 Only the opaque identity crosses the MCP-to-AI-Workstation backend boundary.
 
