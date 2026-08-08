@@ -50,7 +50,7 @@ If live evidence tools are unavailable:
 
 1. do not fill the matrix with remembered project facts;
 2. state that current Radar evidence is unavailable;
-3. provide the decision context, criteria, weights, blank verification matrix and proof-of-concept plan;
+3. provide the decision context, criteria, weights, blank verification matrix, verification plan and proof-of-concept plan;
 4. mark project-specific cells `unknown` unless the user supplied a source, and keep user-supplied claims unverified;
 5. do not recommend a winner solely from general model memory.
 
