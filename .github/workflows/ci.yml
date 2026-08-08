@@ -122,6 +122,7 @@ jobs:
           osi-readiness --help >/dev/null
           osi-codex-acceptance --help >/dev/null
           osi-evidence-readiness --help >/dev/null
+          osi-hosted-evidence-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
 
       - name: Validate public hosted OAuth configuration
@@ -129,6 +130,7 @@ jobs:
         env:
           OSI_PROVIDER: http
           AIWORKSTATION_RADAR_BASE_URL: https://aiworkstation.cn
+          OSI_RELEASE_COMMIT: ${{ github.sha }}
           OSI_MCP_HTTP_HOST: 0.0.0.0
           OSI_MCP_HTTP_PORT: "8000"
           OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network
@@ -143,7 +145,18 @@ jobs:
           OSI_OAUTH_INTROSPECTION_AUTH: body
           OSI_BACKEND_BASE_URL: https://aiworkstation.cn
           OSI_BACKEND_SERVICE_TOKEN: test-service-token
-        run: osi-mcp-hosted --check-config >/dev/null
+        run: |
+          set -euo pipefail
+          osi-mcp-hosted --check-config >tmp/hosted-config.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("tmp/hosted-config.json").read_text(encoding="utf-8"))
+          if payload.get("release_commit") != os.environ["GITHUB_SHA"]:
+              raise SystemExit("Hosted check-config did not preserve the exact candidate SHA")
+          PY
 
       - name: End-to-end Streamable HTTP MCP round trip
         if: matrix.python-version == '3.12'
@@ -192,6 +205,7 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f compose.hosted.example.yml config >/dev/null
+          OSI_RELEASE_COMMIT=${{ github.sha }} \
           OSI_OAUTH_ISSUER_URL=https://auth.example.com \
           OSI_OAUTH_INTROSPECTION_URL=https://auth.example.com/oauth2/introspection \
           OSI_OAUTH_CLIENT_ID=test-client \
