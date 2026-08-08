@@ -39,6 +39,8 @@ class PublicHostedComposeTests(unittest.TestCase):
         self.assertIn("OSI_PROVIDER: http", self.content)
         self.assertIn("AIWORKSTATION_RADAR_BASE_URL: https://aiworkstation.cn", self.content)
         self.assertIn("OSI_OAUTH_RESOURCE_URL: https://mcp.aiworkstation.cn/mcp", self.content)
+        self.assertIn('OSI_OAUTH_REQUIRED_SCOPES: "${OSI_OAUTH_REQUIRED_SCOPES:-}"', self.content)
+        self.assertNotIn("OSI_OAUTH_REQUIRED_SCOPES: osi:use", self.content)
         self.assertIn("OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network", self.content)
 
     def test_user_and_premium_rate_limits_are_explicit(self) -> None:
