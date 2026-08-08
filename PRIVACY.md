@@ -1,67 +1,129 @@
 # Privacy Statement
 
-## Current repository and alpha behavior
+## Status
 
-The default local configuration uses deterministic fixture data and performs no
-network access.
+AI Open Source Intelligence is currently a **hosted public-product candidate**, not yet a broadly launched hosted service. This document describes the implemented data boundaries and the intended hosted behavior. Final service-specific privacy/retention terms must be published before real-money/public directory launch.
 
-When an operator explicitly selects `OSI_PROVIDER=http`, the tools send the
-technical search query and structured constraints needed to answer the request
-to AI Workstation's public Open Source Radar API. The repository does not need
-account credentials, private repositories, customer documents or source-code
-archives for these read-only research tasks.
+## Standard Radar tools
 
-The codebase can also expose a guarded Streamable HTTP MCP endpoint for
-local/private-alpha deployment. The repository does not currently provide a
-public multi-user account service, billing system or native OAuth identity
-layer. Operators must not describe a private-alpha deployment as a finished
-public service.
+The nine standard tools are designed for public open-source project research and Radar browsing. Typical inputs contain only:
 
-GitHub may process repository visits, clones, issues, workflow activity and other
-platform events under GitHub's own terms and privacy practices.
-
-## Data minimization
-
-Tool inputs should contain only:
-
-- the research task;
+- research/search task;
 - public project identifiers;
-- technical/deployment constraints;
-- non-sensitive decision context needed for comparison or stack planning.
+- ranking/collection/category/scenario IDs;
+- technical/deployment/license constraints;
+- non-sensitive decision context;
+- output locale.
 
-Do not submit:
+Do not submit through these tools:
 
-- API keys, passwords, bearer tokens or cookies;
-- personal/customer records;
-- proprietary source code or documents;
+- passwords/API keys/bearer tokens/cookies;
 - private repository contents;
-- secrets embedded in URLs or issue reports.
+- proprietary source code/documents;
+- customer/personal records;
+- confidential production prompts not needed for public project research.
 
-The contract-capture tooling removes query/prompt text, client/request IDs,
-credential-like fields, raw content and internal publication identifiers before
-fixtures are retained for review.
+The standard live path reads public AI Open Source Radar data and does not need user documents or GitHub private-repository access.
 
-## Logging and hosted deployments
+## OAuth hosted identity
 
-This repository does not prescribe a production logging backend or retention
-period yet. A private hosted-alpha operator should log the minimum operational
-metadata needed for reliability/security and should avoid retaining complete
-prompts or authorization credentials.
+The final hosted MCP requires OAuth authorization.
 
-Before a broad hosted service is launched, the publisher must decide and publish:
+The MCP verifies the access token against the configured authorization server and uses its verified issuer/subject for identity. Before identity crosses into AI Workstation entitlement/billing services, it is transformed into an opaque value:
 
-- data categories and purposes;
-- legal basis where applicable;
-- processors and hosting regions;
-- log and evaluation-sample retention periods;
+```text
+(issuer, subject) -> SHA-256 -> oidc_<opaque-id>
+```
+
+The product is designed so that:
+
+- raw bearer tokens are not stored as entitlement IDs;
+- raw OAuth subjects are not sent to the Premium model;
+- raw OAuth subjects are not placed in payment checkout metadata;
+- public Tool results do not include the raw subject/token;
+- application rate limits use the opaque authenticated identity rather than a client-supplied username.
+
+The authorization provider may independently process login/account data under its own privacy terms.
+
+## Premium AI research
+
+`deep_research_ai_projects` is an explicit hosted premium capability.
+
+The publisher model receives only what is needed for the requested analysis:
+
+- the user's Premium research task;
+- bounded public Radar result context produced by rules-first retrieval;
+- locale/focus needed to answer the request.
+
+The model prompt must not contain:
+
+- OAuth bearer tokens;
+- raw OAuth subject;
+- backend service credentials;
+- Paddle customer/subscription IDs;
+- private selector continuation tokens;
+- internal publication/source hashes;
+- private repository/customer documents unless a future product explicitly adds and discloses such a feature.
+
+Premium model usage is recorded through the shared operational usage ledger with a privacy-preserving identity fingerprint. The current design does not require storing the raw OAuth subject in that model-usage event.
+
+## Billing and payment data
+
+The private entitlement backend may retain provider-side identifiers required for billing reconciliation, such as payment-provider customer/subscription IDs and event references.
+
+These are private server data and are excluded from:
+
+- public Radar APIs;
+- MCP Tool results;
+- Premium model prompts;
+- OAuth entitlement IDs;
+- public validation artifacts.
+
+Checkout metadata uses the opaque entitlement ID rather than a raw OAuth subject.
+
+The selected payment provider processes payment instrument, billing and tax information under its own terms. AI Open Source Intelligence should not handle raw card numbers itself.
+
+## Service-to-service secrets
+
+The hosted MCP uses a separate server credential when calling private Premium/billing backend endpoints. This credential is never intended for:
+
+- browser JavaScript;
+- Skill files;
+- Tool output;
+- OAuth claims;
+- checkout custom data;
+- logs/artifacts.
+
+## Contract capture and release evidence
+
+Public contract-capture tooling removes query/prompt text, client/request IDs, credential-like fields, raw content and internal publication identifiers before fixtures are retained for review.
+
+Release artifacts are scanned for forbidden/private keys before upload. New Radar browse validation artifacts contain public navigation IDs/counts/snapshot metadata rather than private user requests.
+
+## Logging and retention
+
+The repository implements data minimization but does not yet declare final public-service retention periods.
+
+Before broad hosted launch the publisher must publish final decisions for:
+
+- OAuth/account identifier retention;
+- entitlement/payment event retention;
+- operational/security log retention;
+- Premium model usage/evaluation retention;
+- IP/user-agent handling at the gateway;
 - deletion/export/correction channels;
-- whether any submitted data is used for model training;
-- international-transfer safeguards where required;
-- incident/security contact and final support channel.
+- incident/security contact;
+- subprocessors/hosting regions;
+- whether any submitted data is used for model training.
+
+Do not treat an unset retention policy as permission to keep data indefinitely.
+
+## Local developer mode
+
+Local `OSI_PROVIDER=mock` uses deterministic fixture data and performs no Radar network access.
+
+Local `OSI_PROVIDER=http` sends the public project research/browse request needed to answer the task to the public Radar APIs. Local stdio mode does not contain the hosted OAuth/Paddle Premium flow.
 
 ## Public-service gate
 
-The current repository policy is a pre-release engineering statement, not a
-substitute for a final service-specific privacy policy. Final public privacy and
-terms URLs are explicit release blockers in `osi-readiness` and
-`docs/public-launch-decisions.md`.
+The hosted candidate must not be described as a finished public paid service until real OAuth, payment sandbox, remote MCP security, final legal pages and retention/deletion processes have passed review.
