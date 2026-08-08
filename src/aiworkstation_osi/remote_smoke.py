@@ -1,8 +1,10 @@
 """Validate a deployed Streamable HTTP MCP endpoint from a real MCP client.
 
-The command is read-only. By default it discovers tools only. ``--invoke-search``
-adds one read-only project search so operators can verify structured results end
-to end after deployment.
+The command is read-only. By default it discovers the nine standard Radar tools.
+``--invoke-search`` adds one read-only project search so operators can verify
+structured results end to end after deployment. The hosted OAuth/Premium tenth
+tool is validated from a real OAuth-capable client rather than by injecting a
+bearer token into this ordinary read-only smoke helper.
 """
 
 from __future__ import annotations
@@ -52,7 +54,7 @@ async def smoke_remote_endpoint(
             {
                 "id": "tool-set",
                 "ok": exact_tools,
-                "message": "Endpoint exposes exactly the six declared read-only tools.",
+                "message": "Endpoint exposes exactly the nine declared standard read-only tools.",
                 "details": {"tools": names},
             }
         )
@@ -69,7 +71,7 @@ async def smoke_remote_endpoint(
             {
                 "id": "tool-annotations",
                 "ok": annotations_ok,
-                "message": "All discovered tools advertise the expected side-effect annotations.",
+                "message": "All discovered standard tools advertise the expected side-effect annotations.",
                 "details": {tool.name: _annotation_summary(tool) for tool in tools},
             }
         )
