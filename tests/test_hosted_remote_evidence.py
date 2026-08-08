@@ -140,7 +140,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
         )
 
         self.assertFalse(result["ok"])
-        self.assertIn("same MCP origin", " ".join(result["errors"]))
+        self.assertIn("hosted MCP origin", " ".join(result["errors"]))
         self.assertEqual(opener.calls, 1)
 
     def test_valid_report_is_candidate_oauth_and_deployment_bound(self) -> None:
