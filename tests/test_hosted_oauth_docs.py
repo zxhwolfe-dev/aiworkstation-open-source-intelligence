@@ -9,6 +9,7 @@ class HostedOAuthDocumentationTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         hosted = (root / "docs" / "HOSTED-OAUTH.md").read_text(encoding="utf-8")
         compose = (root / "compose.public-hosted.example.yml").read_text(encoding="utf-8")
+        dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
 
         self.assertIn("OSI_RELEASE_COMMIT=<exact-40-character-hosted-candidate-sha>", hosted)
         self.assertIn("OSI_OAUTH_REQUIRED_SCOPES=", hosted)
@@ -16,10 +17,15 @@ class HostedOAuthDocumentationTests(unittest.TestCase):
         self.assertNotIn("OSI_OAUTH_REQUIRED_SCOPES=osi:use", hosted)
         self.assertNotIn("OSI_OAUTH_INTROSPECTION_AUTH=basic", hosted)
 
+        self.assertIn("OSI_IMAGE_COMMIT: ${OSI_RELEASE_COMMIT:?required}", compose)
         self.assertIn("OSI_RELEASE_COMMIT: ${OSI_RELEASE_COMMIT:?required}", compose)
         self.assertIn("OSI_OAUTH_REQUIRED_SCOPES: ${OSI_OAUTH_REQUIRED_SCOPES:-}", compose)
         self.assertIn("OSI_OAUTH_INTROSPECTION_AUTH: ${OSI_OAUTH_INTROSPECTION_AUTH:-body}", compose)
         self.assertIn("OSI_OAUTH_RESOURCE_URL: https://mcp.aiworkstation.cn/mcp", compose)
+
+        self.assertIn('ARG OSI_IMAGE_COMMIT=""', dockerfile)
+        self.assertIn("OSI_IMAGE_COMMIT=${OSI_IMAGE_COMMIT}", dockerfile)
+        self.assertIn("org.opencontainers.image.revision=${OSI_IMAGE_COMMIT}", dockerfile)
 
     def test_hosted_runbook_requires_remote_deployment_identity_match(self) -> None:
         root = Path(__file__).resolve().parents[1]
