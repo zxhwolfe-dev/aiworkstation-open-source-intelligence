@@ -18,6 +18,10 @@ TOOL_NAMES: Final[tuple[str, ...]] = (
     "browse_radar_skills",
 )
 
+HOSTED_TOOL_NAMES: Final[tuple[str, ...]] = TOOL_NAMES + (
+    "deep_research_ai_projects",
+)
+
 Locale = Literal["zh", "en"]
 SourceMode = Literal["required", "preferred", "off"]
 ConfidenceLevel = Literal["high", "medium", "low", "unknown"]
