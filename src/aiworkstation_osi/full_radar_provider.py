@@ -7,6 +7,7 @@ Radar overview, project-directory and Skills-library endpoints.
 
 from __future__ import annotations
 
+import urllib.parse
 from typing import Any, Mapping, Sequence
 
 from .errors import UpstreamContractError
@@ -20,11 +21,22 @@ _PROJECT_FILTER_FIELDS = (
     "collection",
     "category",
     "scenario",
+    "role",
+    "topic",
+    "github_topic",
+    "radar_topic",
     "use_case",
     "resource_type",
     "license",
     "deployment",
     "layer",
+)
+
+_SKILL_FILTER_FIELDS = (
+    "category",
+    "kind",
+    "license",
+    "sort",
 )
 
 
@@ -121,6 +133,11 @@ class FullRadarHttpProvider(AIWorkstationHttpProvider):
                 "snapshot_id": snapshot,
                 "active_filters": active_filters,
                 "query": text_query,
+                "curated": response.payload.get("curated"),
+                "eligible_total": response.payload.get("eligible_total"),
+                "capacity": response.payload.get("capacity"),
+                "ranking_policy_version": response.payload.get("ranking_policy_version"),
+                "ranking_quality": response.payload.get("ranking_quality"),
                 "source_url": response.url,
                 "observed_at": response.observed_at,
             }
@@ -128,19 +145,56 @@ class FullRadarHttpProvider(AIWorkstationHttpProvider):
 
     def browse_radar_skills(self, request: Mapping[str, Any]) -> ProviderOutput:
         locale = str(request.get("locale") or "en")
+        skill_id = str(request.get("skill_id") or "").strip()
+        if skill_id:
+            encoded = urllib.parse.quote(skill_id, safe="")
+            response = self._request(
+                "GET",
+                f"{PUBLIC_API_PREFIX}/skills/{encoded}",
+                query={"lang": locale},
+            )
+            if response.status == 404:
+                return ProviderOutput(
+                    data={
+                        "found": False,
+                        "skill_id": skill_id,
+                        "source_url": response.url,
+                        "observed_at": response.observed_at,
+                    },
+                    unknowns=("The requested Skill is not present in the current public Radar Skills library.",),
+                )
+            _require_public_payload(response.payload, surface="Radar Skill detail")
+            item = response.payload.get("item")
+            if not isinstance(item, Mapping) or not item:
+                raise UpstreamContractError("Radar Skill detail response is missing item")
+            return ProviderOutput(
+                data={
+                    "found": True,
+                    "item": dict(item),
+                    "source_url": response.url,
+                    "observed_at": response.observed_at,
+                }
+            )
+
         limit = int(request.get("limit") or 20)
         offset = int(request.get("offset") or 0)
         query: dict[str, Any] = {
             "lang": locale,
             "limit": limit,
             "offset": offset,
+            "installable": bool(request.get("installable", False)),
         }
         text_query = str(request.get("query") or "").strip()
-        category = str(request.get("category") or "").strip()
         if text_query:
             query["q"] = text_query
-        if category:
-            query["category"] = category
+        active_filters: dict[str, Any] = {}
+        for field in _SKILL_FILTER_FIELDS:
+            value = str(request.get(field) or "").strip()
+            if value:
+                query[field] = value
+                active_filters[field] = value
+        if request.get("installable") is True:
+            active_filters["installable"] = True
 
         response = self._request(
             "GET",
@@ -161,7 +215,7 @@ class FullRadarHttpProvider(AIWorkstationHttpProvider):
                 "has_more": bool(response.payload.get("has_more"))
                 if isinstance(response.payload.get("has_more"), bool)
                 else offset + len(items) < total,
-                "category": category,
+                "active_filters": active_filters,
                 "query": text_query,
                 "source_url": response.url,
                 "observed_at": response.observed_at,
