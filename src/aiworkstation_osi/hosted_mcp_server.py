@@ -26,7 +26,11 @@ from .hosted_rate_limited_provider import HostedRateLimitedProvider
 from .mcp_server import SERVER_INSTRUCTIONS, build_mcp_server
 from .tools import ToolRegistry
 
-HOSTED_INSTRUCTIONS = SERVER_INSTRUCTIONS + (
+HOSTED_INSTRUCTIONS = SERVER_INSTRUCTIONS.replace(
+    "This server is read-only.",
+    "The nine Radar data/research tools are read-only. The Premium deep-research tool is non-destructive but can consume a one-time free trial or AI credit after a usable result.",
+    1,
+) + (
     " The hosted server also provides deep_research_ai_projects. That premium tool uses the AI Workstation publisher model, "
     "consumes the user's one-time free premium trial or AI credits only after a usable result, and may return an upgrade checkout URL. "
     "Use the nine read-only Radar tools for ordinary browsing/research; call premium deep research only when the user explicitly asks for deeper analysis."
