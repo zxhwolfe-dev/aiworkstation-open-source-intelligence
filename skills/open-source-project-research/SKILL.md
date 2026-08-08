@@ -68,7 +68,7 @@ Before claiming current project, ranking, deployment, maintenance or license fac
 
 The repository can still be used locally without a hosted connection. If required live tools are unavailable:
 
-1. do not invent current rankings, shortlist or facts;
+1. do not invent a shortlist, current ranking or project fact from model memory;
 2. state that live Radar evidence is unavailable in this session;
 3. provide only the interpreted requirements, research plan, candidate-evaluation matrix and manual verification checklist;
 4. label user-supplied project examples as unverified;
