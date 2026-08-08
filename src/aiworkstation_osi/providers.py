@@ -24,7 +24,7 @@ ProviderResponse = ProviderOutput | Mapping[str, Any]
 
 
 class ProjectIntelligenceProvider(Protocol):
-    """Read-only capability required by the six product tools."""
+    """Read-only capabilities required by the public product tools."""
 
     def search_projects(self, request: Mapping[str, Any]) -> ProviderResponse: ...
 
@@ -38,9 +38,15 @@ class ProjectIntelligenceProvider(Protocol):
 
     def compose_stack(self, request: Mapping[str, Any]) -> ProviderResponse: ...
 
+    def get_radar_overview(self, request: Mapping[str, Any]) -> ProviderResponse: ...
+
+    def browse_radar_projects(self, request: Mapping[str, Any]) -> ProviderResponse: ...
+
+    def browse_radar_skills(self, request: Mapping[str, Any]) -> ProviderResponse: ...
+
 
 class MockProjectIntelligenceProvider:
-    """Deterministic M0 provider used for contract tests and local examples.
+    """Deterministic provider used for contract tests and local examples.
 
     It intentionally contains no network access and does not represent live
     project intelligence. Production integration uses an explicit HTTP adapter
@@ -56,6 +62,9 @@ class MockProjectIntelligenceProvider:
                 "license": "OTHER",
                 "deployment": ["self-hosted", "docker"],
                 "capabilities": ["workflow", "rag", "web-ui"],
+                "categories": ["agent-platform", "rag"],
+                "use_cases": ["knowledge-base", "workflow-automation"],
+                "collections": ["self-hosted-ai"],
                 "verified_at": "2026-08-01T00:00:00Z",
             },
             {
@@ -65,10 +74,27 @@ class MockProjectIntelligenceProvider:
                 "license": "Apache-2.0",
                 "deployment": ["self-hosted", "docker"],
                 "capabilities": ["rag", "document-processing", "web-ui"],
+                "categories": ["rag", "document-ai"],
+                "use_cases": ["knowledge-base", "document-qa"],
+                "collections": ["self-hosted-ai", "rag-platforms"],
                 "verified_at": "2026-08-01T00:00:00Z",
             },
         )
         self._projects = [dict(item) for item in (projects or default_projects)]
+        self._skills = [
+            {
+                "id": "open-source-project-research",
+                "name": "Open Source Project Research",
+                "category": "research",
+                "summary": "Example Skill record for offline tests.",
+            },
+            {
+                "id": "open-source-project-comparison",
+                "name": "Open Source Project Comparison",
+                "category": "decision-support",
+                "summary": "Example Skill record for offline tests.",
+            },
+        ]
 
     def _project(self, project_id: str) -> dict[str, Any] | None:
         normalized = project_id.strip().lower()
@@ -136,6 +162,90 @@ class MockProjectIntelligenceProvider:
                     "Verify each selected project's current facts and license evidence.",
                     "Build and test a minimal integration in an isolated environment.",
                 ],
+                "mock": True,
+            }
+        )
+
+    def get_radar_overview(self, request: Mapping[str, Any]) -> ProviderOutput:
+        categories = sorted({value for row in self._projects for value in row.get("categories") or []})
+        use_cases = sorted({value for row in self._projects for value in row.get("use_cases") or []})
+        collections = sorted({value for row in self._projects for value in row.get("collections") or []})
+        return ProviderOutput(
+            data={
+                "locale": request.get("locale") or "en",
+                "snapshot_id": "mock-snapshot",
+                "stats": {"public_projects": len(self._projects), "skills": len(self._skills)},
+                "rankings": [
+                    {"id": "daily", "label": "Daily"},
+                    {"id": "weekly", "label": "Weekly"},
+                    {"id": "monthly", "label": "Monthly"},
+                ],
+                "collections": [{"id": value, "label": value} for value in collections],
+                "categories": [{"id": value, "label": value} for value in categories],
+                "scenarios": [{"id": value, "label": value} for value in use_cases],
+                "mock": True,
+            }
+        )
+
+    def browse_radar_projects(self, request: Mapping[str, Any]) -> ProviderOutput:
+        rows = [deepcopy(item) for item in self._projects]
+        query = str(request.get("query") or "").strip().lower()
+        if query:
+            rows = [
+                row for row in rows
+                if query in " ".join(
+                    [str(row.get("project_id") or ""), str(row.get("name") or ""), str(row.get("summary") or "")]
+                ).lower()
+            ]
+        for field, source_key in (
+            ("category", "categories"),
+            ("scenario", "use_cases"),
+            ("use_case", "use_cases"),
+            ("collection", "collections"),
+        ):
+            wanted = str(request.get(field) or "").strip().lower()
+            if wanted:
+                rows = [row for row in rows if wanted in {str(value).lower() for value in row.get(source_key) or []}]
+        deployment = str(request.get("deployment") or "").strip().lower()
+        if deployment:
+            rows = [row for row in rows if deployment in {str(value).lower() for value in row.get("deployment") or []}]
+        license_value = str(request.get("license") or "").strip().lower()
+        if license_value:
+            rows = [row for row in rows if str(row.get("license") or "").lower() == license_value]
+        limit = int(request.get("limit") or 20)
+        offset = int(request.get("offset") or 0)
+        sliced = rows[offset: offset + limit]
+        return ProviderOutput(
+            data={
+                "items": sliced,
+                "total": len(rows),
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + len(sliced) < len(rows),
+                "snapshot_id": "mock-snapshot",
+                "ranking": request.get("ranking") or "",
+                "mock": True,
+            }
+        )
+
+    def browse_radar_skills(self, request: Mapping[str, Any]) -> ProviderOutput:
+        rows = [deepcopy(item) for item in self._skills]
+        query = str(request.get("query") or "").strip().lower()
+        category = str(request.get("category") or "").strip().lower()
+        if query:
+            rows = [row for row in rows if query in " ".join(str(value) for value in row.values()).lower()]
+        if category:
+            rows = [row for row in rows if str(row.get("category") or "").lower() == category]
+        limit = int(request.get("limit") or 20)
+        offset = int(request.get("offset") or 0)
+        sliced = rows[offset: offset + limit]
+        return ProviderOutput(
+            data={
+                "items": sliced,
+                "total": len(rows),
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + len(sliced) < len(rows),
                 "mock": True,
             }
         )
