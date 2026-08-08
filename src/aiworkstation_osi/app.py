@@ -6,24 +6,24 @@ import os
 from typing import Any, Mapping
 
 from .full_radar_provider import FullRadarHttpProvider
+from .full_tools import FullToolRegistry
 from .http_provider import DEFAULT_BASE_URL
 from .providers import MockProjectIntelligenceProvider, ProjectIntelligenceProvider
-from .tools import ToolRegistry
 
 
 def create_default_registry(
     provider: ProjectIntelligenceProvider | None = None,
-) -> ToolRegistry:
+) -> FullToolRegistry:
     """Build a registry without implicit network access.
 
     The default remains deterministic fixture data. Production and integration
     entrypoints must inject a provider or explicitly opt into the HTTP provider.
     """
 
-    return ToolRegistry(provider or MockProjectIntelligenceProvider())
+    return FullToolRegistry(provider or MockProjectIntelligenceProvider())
 
 
-def create_registry_from_env() -> ToolRegistry:
+def create_registry_from_env() -> FullToolRegistry:
     """Create a registry from explicit environment configuration.
 
     Supported values:
