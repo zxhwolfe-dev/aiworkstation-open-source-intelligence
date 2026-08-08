@@ -25,15 +25,17 @@ services:
       OSI_MCP_HTTP_BODY_LIMIT_BYTES: "262144"
 
       # WorkOS AuthKit/Connect is the initial production authorization provider.
-      # Its documented RFC 7662 introspection flow sends the resource-server
-      # client credentials in the form body. Other compatible providers may
-      # override this to `basic` without changing tool code.
+      # Its RFC 7662 introspection flow sends resource-server client credentials
+      # in the POST body. The exact MCP Resource Indicator/audience is the
+      # mandatory access boundary. Custom scope introspection is optional because
+      # WorkOS does not guarantee a scope field in its public introspection
+      # response contract.
       OSI_OAUTH_ISSUER_URL: ${OSI_OAUTH_ISSUER_URL:?required}
       OSI_OAUTH_INTROSPECTION_URL: ${OSI_OAUTH_INTROSPECTION_URL:?required}
       OSI_OAUTH_CLIENT_ID: ${OSI_OAUTH_CLIENT_ID:?required}
       OSI_OAUTH_CLIENT_SECRET: ${OSI_OAUTH_CLIENT_SECRET:?required}
       OSI_OAUTH_RESOURCE_URL: https://mcp.aiworkstation.cn/mcp
-      OSI_OAUTH_REQUIRED_SCOPES: osi:use
+      OSI_OAUTH_REQUIRED_SCOPES: ${OSI_OAUTH_REQUIRED_SCOPES:-}
       OSI_OAUTH_INTROSPECTION_AUTH: ${OSI_OAUTH_INTROSPECTION_AUTH:-body}
 
       OSI_BACKEND_BASE_URL: https://aiworkstation.cn
