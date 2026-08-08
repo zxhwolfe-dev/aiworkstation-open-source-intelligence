@@ -2,6 +2,16 @@
 
 This is the preferred release-evidence path for the Skills-only External Alpha and the Hosted Private Alpha. It replaces manual claims about CI, live validation, Codex testing, remote MCP testing, and gateway protection with candidate-bound machine evidence wherever those facts are machine-verifiable. Human artifact review remains intentionally human.
 
+## Candidate identity rule
+
+Every release stage is evaluated against the **exact Git commit being released**.
+
+The completed External Alpha candidate `d338faf0...` and its reviewed artifacts remain valid evidence for that frozen External Alpha build. They do **not** automatically certify a later Hosted candidate whose source tree has a different commit SHA.
+
+Whenever Hosted work changes code, configuration, tests, or release documents and produces a new candidate SHA, regenerate the candidate-bound CI, live-validation, and Codex evidence for that new SHA. Review the new sanitized live artifact and record the reviewer again. Readiness intentionally rejects stale evidence from an older commit.
+
+This prevents a clean older build from being used to certify untested Hosted changes.
+
 ## External Alpha evidence inputs
 
 All machine artifacts must belong to the same Git commit as the local candidate checkout.
@@ -47,7 +57,7 @@ The acceptance result is not based on the model saying it used the tools. The MC
 
 ## Human review
 
-The live-validation artifact is deliberately sanitized, but a human still must review it before External Alpha. The reviewer should confirm at least:
+The live-validation artifact is deliberately sanitized, but a human still must review it before the candidate can pass the stage gate. The reviewer should confirm at least:
 
 - both probe reports passed;
 - both contract manifests identify the intended locale and project;
@@ -79,9 +89,9 @@ When live workflow evidence is supplied, the command derives the EN/ZH contract 
 
 ## Hosted Private Alpha evidence
 
-Hosted Private Alpha adds one machine artifact to the already-complete External Alpha chain: a candidate-bound, OAuth-authenticated remote MCP report.
+Hosted Private Alpha uses the **same types of External Alpha evidence, regenerated for the exact Hosted candidate SHA**, plus one new machine artifact: a candidate-bound, OAuth-authenticated remote MCP report.
 
-Generate it from the exact Hosted candidate checkout after DNS/TLS/gateway/WorkOS are configured:
+After the Hosted candidate's fresh CI/live/Codex evidence is green and its sanitized live artifact has been reviewed, configure DNS/TLS/gateway/WorkOS and generate the Hosted remote report from that same candidate checkout:
 
 ```bash
 osi-remote-smoke \
@@ -110,15 +120,15 @@ The ordinary Hosted smoke never calls the Premium model and therefore does not c
 
 ### Final Hosted Private Alpha readiness command
 
-Reuse the same External Alpha CI/live/Codex evidence and the already-completed named human review, then add the hosted remote report:
+Use the **fresh CI/live/Codex evidence for the Hosted candidate**, the review decision for that candidate's live artifact, and the Hosted remote report:
 
 ```bash
 osi-hosted-evidence-readiness \
   --root . \
-  --ci-evidence /ABS/PATH/ci-evidence.json \
-  --live-validation-evidence /ABS/PATH/validation-evidence.json \
-  --codex-acceptance-report /ABS/PATH/codex-acceptance/live.json \
-  --hosted-remote-evidence /ABS/PATH/hosted-remote.json \
+  --ci-evidence /ABS/PATH/HOSTED-CANDIDATE/ci-evidence.json \
+  --live-validation-evidence /ABS/PATH/HOSTED-CANDIDATE/validation-evidence.json \
+  --codex-acceptance-report /ABS/PATH/HOSTED-CANDIDATE/codex-acceptance.json \
+  --hosted-remote-evidence /ABS/PATH/HOSTED-CANDIDATE/hosted-remote.json \
   --artifact-reviewed \
   --reviewer "REVIEWER NAME" \
   --expected-base-url https://aiworkstation.cn \
