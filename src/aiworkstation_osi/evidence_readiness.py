@@ -2,7 +2,7 @@
 
 The core ``osi-readiness`` command deliberately accepts operator attestations.
 This wrapper replaces machine-verifiable attestations with candidate-bound
-artifacts from GitHub Actions and a real Codex six-tool acceptance run. Human
+artifacts from GitHub Actions and a real Codex nine-tool acceptance run. Human
 artifact review remains explicitly human and is never synthesized here.
 """
 
@@ -66,7 +66,7 @@ def validate_codex_acceptance_report(
     root: Path,
     expected_base_url: str = DEFAULT_RADAR_BASE_URL,
 ) -> dict[str, Any]:
-    """Validate that a real live six-tool Codex run belongs to this candidate."""
+    """Validate that a real live nine-tool Codex run belongs to this candidate."""
 
     errors: list[str] = []
     if path is None:
@@ -135,9 +135,9 @@ def validate_codex_acceptance_report(
     successful_tools = [str(value) for value in actual_ledger.get("successful_tools") or []]
     missing_tools = [str(value) for value in actual_ledger.get("missing_tools") or []]
     if expected_tools != required_tools:
-        errors.append("Codex acceptance expected-tool set does not match the six-tool contract")
+        errors.append("Codex acceptance expected-tool set does not match the nine-tool contract")
     if set(successful_tools) != set(required_tools) or len(successful_tools) != len(required_tools):
-        errors.append("Codex acceptance did not prove success for all six tools")
+        errors.append("Codex acceptance did not prove success for all nine tools")
     if missing_tools:
         errors.append("Codex acceptance still reports missing tools")
     success_counts = actual_ledger.get("success_counts") if isinstance(actual_ledger.get("success_counts"), Mapping) else {}
@@ -282,8 +282,8 @@ def evaluate_evidence_readiness(
         report,
         "attestation-codex-tested",
         evidence=codex_evidence,
-        success_message="The real Codex six-tool MCP workflow is verified by candidate-bound acceptance evidence.",
-        failure_message="A valid candidate-bound Codex six-tool acceptance report is required.",
+        success_message="The real Codex nine-tool MCP workflow is verified by candidate-bound acceptance evidence.",
+        failure_message="A valid candidate-bound Codex nine-tool acceptance report is required.",
     )
 
     if live_validation_evidence is not None:
