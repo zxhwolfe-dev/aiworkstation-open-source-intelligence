@@ -1,142 +1,171 @@
 # Public Launch Decisions
 
-The repository can prepare and distribute a public Skills package without pretending that the hosted MCP service is already a production multi-user service. The decisions below are tracked separately by release layer.
+This document separates product decisions already made in code from real external/account/production decisions that still block a broad hosted launch.
 
-## 1. Software license — RESOLVED for the public repository
+## Resolved product decisions
 
-The public `aiworkstation-open-source-intelligence` repository is licensed under **Apache-2.0**.
+### Public repository license
 
-This decision covers the public repository only. It does not grant rights to:
+The public distribution repository uses Apache-2.0. Private AI Workstation databases, unpublished Radar data, private backend systems, credentials, payment accounts and trademarks are not made public merely because this client/distribution repository is open source.
 
-- private AI Workstation databases;
-- unpublished Radar datasets;
-- private backend repositories or infrastructure;
-- hosted-service accounts/data;
-- AI Workstation trademarks.
+### Final product shape
 
-The data-production and private backend layer can remain proprietary while the public plugin/client/integration layer is open source.
+The intended public product is **one Plugin installation** containing:
 
-## 2. Public distribution legal URLs — PREPARED for Skills-only release
+- three Skills;
+- one OAuth-protected hosted MCP connection;
+- nine standard live Radar tools;
+- one explicit Premium AI tool.
 
-The repository now publishes:
+Skills-only remains a developer/degraded mode, not the desired final user experience.
 
-- `PRIVACY.md`;
-- `TERMS.md`;
-- `SUPPORT.md`;
-- `SECURITY.md`.
+### Data/model cost boundary
 
-The Skills-only plugin manifest points to public GitHub URLs for these documents. These repository/pre-release documents are adequate for public package transparency, but a future paid or multi-user hosted service should publish **service-specific** privacy/terms/retention information on the final product domain and replace the manifest URLs when appropriate.
+Nine standard tools use public Radar data/retrieval and do not consume publisher AI credits.
 
-## 3. Publisher identity — PENDING PLATFORM VERIFICATION
+`deep_research_ai_projects` is the explicit publisher-model premium capability:
 
-Recommended publisher identity: **AI Workstation**.
+- first successful task free;
+- later tasks consume AI credits;
+- model failure refunds the reservation;
+- premium narrative stays recommendation/analysis.
 
-Before directory submission, the publisher must complete whatever individual/business/developer verification the target platform currently requires and ensure that website, support, privacy, terms, logo, and listing ownership are consistent.
+### Identity architecture
 
-## 4. Public MCP hostname and deployment owner — PENDING
+Hosted MCP uses standard OAuth resource-server verification. Verified issuer+subject is transformed into an opaque entitlement ID before private backend/payment/model use.
 
-Decide:
+A separate service credential authenticates Hosted MCP to private AI Workstation Premium/billing endpoints.
 
-- canonical MCP hostname (recommended pattern: `mcp.aiworkstation.cn`, subject to infrastructure review);
-- cloud/server owner;
-- deployment region;
-- backup region, if any;
-- TLS termination point;
-- reverse proxy/load balancer;
-- observability destination;
-- rollback owner.
+### Rate-limit architecture
 
-The repository's container example binds to host loopback only and is designed for a same-host proxy or private validation.
+Initial public deployment is intentionally single-process with per-OAuth-identity application limits. Gateway connection/IP limits are defense-in-depth.
 
-## 5. Authentication model — PENDING for broad hosted MCP
+Horizontal scaling requires a shared limiter before claiming globally consistent user quotas.
 
-The current six tools are anonymous/read-only against the public Radar API in local/private testing. A broad public multi-user service must decide whether anonymous access is sufficient for a bounded free surface or whether per-user identity/OAuth is required.
+### Payment architecture
 
-If accounts, paid quotas, saved work, team features, private data, or user-specific access are introduced, use a per-user identity model with explicit scopes, token lifetime, refresh/revocation, and account deletion rather than a shared static secret.
+Entitlements are provider-neutral. Paddle is the initial international billing adapter, with server-created checkout, signed webhook verification, replay protection and event ordering.
 
-Do not expose the current hosted-alpha endpoint directly to the Internet without an authenticated gateway, trusted private network, or reviewed native authorization model.
+The initial code allowance is configurable (currently 50 monthly Pro AI credits by default). The actual price is not hard-coded in source control.
 
-## 6. Quotas and commercial model — PENDING
+## Real decisions/configuration still required
 
-Decide before broad public hosting:
+### 1. Public MCP hostname
 
-- anonymous/free calls per day;
-- authenticated free tier;
-- paid unit: tasks, calls, seats, or monthly plan;
-- per-tool cost ceilings;
-- timeout and hydration limits;
-- abuse thresholds;
-- team/API policy.
+Choose/finalize the public resource URL, recommended shape:
 
-The current live Open Source Intelligence path uses deterministic retrieval with `use_model=false`, which avoids a second publisher-funded LLM call for ordinary project search. If model-assisted backend features are added later, give them separate quotas and cost ceilings.
+```text
+https://mcp.aiworkstation.cn/mcp
+```
 
-## 7. Logging and retention — PENDING for hosted service
+Then configure:
 
-Decide:
+- DNS;
+- TLS;
+- Nginx/gateway;
+- production allowed Hosts/origins;
+- rollback/incident owner.
 
-- whether complete prompts are ever stored;
-- operational-log retention;
-- security-log retention;
-- IP-address handling;
-- account identifier pseudonymization;
-- deletion/export/correction channels;
-- whether evaluation samples may be retained and under what consent.
+Once registered with a platform, treat the final resource URL as stable.
 
-Recommended default: data minimization. Preserve operational metadata needed for reliability/security without retaining credentials or complete confidential prompts.
+### 2. OAuth provider/account
 
-## 8. Evidence freshness and service guarantees — PENDING
+Choose and configure the actual authorization provider/account.
 
-Define:
+A managed provider is preferred for the first release rather than building a custom authorization server.
 
-- maximum acceptable project-fact age;
-- behavior during Radar degradation;
-- whether safe stale results may be served;
-- stale-result labeling;
-- uptime/incident targets for any paid service;
-- incident communication path.
+Production must prove:
 
-Do not silently fall back from verified current facts to model guesses.
+- fresh-user login/consent;
+- correct resource/audience and `osi:use` scope;
+- refresh/reconnect behavior;
+- revocation/disabled-user behavior;
+- wrong-scope/wrong-resource rejection;
+- target platform compatibility.
 
-## 9. Public release sequence
+### 3. Paddle merchant/product
 
-### Skills-only public release
+Complete merchant verification and create the actual recurring Pro product/price.
 
-1. finish External Alpha cohort feedback;
-2. run standard CI and bilingual live contract validation on the release candidate;
-3. run real Codex Skills/MCP acceptance;
-4. build deterministic Skills bundle and verify SHA-256;
-5. publish GitHub pre-release;
-6. complete publisher verification and listing assets;
-7. submit the Skills-only plugin using `docs/openai-plugin-submission.md`;
-8. publish only after platform review/approval.
+Configure real/sandbox values:
 
-### Developer distribution
+```text
+PADDLE_API_KEY
+PADDLE_PRO_PRICE_ID
+PADDLE_WEBHOOK_SECRET
+PADDLE_CHECKOUT_URL
+```
 
-1. verify the PyPI package name;
-2. configure PyPI Trusted Publishing for `.github/workflows/publish-pypi.yml`;
-3. publish wheel/sdist;
-4. publish versioned Docker images to GHCR.
+Run the full sandbox purchase/renewal/failure/cancel/replay/stale-event suite before production.
 
-### Hosted MCP public release
+### 4. Final price and credit economics
 
-1. choose canonical hostname and deployment owner;
-2. deploy behind reviewed TLS/authentication controls;
-3. implement identity/revocation as required by product scope;
-4. implement quotas, rate limiting, and abuse controls;
-5. publish service-specific privacy/terms/retention policy;
-6. run remote English and Chinese MCP smoke tests;
-7. register/verify the hosted MCP connection with target platforms;
-8. update the plugin package only after the connection identity is stable;
-9. publish to the MCP Registry when the endpoint/package meets its current requirements.
+Decide after measuring real Premium model cost/latency and early usage:
 
-## Decisions that should not block the first Skills release
+- monthly Pro price;
+- monthly AI-credit allowance;
+- credit cost for future larger reports;
+- whether to offer one-time top-up credits;
+- enterprise pricing/support.
 
-These can wait until real usage proves value:
+Do not sell a duplicate recurring subscription merely because an active Pro user exhausts monthly credits.
 
-- paid pricing;
-- team workspaces;
+### 5. Hosted-service privacy/retention/legal
+
+Publish final service-specific:
+
+- Privacy Policy;
+- Terms of Service;
+- pricing/credit semantics;
+- cancellation/refund policy;
+- support/security contact;
+- OAuth/account retention;
+- entitlement/payment-event retention;
+- model usage/log retention;
+- deletion/export/correction process;
+- processors/hosting regions;
+- training/evaluation-data policy.
+
+Repository pre-release policies are not a substitute for final real-money hosted-service terms.
+
+### 6. Platform connection registration
+
+Only after endpoint/OAuth are stable:
+
+1. register the real hosted MCP connection;
+2. obtain the actual technical/connection ID;
+3. add the real Plugin mapping;
+4. test a fresh installation;
+5. submit the combined Skills + MCP Plugin.
+
+Never commit placeholder technical IDs.
+
+## Required public launch sequence
+
+1. current unit/CI suite green;
+2. evidence-critical EN/ZH live validation green;
+3. full Radar EN/ZH browse validation green;
+4. deploy HTTPS Hosted MCP behind protected gateway;
+5. configure real OAuth provider;
+6. remote OAuth discovery + nine standard-tool smoke;
+7. Paddle sandbox end-to-end;
+8. Premium first-free / upgrade / paid / refund smoke;
+9. revocation/rate-limit/secret/privacy review;
+10. publish final pricing/legal/retention pages;
+11. register final hosted MCP connection;
+12. update Plugin with real connection identity;
+13. fresh-install combined Plugin acceptance;
+14. platform submission/review;
+15. staged public rollout.
+
+## Things that should not block early hosted sandbox testing
+
+These can wait until sandbox/alpha proves demand:
+
 - multi-region deployment;
-- saved collections and alerts;
-- write-capable tools;
-- public hosted MCP;
-- publisher-funded model-assisted search.
+- enterprise team workspace;
+- saved project collections;
+- write-capable MCP tools;
+- multi-replica shared limiter;
+- one-time credit top-ups;
+- elaborate billing dashboard.
