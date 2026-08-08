@@ -12,7 +12,8 @@ This code existing is **not** the same as a security approval for an Internet la
 
 Do not open a public issue for vulnerabilities involving:
 
-- OAuth token/issuer/audience/scope verification bypass;
+- OAuth token/issuer/audience/configured-scope verification bypass;
+- access-token/refresh-token confusion;
 - account/entitlement mix-up between users;
 - backend service-token bypass;
 - payment/webhook signature or replay bypass;
@@ -55,16 +56,21 @@ Do not change its annotations to “read-only” merely to make a platform revie
 
 ## OAuth boundary
 
-Hosted MCP uses standard resource-server auth configuration with token verification.
+Hosted MCP uses standard resource-server auth configuration with token verification. WorkOS AuthKit/Connect is the initial production provider.
 
 It validates at least:
 
-- active token;
-- issuer;
+- active bearer token;
+- access-token type when the introspection provider reports token type;
+- exact configured issuer;
 - subject/client identity presence;
-- expiration;
-- required scope;
-- exact resource/audience.
+- expiration when present;
+- exact MCP resource/audience;
+- any resource-server scopes only when they are explicitly configured for a provider that actually issues and exposes them.
+
+For the documented WorkOS MCP flow, the exact Resource Indicator/audience is the primary authorization boundary and `OSI_OAUTH_REQUIRED_SCOPES` is empty. Do not invent a custom `osi:use` requirement that is absent from WorkOS's current authorization metadata/introspection contract.
+
+The verifier sends `token_type_hint=access_token` and rejects an introspection result explicitly identifying the presented bearer credential as a refresh token. Missing issuer is rejected rather than inferred from local configuration.
 
 The verified issuer+subject is transformed into an opaque entitlement ID before private backend/payment/model use.
 
@@ -139,7 +145,8 @@ Do not approve broad hosted launch until:
 
 - current CI/live evidence passes;
 - EN/ZH Radar browse validation passes;
-- real OAuth fresh-user login/revocation/wrong-scope/wrong-resource tests pass;
+- real WorkOS fresh-user login/revocation/wrong-resource/refresh-token rejection tests pass;
+- optional configured-scope rejection is tested if a future provider enables that gate;
 - public HTTPS MCP remote discovery shows exact intended tools/annotations;
 - all nine ordinary tools work remotely;
 - Premium first-free/refund/paid-credit behavior works remotely;
