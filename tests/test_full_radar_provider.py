@@ -80,7 +80,7 @@ class FullRadarProviderTests(unittest.TestCase):
                         "ok": True,
                         "snapshot_id": "sha256:test",
                         "items": [{"id": "infiniflow/ragflow", "name": "RAGFlow"}],
-                        "total": 12,
+                        "total": 42,
                         "curated": True,
                         "eligible_total": 42,
                         "capacity": 20,
@@ -121,7 +121,7 @@ class FullRadarProviderTests(unittest.TestCase):
         self.assertEqual(query["deployment"], "docker")
         self.assertEqual(query["limit"], 10)
         self.assertEqual(query["offset"], 20)
-        self.assertEqual(output.data["total"], 12)
+        self.assertEqual(output.data["total"], 42)
         self.assertTrue(output.data["has_more"])
         self.assertIs(output.data["curated"], True)
         self.assertEqual(output.data["eligible_total"], 42)
