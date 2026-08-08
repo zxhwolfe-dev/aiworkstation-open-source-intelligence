@@ -62,6 +62,21 @@ class _BoundaryOpener:
 
 
 class HostedRemoteEvidenceTests(unittest.TestCase):
+    def _boundary(self, **overrides) -> dict:
+        value = {
+            "ok": True,
+            "expected_issuer": "https://auth.example.com",
+            "challenge_status": 401,
+            "bearer_challenge": True,
+            "resource_metadata_url": "https://mcp.aiworkstation.cn/.well-known/oauth-protected-resource/mcp",
+            "metadata_status": 200,
+            "resource": "https://mcp.aiworkstation.cn/mcp",
+            "authorization_servers": ["https://auth.example.com"],
+            "bearer_methods_supported": ["header"],
+        }
+        value.update(overrides)
+        return value
+
     def _write_report(self, path: Path, **overrides) -> Path:
         tools = list(expected_hosted_tools())
         payload = {
@@ -72,12 +87,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
             "endpoint": "https://mcp.aiworkstation.cn/mcp",
             "protocol_version": "2026-07-28",
             "auth": {"mode": "oauth"},
-            "oauth_boundary": {
-                "ok": True,
-                "challenge_status": 401,
-                "resource": "https://mcp.aiworkstation.cn/mcp",
-                "authorization_servers": ["https://auth.example.com"],
-            },
+            "oauth_boundary": self._boundary(),
             "tools": tools,
             "checks": [
                 {"id": "tool-set", "ok": True},
@@ -110,6 +120,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
         self.assertEqual(result["metadata_status"], 200)
         self.assertEqual(result["resource"], "https://mcp.aiworkstation.cn/mcp")
         self.assertEqual(result["authorization_servers"], ["https://auth.example.com"])
+        self.assertEqual(result["bearer_methods_supported"], ["header"])
         self.assertEqual(opener.calls, 2)
 
     def test_oauth_boundary_rejects_cross_origin_metadata_url(self) -> None:
@@ -140,6 +151,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
         self.assertTrue(result["oauth_boundary_verified"])
         self.assertTrue(result["search_verified"])
         self.assertIn(HOSTED_PREMIUM_TOOL, result["tools"])
+        self.assertEqual(result["auth_mode"], "oauth")
         self.assertEqual(result["errors"], [])
 
     def test_different_candidate_fails_closed(self) -> None:
@@ -172,20 +184,33 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
 
         self.assertFalse(result["ok"])
         rendered = " ".join(result["errors"])
-        self.assertIn("authenticated MCP access", rendered)
+        self.assertIn("real OAuth client flow", rendered)
         self.assertIn("nine standard tools plus Premium", rendered)
+
+    def test_bearer_env_diagnostic_cannot_certify_private_alpha(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = self._write_report(
+                Path(temp_dir) / "hosted.json",
+                auth={"mode": "bearer-env"},
+            )
+            result = validate_hosted_remote_evidence(
+                report,
+                candidate_commit="candidate-sha",
+                expected_endpoint="https://mcp.aiworkstation.cn/mcp",
+                expected_issuer="https://auth.example.com",
+            )
+
+        self.assertFalse(result["ok"])
+        self.assertIn("real OAuth client flow", " ".join(result["errors"]))
 
     def test_wrong_issuer_or_failed_search_cannot_pass(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "hosted.json"
             report = self._write_report(
                 path,
-                oauth_boundary={
-                    "ok": True,
-                    "challenge_status": 401,
-                    "resource": "https://mcp.aiworkstation.cn/mcp",
-                    "authorization_servers": ["https://wrong.example.com"],
-                },
+                oauth_boundary=self._boundary(
+                    authorization_servers=["https://wrong.example.com"],
+                ),
                 checks=[
                     {"id": "tool-set", "ok": True},
                     {"id": "tool-annotations", "ok": True},
@@ -204,6 +229,28 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
         rendered = " ".join(result["errors"])
         self.assertIn("expected issuer", rendered)
         self.assertIn("search-invocation", rendered)
+
+    def test_report_revalidates_metadata_url_and_header_support(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "hosted.json"
+            report = self._write_report(
+                path,
+                oauth_boundary=self._boundary(
+                    resource_metadata_url="https://evil.example/.well-known/oauth-protected-resource",
+                    bearer_methods_supported=[],
+                ),
+            )
+            result = validate_hosted_remote_evidence(
+                report,
+                candidate_commit="candidate-sha",
+                expected_endpoint="https://mcp.aiworkstation.cn/mcp",
+                expected_issuer="https://auth.example.com",
+            )
+
+        self.assertFalse(result["ok"])
+        rendered = " ".join(result["errors"])
+        self.assertIn("invalid resource metadata URL", rendered)
+        self.assertIn("Authorization-header bearer support", rendered)
 
 
 if __name__ == "__main__":
