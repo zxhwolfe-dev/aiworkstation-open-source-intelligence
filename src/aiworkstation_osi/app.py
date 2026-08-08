@@ -5,10 +5,11 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
+from .full_mock_provider import FullMockProjectIntelligenceProvider
 from .full_radar_provider import FullRadarHttpProvider
 from .full_tools import FullToolRegistry
 from .http_provider import DEFAULT_BASE_URL
-from .providers import MockProjectIntelligenceProvider, ProjectIntelligenceProvider
+from .providers import ProjectIntelligenceProvider
 
 
 def create_default_registry(
@@ -20,7 +21,7 @@ def create_default_registry(
     entrypoints must inject a provider or explicitly opt into the HTTP provider.
     """
 
-    return FullToolRegistry(provider or MockProjectIntelligenceProvider())
+    return FullToolRegistry(provider or FullMockProjectIntelligenceProvider())
 
 
 def create_registry_from_env() -> FullToolRegistry:
