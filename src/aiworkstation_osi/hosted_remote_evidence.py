@@ -12,6 +12,7 @@ from typing import Any, Mapping
 
 from .contracts import TOOL_NAMES
 from .endpoint_policy import validate_mcp_endpoint
+from .release_identity import release_commit_from_server_version
 
 HOSTED_REMOTE_SCHEMA = "osi.remote-smoke.v2"
 HOSTED_PREMIUM_TOOL = "deep_research_ai_projects"
@@ -261,8 +262,11 @@ def validate_hosted_remote_evidence(
     ):
         errors.append("expected OAuth issuer is invalid")
 
+    normalized_candidate = str(candidate_commit or "").strip().lower()
     report_endpoint = str(payload.get("endpoint") or "").strip().rstrip("/")
-    report_commit = str(payload.get("commit") or "").strip()
+    report_commit = str(payload.get("commit") or "").strip().lower()
+    server_version = str(payload.get("server_version") or "").strip()
+    deployment_commit = str(payload.get("deployment_commit") or "").strip().lower()
     profile = str(payload.get("profile") or "").strip()
     auth = payload.get("auth") if isinstance(payload.get("auth"), Mapping) else {}
     boundary = payload.get("oauth_boundary") if isinstance(payload.get("oauth_boundary"), Mapping) else {}
@@ -279,8 +283,14 @@ def validate_hosted_remote_evidence(
         errors.append("Hosted remote evidence schema is not supported")
     if payload.get("ok") is not True:
         errors.append("Hosted remote smoke report did not pass")
-    if not candidate_commit or report_commit != candidate_commit:
+    if not normalized_candidate or report_commit != normalized_candidate:
         errors.append("Hosted remote evidence belongs to a different candidate commit")
+    if deployment_commit != normalized_candidate:
+        errors.append("Hosted remote evidence was produced by a different deployed server commit")
+    if release_commit_from_server_version(server_version) != deployment_commit:
+        errors.append("Hosted remote server version does not encode the reported deployment commit")
+    if checks.get("deployment-identity") is not True:
+        errors.append("Hosted remote smoke did not pass the deployment identity check")
     if report_endpoint != normalized_endpoint.rstrip("/"):
         errors.append("Hosted remote evidence used a different MCP endpoint")
     if profile != "hosted":
@@ -334,14 +344,17 @@ def validate_hosted_remote_evidence(
         "ok": not errors,
         "supplied": True,
         "path": str(evidence_path),
-        "candidate_commit": candidate_commit,
+        "candidate_commit": normalized_candidate,
         "report_commit": report_commit,
+        "deployment_commit": deployment_commit,
+        "server_version": server_version,
         "endpoint": report_endpoint,
         "expected_issuer": issuer,
         "auth_mode": auth_mode,
         "protocol_version": str(payload.get("protocol_version") or ""),
         "tools": discovered,
         "oauth_boundary_verified": boundary.get("ok") is True and boundary.get("bearer_challenge") is True,
+        "deployment_identity_verified": checks.get("deployment-identity") is True and deployment_commit == normalized_candidate,
         "search_verified": checks.get("search-invocation") is True,
         "errors": errors,
     }
