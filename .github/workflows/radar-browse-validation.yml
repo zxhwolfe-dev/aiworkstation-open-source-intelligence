@@ -1,0 +1,122 @@
+name: radar-browse-validation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Allowed public AI Workstation Radar origin
+        required: true
+        default: https://aiworkstation.cn
+        type: choice
+        options:
+          - https://aiworkstation.cn
+          - https://useaistation.com
+
+permissions:
+  contents: read
+
+concurrency:
+  group: radar-browse-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_URL: ${{ inputs.base_url || 'https://aiworkstation.cn' }}
+      OUTPUT_ROOT: tmp/radar-browse-validation
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Validate public origin
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import urllib.parse
+          value = os.environ["BASE_URL"].rstrip("/")
+          parsed = urllib.parse.urlsplit(value)
+          if parsed.scheme != "https" or parsed.hostname not in {"aiworkstation.cn", "useaistation.com"}:
+              raise SystemExit("BASE_URL must use an allowed HTTPS AI Workstation origin")
+          if parsed.path not in {"", "/"} or parsed.query or parsed.fragment or parsed.username or parsed.password:
+              raise SystemExit("BASE_URL must be an origin without path, credentials, query, or fragment")
+          PY
+
+      - name: Install probe runtime
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[mcp]"
+
+      - name: Run English and Chinese Radar browse probes
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUTPUT_ROOT"
+          python -m aiworkstation_osi.radar_browse_probe \
+            --base-url "$BASE_URL" \
+            --locale en \
+            --output "$OUTPUT_ROOT/radar-browse-en.json"
+          python -m aiworkstation_osi.radar_browse_probe \
+            --base-url "$BASE_URL" \
+            --locale zh \
+            --output "$OUTPUT_ROOT/radar-browse-zh.json"
+
+      - name: Write candidate-bound evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path(os.environ["OUTPUT_ROOT"])
+          en = json.loads((root / "radar-browse-en.json").read_text(encoding="utf-8"))
+          zh = json.loads((root / "radar-browse-zh.json").read_text(encoding="utf-8"))
+          if en.get("ok") is not True or zh.get("ok") is not True:
+              raise SystemExit("browse evidence cannot be written from a failed locale probe")
+          protected = {}
+          for path in sorted(root.glob("*.json")):
+              if path.name == "radar-browse-evidence.json":
+                  continue
+              protected[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+          evidence = {
+              "schema_version": "osi.radar-browse-evidence.v1",
+              "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+              "workflow": "radar-browse-validation",
+              "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+              "commit": os.environ.get("GITHUB_SHA", ""),
+              "repository": os.environ.get("GITHUB_REPOSITORY", ""),
+              "base_url": os.environ["BASE_URL"].rstrip("/"),
+              "checks": {
+                  "browse_en": True,
+                  "browse_zh": True,
+              },
+              "files": protected,
+          }
+          (root / "radar-browse-evidence.json").write_text(
+              json.dumps(evidence, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload browse validation bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: radar-browse-validation-${{ github.run_id }}
+          path: ${{ env.OUTPUT_ROOT }}
+          if-no-files-found: error
+          retention-days: 14
