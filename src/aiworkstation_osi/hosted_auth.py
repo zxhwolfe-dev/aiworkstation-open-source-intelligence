@@ -171,7 +171,11 @@ class IntrospectionTokenVerifier(TokenVerifier):
         if payload.get("active") is not True:
             return None
         token_type = str(payload.get("token_type") or "").strip().lower()
-        if token_type and token_type != "access_token":
+        # WorkOS reports access_token/refresh_token while RFC 7662-compatible
+        # providers may report the OAuth access-token type (for example Bearer).
+        # Unknown explicit types fail closed; a missing token_type is allowed
+        # because RFC 7662 does not require the member in every response.
+        if token_type not in {"", "access_token", "bearer"}:
             return None
         subject = str(payload.get("sub") or "").strip()
         client_id = str(payload.get("client_id") or "").strip()
