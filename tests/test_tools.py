@@ -15,7 +15,7 @@ class ToolRegistryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = create_default_registry()
 
-    def test_registry_exposes_exact_m0_tool_set(self) -> None:
+    def test_registry_exposes_exact_public_tool_set(self) -> None:
         self.assertEqual(
             [spec.name for spec in self.registry.specs],
             [
@@ -25,6 +25,9 @@ class ToolRegistryTests(unittest.TestCase):
                 "compare_ai_projects",
                 "find_alternatives",
                 "compose_ai_stack",
+                "get_radar_overview",
+                "browse_radar_projects",
+                "browse_radar_skills",
             ],
         )
 
@@ -44,6 +47,48 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertEqual(payload["verified_facts"], ())
         self.assertIn("fixture data", payload["unknowns"][0])
         self.assertEqual(payload["risks"][0]["code"], "MOCK_DATA")
+
+    def test_radar_overview_exposes_navigation_dimensions(self) -> None:
+        payload = invoke_tool("get_radar_overview", {"locale": "en"})
+        self.assertEqual(payload["tool"], "get_radar_overview")
+        self.assertTrue(payload["data"]["rankings"])
+        self.assertTrue(payload["data"]["collections"])
+        self.assertTrue(payload["data"]["categories"])
+        self.assertTrue(payload["data"]["scenarios"])
+        self.assertIn("MOCK_DATA", {risk["code"] for risk in payload["risks"]})
+
+    def test_radar_project_browser_filters_and_paginates(self) -> None:
+        payload = invoke_tool(
+            "browse_radar_projects",
+            {
+                "category": "rag",
+                "deployment": "docker",
+                "limit": 1,
+                "offset": 0,
+                "locale": "en",
+            },
+        )
+        self.assertEqual(payload["tool"], "browse_radar_projects")
+        self.assertEqual(len(payload["data"]["items"]), 1)
+        self.assertGreaterEqual(payload["data"]["total"], 1)
+        self.assertEqual(payload["data"]["limit"], 1)
+
+    def test_radar_skills_browser_searches_mock_library(self) -> None:
+        payload = invoke_tool(
+            "browse_radar_skills",
+            {"query": "comparison", "limit": 10, "locale": "en"},
+        )
+        self.assertEqual(payload["tool"], "browse_radar_skills")
+        self.assertEqual(payload["data"]["total"], 1)
+        self.assertEqual(payload["data"]["items"][0]["id"], "open-source-project-comparison")
+
+    def test_browse_tools_bound_pagination_and_fields(self) -> None:
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke("browse_radar_projects", {"limit": 51})
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke("browse_radar_skills", {"offset": -1})
+        with self.assertRaises(InvalidInputError):
+            self.registry.invoke("browse_radar_projects", {"private_admin": True})
 
     def test_license_tool_always_marks_legal_boundary(self) -> None:
         payload = invoke_tool(
