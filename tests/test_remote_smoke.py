@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 
-from aiworkstation_osi.remote_smoke import _validate_endpoint
+from aiworkstation_osi.hosted_remote_evidence import HOSTED_PREMIUM_TOOL
+from aiworkstation_osi.remote_smoke import (
+    _expected_tool_names,
+    _tool_annotations_ok,
+    _validate_endpoint,
+)
 
 
 class RemoteSmokeEndpointTests(unittest.TestCase):
@@ -48,6 +54,36 @@ class RemoteSmokeEndpointTests(unittest.TestCase):
         ):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 _validate_endpoint(url, allow_http_localhost=True)
+
+    def test_hosted_profile_expects_standard_tools_plus_premium(self) -> None:
+        standard = _expected_tool_names("standard")
+        hosted = _expected_tool_names("hosted")
+        self.assertEqual(len(hosted), len(standard) + 1)
+        self.assertEqual(hosted[-1], HOSTED_PREMIUM_TOOL)
+        self.assertNotIn(HOSTED_PREMIUM_TOOL, standard)
+
+    def test_premium_annotation_contract_is_distinct_from_standard_tools(self) -> None:
+        premium = SimpleNamespace(
+            name=HOSTED_PREMIUM_TOOL,
+            annotations=SimpleNamespace(
+                read_only_hint=False,
+                destructive_hint=False,
+                idempotent_hint=False,
+                open_world_hint=True,
+            ),
+        )
+        standard = SimpleNamespace(
+            name="search_ai_projects",
+            annotations=SimpleNamespace(
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+                open_world_hint=True,
+            ),
+        )
+        self.assertTrue(_tool_annotations_ok(premium, "hosted"))
+        self.assertTrue(_tool_annotations_ok(standard, "hosted"))
+        self.assertFalse(_tool_annotations_ok(premium, "standard"))
 
 
 if __name__ == "__main__":

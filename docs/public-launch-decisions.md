@@ -36,6 +36,8 @@ Hosted MCP uses standard OAuth resource-server verification. Verified issuer+sub
 
 A separate service credential authenticates Hosted MCP to private AI Workstation Premium/billing endpoints.
 
+WorkOS AuthKit/Connect is the initial authorization provider. The exact Hosted MCP Resource Indicator/audience is the primary access boundary. Custom required scopes remain optional/provider-dependent rather than inventing a WorkOS-only `osi:use` scope that AuthKit does not currently advertise in its MCP authorization metadata.
+
 ### Rate-limit architecture
 
 Initial public deployment is intentionally single-process with per-OAuth-identity application limits. Gateway connection/IP limits are defense-in-depth.
@@ -52,36 +54,41 @@ The initial code allowance is configurable (currently 50 monthly Pro AI credits 
 
 ### 1. Public MCP hostname
 
-Choose/finalize the public resource URL, recommended shape:
+The intended canonical resource URL is:
 
 ```text
 https://mcp.aiworkstation.cn/mcp
 ```
 
-Then configure:
+Before treating it as live, configure and verify:
 
-- DNS;
-- TLS;
-- Nginx/gateway;
+- public DNS;
+- valid TLS;
+- Nginx/gateway routing;
 - production allowed Hosts/origins;
 - rollback/incident owner.
 
-Once registered with a platform, treat the final resource URL as stable.
+Once registered with a platform, treat the final resource URL as stable because OAuth Resource Indicators and platform connection identities bind to it.
 
-### 2. OAuth provider/account
+### 2. WorkOS OAuth provider/account
 
-Choose and configure the actual authorization provider/account.
+Configure the production WorkOS AuthKit/Connect environment rather than building a custom authorization server for the first release.
 
-A managed provider is preferred for the first release rather than building a custom authorization server.
+Production/private-alpha validation must prove:
 
-Production must prove:
+- Client ID Metadata Document (CIMD) is enabled for modern MCP clients;
+- Dynamic Client Registration (DCR) is enabled where validator/legacy-client compatibility is required;
+- the exact `https://mcp.aiworkstation.cn/mcp` Resource Indicator is configured;
+- fresh-user login/consent succeeds;
+- issued access-token `aud` matches the exact resource;
+- unauthenticated MCP access receives a Bearer 401 + RFC 9728 resource-metadata challenge;
+- refresh/reconnect behavior works for clients that request offline access;
+- revocation/disabled-user behavior fails closed;
+- wrong-resource tokens are rejected;
+- any explicitly configured provider scope is enforced;
+- the actual target MCP host is compatible.
 
-- fresh-user login/consent;
-- correct resource/audience and `osi:use` scope;
-- refresh/reconnect behavior;
-- revocation/disabled-user behavior;
-- wrong-scope/wrong-resource rejection;
-- target platform compatibility.
+For WorkOS, `OSI_OAUTH_REQUIRED_SCOPES` should remain empty unless the chosen WorkOS configuration explicitly provides a custom scope in introspection. Resource/audience binding is mandatory either way.
 
 ### 3. Paddle merchant/product
 
@@ -140,23 +147,48 @@ Only after endpoint/OAuth are stable:
 
 Never commit placeholder technical IDs.
 
+## Hosted Private Alpha evidence sequence
+
+The private-alpha gate is intentionally evidence-first rather than based on operator booleans. Because Hosted development creates a new candidate SHA, the frozen `d338faf0...` External Alpha artifacts remain historical proof for that build but do not certify the newer Hosted tree.
+
+For the **exact Hosted candidate SHA**:
+
+1. obtain fresh Python 3.10/3.12 CI evidence;
+2. obtain fresh EN/ZH live-validation evidence;
+3. run a fresh nine-standard-tool Codex acceptance and verify its ledger;
+4. have a named human review that candidate's sanitized live artifact;
+5. deploy that same candidate behind the canonical HTTPS gateway;
+6. configure WorkOS AuthKit/Connect and the exact MCP Resource Indicator;
+7. run `osi-remote-smoke --profile hosted --auth-mode oauth` from the same candidate checkout;
+8. require a Bearer 401 challenge + protected-resource metadata before authenticated access;
+9. discover exactly nine standard tools plus the Premium tool;
+10. invoke one standard read-only search over authenticated MCP;
+11. feed all candidate-bound artifacts into `osi-hosted-evidence-readiness`;
+12. require `hosted_private_alpha_ready=true` before inviting hosted testers.
+
+This connectivity smoke does not invoke the Premium model and therefore does not consume a trial/credit during ordinary Hosted Private Alpha validation.
+
+See [`hosted-private-alpha.md`](hosted-private-alpha.md) for the deployment and verification runbook.
+
 ## Required public launch sequence
 
 1. current unit/CI suite green;
 2. evidence-critical EN/ZH live validation green;
 3. full Radar EN/ZH browse validation green;
-4. deploy HTTPS Hosted MCP behind protected gateway;
-5. configure real OAuth provider;
-6. remote OAuth discovery + nine standard-tool smoke;
-7. Paddle sandbox end-to-end;
-8. Premium first-free / upgrade / paid / refund smoke;
-9. revocation/rate-limit/secret/privacy review;
-10. publish final pricing/legal/retention pages;
-11. register final hosted MCP connection;
-12. update Plugin with real connection identity;
-13. fresh-install combined Plugin acceptance;
-14. platform submission/review;
-15. staged public rollout.
+4. obtain evidence-complete External Alpha quality gates for the exact Hosted candidate;
+5. deploy HTTPS Hosted MCP behind protected gateway;
+6. configure real WorkOS OAuth provider;
+7. remote OAuth discovery + authenticated 9-standard + 1-Premium tool discovery + standard-tool smoke;
+8. obtain evidence-first Hosted Private Alpha readiness;
+9. Paddle sandbox end-to-end;
+10. Premium first-free / upgrade / paid / refund smoke;
+11. revocation/rate-limit/secret/privacy review;
+12. publish final pricing/legal/retention pages;
+13. register final hosted MCP connection;
+14. update Plugin with real connection identity;
+15. fresh-install combined Plugin acceptance;
+16. platform submission/review;
+17. staged public rollout.
 
 ## Things that should not block early hosted sandbox testing
 

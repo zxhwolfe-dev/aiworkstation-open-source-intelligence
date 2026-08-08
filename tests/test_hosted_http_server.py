@@ -9,6 +9,8 @@ from unittest.mock import Mock, patch
 
 from aiworkstation_osi.hosted_http_server import _validate_hosted_configuration, main
 
+RELEASE_COMMIT = "a" * 40
+
 
 class HostedHttpServerTests(unittest.TestCase):
     def _safe_http(self):
@@ -121,6 +123,23 @@ class HostedHttpServerTests(unittest.TestCase):
             _validate_hosted_configuration()
         self.assertIn("/mcp", str(context.exception))
 
+    def test_release_commit_is_required_after_other_hosted_configuration(self) -> None:
+        with patch.dict("os.environ", {"OSI_PROVIDER": "http"}, clear=True), patch(
+            "aiworkstation_osi.hosted_http_server.load_http_server_settings",
+            return_value=self._safe_http(),
+        ), patch(
+            "aiworkstation_osi.hosted_http_server.load_hosted_oauth_config",
+            return_value=self._oauth(),
+        ), patch(
+            "aiworkstation_osi.hosted_http_server.load_hosted_backend_config",
+            return_value=self._backend(),
+        ), patch(
+            "aiworkstation_osi.hosted_http_server.load_hosted_rate_limit_config",
+            return_value=self._limits(),
+        ), self.assertRaises(ValueError) as context:
+            _validate_hosted_configuration()
+        self.assertIn("OSI_RELEASE_COMMIT", str(context.exception))
+
     def test_check_config_reports_only_public_configuration(self) -> None:
         config = self._safe_http()
         buffer = io.StringIO()
@@ -138,12 +157,14 @@ class HostedHttpServerTests(unittest.TestCase):
                 "https://mcp.example.com/mcp",
                 "https://aiworkstation.cn",
                 limits,
+                RELEASE_COMMIT,
             ),
         ), redirect_stdout(buffer):
             rc = main(["--check-config"])
         self.assertEqual(rc, 0)
         payload = json.loads(buffer.getvalue())
         self.assertEqual(payload["mode"], "hosted-oauth")
+        self.assertEqual(payload["release_commit"], RELEASE_COMMIT)
         self.assertEqual(payload["oauth_resource"], "https://mcp.example.com/mcp")
         self.assertEqual(payload["backend_origin"], "https://aiworkstation.cn")
         self.assertEqual(payload["rate_limits"], limits)
@@ -169,6 +190,7 @@ class HostedHttpServerTests(unittest.TestCase):
                     "premium_per_minute": 5,
                     "max_subjects": 10000,
                 },
+                RELEASE_COMMIT,
             ),
         ), patch(
             "aiworkstation_osi.hosted_http_server.build_hosted_mcp_server",

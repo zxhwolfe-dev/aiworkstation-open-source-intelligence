@@ -18,6 +18,7 @@ from mcp.types import ToolAnnotations
 
 from .app import create_registry_from_env
 from .errors import ToolError
+from .release_identity import hosted_server_version, load_release_commit
 from .telemetry import emit_tool_event
 from .tools import ToolRegistry
 
@@ -94,8 +95,10 @@ def build_mcp_server(
     instructions: str = SERVER_INSTRUCTIONS,
 ) -> MCPServer:
     active_registry = registry or create_registry_from_env()
+    release_commit = load_release_commit(required=False)
     server = MCPServer(
         "AI Workstation Open Source Intelligence",
+        version=hosted_server_version(release_commit) if release_commit else "",
         instructions=str(instructions or SERVER_INSTRUCTIONS),
         token_verifier=token_verifier,
         auth=auth,

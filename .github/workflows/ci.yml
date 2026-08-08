@@ -122,6 +122,7 @@ jobs:
           osi-readiness --help >/dev/null
           osi-codex-acceptance --help >/dev/null
           osi-evidence-readiness --help >/dev/null
+          osi-hosted-evidence-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
 
       - name: Validate public hosted OAuth configuration
@@ -129,6 +130,8 @@ jobs:
         env:
           OSI_PROVIDER: http
           AIWORKSTATION_RADAR_BASE_URL: https://aiworkstation.cn
+          OSI_RELEASE_COMMIT: ${{ github.sha }}
+          OSI_IMAGE_COMMIT: ${{ github.sha }}
           OSI_MCP_HTTP_HOST: 0.0.0.0
           OSI_MCP_HTTP_PORT: "8000"
           OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network
@@ -143,7 +146,18 @@ jobs:
           OSI_OAUTH_INTROSPECTION_AUTH: body
           OSI_BACKEND_BASE_URL: https://aiworkstation.cn
           OSI_BACKEND_SERVICE_TOKEN: test-service-token
-        run: osi-mcp-hosted --check-config >/dev/null
+        run: |
+          set -euo pipefail
+          osi-mcp-hosted --check-config >tmp/hosted-config.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("tmp/hosted-config.json").read_text(encoding="utf-8"))
+          if payload.get("release_commit") != os.environ["GITHUB_SHA"]:
+              raise SystemExit("Hosted check-config did not preserve the exact candidate SHA")
+          PY
 
       - name: End-to-end Streamable HTTP MCP round trip
         if: matrix.python-version == '3.12'
@@ -192,23 +206,44 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f compose.hosted.example.yml config >/dev/null
-          OSI_OAUTH_ISSUER_URL=https://auth.example.com \
-          OSI_OAUTH_INTROSPECTION_URL=https://auth.example.com/oauth2/introspection \
-          OSI_OAUTH_CLIENT_ID=test-client \
-          OSI_OAUTH_CLIENT_SECRET=test-secret \
-          OSI_BACKEND_SERVICE_TOKEN=test-service-token \
-            docker compose -f compose.public-hosted.example.yml config >/dev/null
-          docker compose -f compose.hosted.example.yml build osi-mcp
 
-          # The image itself still starts in safe loopback/mock mode when no
+          export OSI_RELEASE_COMMIT="${GITHUB_SHA}"
+          export OSI_OAUTH_ISSUER_URL=https://auth.example.com
+          export OSI_OAUTH_INTROSPECTION_URL=https://auth.example.com/oauth2/introspection
+          export OSI_OAUTH_CLIENT_ID=test-client
+          export OSI_OAUTH_CLIENT_SECRET=test-secret
+          export OSI_BACKEND_SERVICE_TOKEN=test-service-token
+
+          docker compose -f compose.public-hosted.example.yml config >/dev/null
+          docker compose -f compose.hosted.example.yml build osi-mcp
+          docker compose -f compose.public-hosted.example.yml build osi-mcp-hosted
+
+          # The generic image still starts in safe loopback/mock mode when no
           # deployment environment is supplied.
           docker run --rm aiworkstation-osi-mcp:local \
             osi-mcp-http --check-config >/dev/null
 
-          # Exercise the actual Compose hosted-alpha environment without opening
+          # Exercise the local/private hosted-alpha environment without opening
           # a listening service or publishing ports.
           docker compose -f compose.hosted.example.yml run --rm --no-deps \
             osi-mcp osi-mcp-http --check-config >/dev/null
+
+          # Exercise the actual public Hosted image. Its build arg bakes
+          # GITHUB_SHA into OSI_IMAGE_COMMIT, while Compose injects the same SHA
+          # as OSI_RELEASE_COMMIT. Hosted startup must reject any mismatch.
+          docker compose -f compose.public-hosted.example.yml run --rm --no-deps \
+            osi-mcp-hosted osi-mcp-hosted --check-config >tmp/public-hosted-container-config.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(
+              Path("tmp/public-hosted-container-config.json").read_text(encoding="utf-8")
+          )
+          if payload.get("release_commit") != os.environ["GITHUB_SHA"]:
+              raise SystemExit("Public Hosted container does not match the candidate SHA")
+          PY
 
   evidence:
     name: publish-ci-evidence

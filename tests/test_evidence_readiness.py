@@ -97,7 +97,7 @@ class EvidenceReadinessTests(unittest.TestCase):
         errors = " ".join(result["errors"])
         self.assertIn("did not pass", errors)
         self.assertIn("live HTTP provider", errors)
-        self.assertIn("all six tools", errors)
+        self.assertIn("all nine tools", errors)
         self.assertIn("missing tools", errors)
 
     def test_tampered_ledger_digest_fails_closed(self) -> None:

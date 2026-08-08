@@ -13,9 +13,10 @@ from .hosted_backend import load_hosted_backend_config
 from .hosted_mcp_server import build_hosted_mcp_server
 from .hosted_rate_limit import load_hosted_rate_limit_config
 from .http_server import HttpServerSettings, load_http_server_settings
+from .release_identity import validate_hosted_deployment_identity
 
 
-def _validate_hosted_configuration() -> tuple[HttpServerSettings, str, str, str, dict[str, int]]:
+def _validate_hosted_configuration() -> tuple[HttpServerSettings, str, str, str, dict[str, int], str]:
     if str(os.getenv("OSI_PROVIDER") or "").strip().lower() != "http":
         raise ValueError("public hosted MCP requires OSI_PROVIDER=http")
     http_config = load_http_server_settings()
@@ -25,13 +26,14 @@ def _validate_hosted_configuration() -> tuple[HttpServerSettings, str, str, str,
     resource_url = validate_mcp_endpoint(oauth.resource_url, allow_http_localhost=False)
     if not resource_url.startswith("https://") or not resource_url.endswith("/mcp"):
         raise ValueError("OSI_OAUTH_RESOURCE_URL must be the public HTTPS /mcp endpoint")
+    release_commit = validate_hosted_deployment_identity()
     limits = {
         "per_minute": rate_limit.per_minute,
         "per_hour": rate_limit.per_hour,
         "premium_per_minute": rate_limit.premium_per_minute,
         "max_subjects": rate_limit.max_subjects,
     }
-    return http_config, oauth.issuer_url, resource_url, backend.base_url, limits
+    return http_config, oauth.issuer_url, resource_url, backend.base_url, limits, release_commit
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        config, issuer_url, resource_url, backend_url, rate_limits = _validate_hosted_configuration()
+        config, issuer_url, resource_url, backend_url, rate_limits, release_commit = _validate_hosted_configuration()
     except ValueError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
         return 2
@@ -55,6 +57,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     public_config = {
         "ok": True,
         "mode": "hosted-oauth",
+        "release_commit": release_commit,
         "host": config.host,
         "port": config.port,
         "path": "/mcp",

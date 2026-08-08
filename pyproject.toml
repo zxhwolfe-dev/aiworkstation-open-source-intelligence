@@ -55,6 +55,7 @@ osi-build-alpha = "aiworkstation_osi.alpha_bundle:main"
 osi-readiness = "aiworkstation_osi.release_readiness:main"
 osi-codex-acceptance = "aiworkstation_osi.codex_acceptance:main"
 osi-evidence-readiness = "aiworkstation_osi.evidence_readiness:main"
+osi-hosted-evidence-readiness = "aiworkstation_osi.hosted_evidence_readiness:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
