@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aiworkstation-open-source-intelligence"
 version = "0.1.0"
-description = "Evidence-backed Skills, CLI, and read-only MCP tools for open-source AI research and technology selection."
+description = "Evidence-backed Skills, CLI, and MCP tools for open-source AI research and technology selection."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
@@ -44,6 +44,7 @@ mcp = ["mcp>=2,<3"]
 osi-m0 = "aiworkstation_osi.cli:main"
 osi-mcp = "aiworkstation_osi.mcp_server:main"
 osi-mcp-http = "aiworkstation_osi.http_server:main"
+osi-mcp-hosted = "aiworkstation_osi.hosted_http_server:main"
 osi-remote-smoke = "aiworkstation_osi.remote_smoke:main"
 osi-probe = "aiworkstation_osi.probe:main"
 osi-capture-contracts = "aiworkstation_osi.contract_capture:main"
