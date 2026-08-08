@@ -13,6 +13,7 @@ from mcp.types import ToolAnnotations
 
 from .app import create_registry_from_env
 from .contracts import utc_now_iso
+from .full_tools import FullToolRegistry
 from .hosted_auth import (
     IntrospectionTokenVerifier,
     entitlement_subject,
@@ -20,6 +21,8 @@ from .hosted_auth import (
     load_hosted_oauth_config,
 )
 from .hosted_backend import HostedBackendClient, HostedBackendError, load_hosted_backend_config
+from .hosted_rate_limit import HostedRateLimiter, load_hosted_rate_limit_config
+from .hosted_rate_limited_provider import HostedRateLimitedProvider
 from .mcp_server import SERVER_INSTRUCTIONS, build_mcp_server
 from .tools import ToolRegistry
 
@@ -67,12 +70,31 @@ def _result(
     }
 
 
+def _rate_limited_registry(
+    registry: ToolRegistry,
+    limiter: HostedRateLimiter,
+) -> ToolRegistry:
+    """Wrap the nine public Radar provider methods with per-OAuth-subject limits.
+
+    Hosted production always uses the expanded ``FullToolRegistry``. Keeping the
+    wrapper here makes it impossible for the public hosted entrypoint to start
+    with an authenticated MCP surface while accidentally bypassing application
+    rate limits on the ordinary data tools.
+    """
+
+    provider = getattr(registry, "_provider", None)
+    if provider is None:
+        raise ValueError("hosted MCP registry does not expose a provider")
+    return FullToolRegistry(HostedRateLimitedProvider(provider, limiter))
+
+
 def build_hosted_mcp_server(
     registry: ToolRegistry | None = None,
     *,
     token_verifier: TokenVerifier | None = None,
     auth: AuthSettings | None = None,
     backend: HostedBackendClient | None = None,
+    rate_limiter: HostedRateLimiter | None = None,
 ) -> MCPServer:
     """Build the OAuth-protected nine-data-tool + one-premium-tool MCP server."""
 
@@ -81,8 +103,13 @@ def build_hosted_mcp_server(
         token_verifier = token_verifier or IntrospectionTokenVerifier(oauth_config)
         auth = auth or hosted_auth_settings(oauth_config)
     backend_client = backend or HostedBackendClient(load_hosted_backend_config())
-    server = build_mcp_server(
+    limiter = rate_limiter or HostedRateLimiter(load_hosted_rate_limit_config())
+    active_registry = _rate_limited_registry(
         registry or create_registry_from_env(),
+        limiter,
+    )
+    server = build_mcp_server(
+        active_registry,
         token_verifier=token_verifier,
         auth=auth,
         instructions=HOSTED_INSTRUCTIONS,
@@ -101,6 +128,9 @@ def build_hosted_mcp_server(
         if not task or len(task) > 4000:
             raise ValueError("INVALID_INPUT: query must contain between 1 and 4000 characters")
         subject = current_entitlement_subject()
+        # Premium calls count against both the ordinary user envelope and the
+        # tighter premium burst limit before any publisher-funded model work.
+        limiter.check_subject(subject, premium=True)
         try:
             payload = await asyncio.to_thread(
                 backend_client.premium_research,
