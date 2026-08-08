@@ -17,7 +17,7 @@ WorkOS Connect exposes the OAuth endpoints required by current MCP clients, incl
 - refresh tokens;
 - Client ID Metadata Document (CIMD);
 - optional Dynamic Client Registration (DCR) for older MCP clients;
-- resource indicators for MCP audience binding;
+- Resource Indicators for MCP audience binding;
 - token introspection;
 - stable user `sub` claims.
 
@@ -31,15 +31,15 @@ Use one WorkOS production environment for the public Plugin and a separate sandb
 
 Create/configure the customer-facing Connect OAuth application for **AI Open Source Intelligence**.
 
-Use:
+WorkOS's current authorization-server metadata advertises the standard scopes:
 
 ```text
-Application name: AI Open Source Intelligence
-Scope: osi:use
-PKCE: enabled
+email offline_access openid profile
 ```
 
-Keep profile/email scopes only if the product actually needs them. The current MCP entitlement mapping requires only issuer + subject and deliberately does not send raw email/name into the billing/model backend.
+Do **not** invent or require an `osi:use` scope for the WorkOS MCP resource server unless WorkOS later adds a documented custom-scope mechanism that is actually present in issued/introspected access tokens.
+
+The current MCP authorization boundary is the exact Resource Indicator/audience. Request standard identity scopes only when the client/product actually needs them. `offline_access` may be used by a client that needs refresh tokens; it is not a resource-server permission for AI Open Source Intelligence.
 
 ### 2. Enable MCP client registration compatibility
 
@@ -58,7 +58,7 @@ Add this exact production MCP endpoint as a WorkOS Resource Indicator:
 https://mcp.aiworkstation.cn/mcp
 ```
 
-The token `aud` claim must resolve to this same resource. The MCP resource server rejects tokens issued for another audience.
+MCP clients send this value as the OAuth `resource` parameter. WorkOS issues the access token with an `aud` claim matching that requested Resource Indicator, and the MCP resource server rejects tokens issued for another audience.
 
 Use a separate staging URL while testing, for example:
 
@@ -96,6 +96,14 @@ OSI_OAUTH_INTROSPECTION_AUTH=body
 
 The implementation still supports `basic` for a future standards-compatible provider.
 
+The resource server sends:
+
+```text
+token_type_hint=access_token
+```
+
+and rejects an introspection result that explicitly identifies the presented bearer credential as a `refresh_token`.
+
 ## Hosted MCP environment
 
 Inject only through server secrets:
@@ -106,9 +114,11 @@ OSI_OAUTH_INTROSPECTION_URL=https://<your-authkit-domain>/oauth2/introspection
 OSI_OAUTH_CLIENT_ID=<workos-connect-client-id>
 OSI_OAUTH_CLIENT_SECRET=<server-secret>
 OSI_OAUTH_RESOURCE_URL=https://mcp.aiworkstation.cn/mcp
-OSI_OAUTH_REQUIRED_SCOPES=osi:use
+OSI_OAUTH_REQUIRED_SCOPES=
 OSI_OAUTH_INTROSPECTION_AUTH=body
 ```
+
+`OSI_OAUTH_REQUIRED_SCOPES` is intentionally empty for the documented WorkOS MCP flow. It remains available for another standards-compatible provider only when that provider actually issues and exposes the configured scopes to the resource server.
 
 Never commit the client secret or a real access/refresh token.
 
@@ -157,14 +167,17 @@ From each real target host with no existing session:
 1. install/connect AI Open Source Intelligence;
 2. authorization UI opens automatically;
 3. complete login/consent;
-4. call `get_radar_overview`;
-5. browse at least one ranking, collection and category;
-6. call `browse_radar_skills`;
-7. run one successful Premium deep research and verify `credit_source=free_trial`;
-8. disconnect/reconnect and verify identity continuity;
-9. revoke/disable the WorkOS session/token;
-10. verify MCP access fails;
-11. verify a token for the wrong Resource Indicator or missing `osi:use` is rejected.
+4. verify the issued access token is bound to the exact production Resource Indicator/audience;
+5. call `get_radar_overview`;
+6. browse at least one ranking, collection and category;
+7. call `browse_radar_skills`;
+8. run one successful Premium deep research and verify `credit_source=free_trial`;
+9. disconnect/reconnect and verify identity continuity;
+10. revoke/disable the WorkOS session/token;
+11. verify MCP access fails;
+12. verify a token for the wrong Resource Indicator is rejected;
+13. verify a refresh token cannot be used directly as a bearer access token;
+14. if a future provider enables optional resource-server scopes, verify a missing configured scope is rejected.
 
 ## Do not ship if
 
@@ -173,5 +186,7 @@ From each real target host with no existing session:
 - the server trusts a client-supplied username/header as identity;
 - one OAuth identity can select another user's entitlement;
 - OAuth subject/token/email appears in tool results, logs or payment metadata;
-- revoked, expired, wrong-audience or wrong-scope tokens are accepted;
+- revoked, expired or wrong-audience tokens are accepted;
+- refresh tokens are accepted directly as bearer access tokens;
+- deployment requires a custom scope that the selected provider does not actually issue/expose;
 - `/.well-known/oauth-protected-resource` cannot be discovered by the target MCP host.
