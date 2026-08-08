@@ -25,24 +25,13 @@
               {"type": "boolean"},
               {"type": "null"},
               {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}},
-              {
-                "type": "object",
-                "maxProperties": 50,
-                "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
-                "additionalProperties": {"$ref": "#/$defs/structuredValue"}
-              }
+              {"type": "object", "maxProperties": 50, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}}
             ]
           }
         },
         "properties": {
           "query": {"type": "string", "minLength": 1, "maxLength": 4000},
-          "constraints": {
-            "type": "object",
-            "maxProperties": 50,
-            "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.",
-            "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
-            "additionalProperties": {"$ref": "#/$defs/structuredValue"}
-          },
+          "constraints": {"type": "object", "maxProperties": 50, "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.", "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}},
           "locale": {"enum": ["zh", "en"], "default": "en"},
           "source_mode": {"enum": ["required", "preferred", "off"], "default": "required"},
           "request_id": {"type": "string", "maxLength": 128}
@@ -53,31 +42,13 @@
       "name": "get_project_facts",
       "description": "Return current evidence-backed facts for one project.",
       "read_only": true,
-      "input_schema": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["project_id"],
-        "properties": {
-          "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
-          "locale": {"enum": ["zh", "en"], "default": "en"},
-          "request_id": {"type": "string", "maxLength": 128}
-        }
-      }
+      "input_schema": {"type": "object", "additionalProperties": false, "required": ["project_id"], "properties": {"project_id": {"type": "string", "minLength": 1, "maxLength": 256}, "locale": {"enum": ["zh", "en"], "default": "en"}, "request_id": {"type": "string", "maxLength": 128}}}
     },
     {
       "name": "get_license_evidence",
       "description": "Return observed license evidence without legal conclusions.",
       "read_only": true,
-      "input_schema": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["project_id"],
-        "properties": {
-          "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
-          "locale": {"enum": ["zh", "en"], "default": "en"},
-          "request_id": {"type": "string", "maxLength": 128}
-        }
-      }
+      "input_schema": {"type": "object", "additionalProperties": false, "required": ["project_id"], "properties": {"project_id": {"type": "string", "minLength": 1, "maxLength": 256}, "locale": {"enum": ["zh", "en"], "default": "en"}, "request_id": {"type": "string", "maxLength": 128}}}
     },
     {
       "name": "compare_ai_projects",
@@ -87,44 +58,11 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["project_ids"],
-        "$defs": {
-          "structuredValue": {
-            "anyOf": [
-              {"type": "string", "maxLength": 1000},
-              {"type": "number"},
-              {"type": "boolean"},
-              {"type": "null"},
-              {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}},
-              {
-                "type": "object",
-                "maxProperties": 50,
-                "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
-                "additionalProperties": {"$ref": "#/$defs/structuredValue"}
-              }
-            ]
-          }
-        },
+        "$defs": {"structuredValue": {"anyOf": [{"type": "string", "maxLength": 1000}, {"type": "number"}, {"type": "boolean"}, {"type": "null"}, {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}}, {"type": "object", "maxProperties": 50, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}}]}},
         "properties": {
-          "project_ids": {
-            "type": "array",
-            "minItems": 2,
-            "maxItems": 5,
-            "uniqueItems": true,
-            "items": {"type": "string", "minLength": 1, "maxLength": 256}
-          },
-          "criteria": {
-            "type": "array",
-            "maxItems": 12,
-            "uniqueItems": true,
-            "items": {"type": "string", "minLength": 1, "maxLength": 256}
-          },
-          "context": {
-            "type": "object",
-            "maxProperties": 50,
-            "description": "JSON-compatible decision context. Runtime additionally limits total nodes and nesting depth.",
-            "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
-            "additionalProperties": {"$ref": "#/$defs/structuredValue"}
-          },
+          "project_ids": {"type": "array", "minItems": 2, "maxItems": 5, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+          "criteria": {"type": "array", "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+          "context": {"type": "object", "maxProperties": 50, "description": "JSON-compatible decision context. Runtime additionally limits total nodes and nesting depth.", "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}},
           "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}
         }
@@ -138,32 +76,10 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["project_id"],
-        "$defs": {
-          "structuredValue": {
-            "anyOf": [
-              {"type": "string", "maxLength": 1000},
-              {"type": "number"},
-              {"type": "boolean"},
-              {"type": "null"},
-              {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}},
-              {
-                "type": "object",
-                "maxProperties": 50,
-                "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
-                "additionalProperties": {"$ref": "#/$defs/structuredValue"}
-              }
-            ]
-          }
-        },
+        "$defs": {"structuredValue": {"anyOf": [{"type": "string", "maxLength": 1000}, {"type": "number"}, {"type": "boolean"}, {"type": "null"}, {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}}, {"type": "object", "maxProperties": 50, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}}]}},
         "properties": {
           "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
-          "constraints": {
-            "type": "object",
-            "maxProperties": 50,
-            "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.",
-            "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
-            "additionalProperties": {"$ref": "#/$defs/structuredValue"}
-          },
+          "constraints": {"type": "object", "maxProperties": 50, "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.", "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}},
           "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}
         }
@@ -177,38 +93,59 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["business_goal"],
-        "$defs": {
-          "structuredValue": {
-            "anyOf": [
-              {"type": "string", "maxLength": 1000},
-              {"type": "number"},
-              {"type": "boolean"},
-              {"type": "null"},
-              {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}},
-              {
-                "type": "object",
-                "maxProperties": 50,
-                "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
-                "additionalProperties": {"$ref": "#/$defs/structuredValue"}
-              }
-            ]
-          }
-        },
+        "$defs": {"structuredValue": {"anyOf": [{"type": "string", "maxLength": 1000}, {"type": "number"}, {"type": "boolean"}, {"type": "null"}, {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}}, {"type": "object", "maxProperties": 50, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}}]}},
         "properties": {
           "business_goal": {"type": "string", "minLength": 1, "maxLength": 4000},
-          "constraints": {
-            "type": "object",
-            "maxProperties": 50,
-            "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.",
-            "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"},
-            "additionalProperties": {"$ref": "#/$defs/structuredValue"}
-          },
-          "existing_stack": {
-            "type": "array",
-            "maxItems": 20,
-            "uniqueItems": true,
-            "items": {"type": "string", "minLength": 1, "maxLength": 256}
-          },
+          "constraints": {"type": "object", "maxProperties": 50, "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.", "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}},
+          "existing_stack": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+          "locale": {"enum": ["zh", "en"], "default": "en"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "get_radar_overview",
+      "description": "List current Radar rankings, collections, categories, scenarios and other navigation dimensions.",
+      "read_only": true,
+      "input_schema": {"type": "object", "additionalProperties": false, "properties": {"locale": {"enum": ["zh", "en"], "default": "en"}, "request_id": {"type": "string", "maxLength": 128}}}
+    },
+    {
+      "name": "browse_radar_projects",
+      "description": "Browse Radar projects by ranking, collection, category, scenario, search text and public filters.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query": {"type": "string", "maxLength": 1000},
+          "ranking": {"type": "string", "maxLength": 256},
+          "collection": {"type": "string", "maxLength": 256},
+          "category": {"type": "string", "maxLength": 256},
+          "scenario": {"type": "string", "maxLength": 256},
+          "use_case": {"type": "string", "maxLength": 256},
+          "resource_type": {"type": "string", "maxLength": 256},
+          "license": {"type": "string", "maxLength": 256},
+          "deployment": {"type": "string", "maxLength": 256},
+          "layer": {"type": "string", "maxLength": 256},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
+          "offset": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0},
+          "locale": {"enum": ["zh", "en"], "default": "en"},
+          "request_id": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    {
+      "name": "browse_radar_skills",
+      "description": "Browse and search the AI Open Source Radar Skills library.",
+      "read_only": true,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query": {"type": "string", "maxLength": 1000},
+          "category": {"type": "string", "maxLength": 256},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
+          "offset": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0},
           "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}
         }
