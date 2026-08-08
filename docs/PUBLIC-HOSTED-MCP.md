@@ -67,9 +67,13 @@ server {
 
 Production Nginx should also use the site's standard TLS, logging, bot/abuse and incident controls.
 
-## Phase 2 — OAuth provider
+## Phase 2 — WorkOS OAuth provider
 
-Configure a real OAuth provider that supports the MCP host's authorization flow and a standards-compliant resource-server/introspection path.
+Use WorkOS AuthKit/Connect as the initial production authorization server. Configure the exact public MCP endpoint as a WorkOS **Resource Indicator**:
+
+```text
+https://mcp.aiworkstation.cn/mcp
+```
 
 Hosted environment requires:
 
@@ -79,16 +83,22 @@ OSI_OAUTH_INTROSPECTION_URL
 OSI_OAUTH_CLIENT_ID
 OSI_OAUTH_CLIENT_SECRET
 OSI_OAUTH_RESOURCE_URL=https://mcp.aiworkstation.cn/mcp
-OSI_OAUTH_REQUIRED_SCOPES=osi:use
+OSI_OAUTH_REQUIRED_SCOPES=
+OSI_OAUTH_INTROSPECTION_AUTH=body
 ```
+
+For the documented WorkOS MCP flow, do not require a custom `osi:use` scope. WorkOS binds MCP access tokens to the requested Resource Indicator through the token `aud` claim. Custom resource-server scopes remain an optional compatibility feature for another provider that actually issues and exposes them.
 
 Do not launch until a fresh user can:
 
 1. connect the MCP from the target host;
 2. complete authorization without manually copying tokens;
-3. receive a token whose issuer/resource/scope/subject pass validation;
+3. receive an access token whose issuer/subject and exact Resource Indicator/audience pass validation;
 4. call all nine standard tools;
-5. revoke/disable the account/token and observe access being denied.
+5. reconnect/refresh successfully;
+6. present a wrong-resource token and observe access denied;
+7. present a refresh token directly as a bearer credential and observe access denied;
+8. revoke/disable the account/token and observe access denied.
 
 ## Phase 3 — backend service boundary
 
@@ -173,8 +183,11 @@ Then deploy behind the gateway and verify:
 - `/mcp` reachable only through HTTPS public origin;
 - missing bearer token denied;
 - invalid bearer denied;
-- wrong scope/audience denied;
-- valid OAuth connection succeeds;
+- missing/wrong issuer denied;
+- wrong audience/resource denied;
+- refresh token presented as bearer denied;
+- optional configured scope mismatch denied only when such a provider is deliberately used;
+- valid WorkOS OAuth connection succeeds;
 - exact hosted tool set is 10;
 - standard 9 tools are read-only/idempotent annotations;
 - premium tool is non-destructive but non-read-only/non-idempotent;
