@@ -33,8 +33,9 @@ class DummyVerifier(TokenVerifier):
 
 
 class FakeBackend:
-    def __init__(self, *, upgrade: bool = False):
+    def __init__(self, *, upgrade: bool = False, entitlement=None):
         self.upgrade = upgrade
+        self.entitlement = entitlement or {"trial_available": False, "ai_credits": 0}
         self.premium_calls = []
         self.checkout_calls = []
 
@@ -45,7 +46,7 @@ class FakeBackend:
                 "UPGRADE_REQUIRED",
                 "upgrade",
                 status=402,
-                details={"entitlement": {"trial_available": False, "ai_credits": 0}},
+                details={"entitlement": dict(self.entitlement)},
             )
         return {
             "selection": {"snapshot_id": "sha256:test", "projects": []},
@@ -182,6 +183,38 @@ class HostedMcpServerTests(unittest.TestCase):
             self.assertEqual(payload["data"]["checkout"]["provider"], "paddle")
             self.assertEqual(payload["data"]["checkout"]["checkout_url"], "https://checkout.example/txn")
             self.assertEqual(backend.checkout_calls, ["oidc_opaque"])
+        asyncio.run(run())
+
+    def test_active_pro_with_no_credits_returns_quota_exhausted_without_checkout(self) -> None:
+        async def run():
+            backend = FakeBackend(
+                upgrade=True,
+                entitlement={
+                    "plan": "pro",
+                    "status": "active",
+                    "trial_available": False,
+                    "ai_credits": 0,
+                    "current_period_end": "2026-09-08T00:00:00",
+                },
+            )
+            server = self._build(backend)
+            with patch(
+                "aiworkstation_osi.hosted_mcp_server.current_entitlement_subject",
+                return_value="oidc_opaque",
+            ):
+                async with Client(server) as client:
+                    result = await client.call_tool(
+                        "deep_research_ai_projects",
+                        {"query": "Deep research", "locale": "en"},
+                    )
+            self.assertFalse(result.is_error)
+            payload = result.structured_content
+            self.assertIsNotNone(payload)
+            assert payload is not None
+            self.assertEqual(payload["data"]["status"], "quota_exhausted")
+            self.assertEqual(payload["data"]["checkout"], {})
+            self.assertEqual(payload["data"]["entitlement"]["current_period_end"], "2026-09-08T00:00:00")
+            self.assertEqual(backend.checkout_calls, [])
         asyncio.run(run())
 
     def test_premium_rate_limit_blocks_publisher_model_before_backend(self) -> None:
