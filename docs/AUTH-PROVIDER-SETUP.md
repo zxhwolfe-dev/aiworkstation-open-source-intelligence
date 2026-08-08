@@ -1,63 +1,122 @@
 # Hosted OAuth provider setup
 
-## Recommendation
+## Initial production provider: WorkOS AuthKit / Connect
 
-For the first public release, use a managed OAuth/OpenID authorization provider that supports modern MCP resource-server discovery/authorization behavior. Do not build a custom login/token service merely to ship this plugin.
+The first public Hosted MCP release uses **WorkOS AuthKit / Connect** as the OAuth authorization server.
 
-The OSI code is intentionally provider-neutral: the hosted MCP validates access tokens through a standards-based introspection endpoint and relies on the authorization server for login, consent, user lifecycle and revocation.
+This is deliberately a managed authorization layer. AI Open Source Intelligence remains the MCP resource server and continues to own tool permissions, entitlement mapping, rate limits, billing policy and data access. WorkOS handles browser login/consent, OAuth client interoperability, token issuance, refresh/revocation and authorization-server discovery.
 
-A managed provider such as WorkOS AuthKit is a strong first candidate when its MCP/OAuth features and commercial terms fit the publishing account. Auth0 or another standards-compliant provider can be substituted without changing tool logic.
+The implementation remains standards-based and provider-neutral enough to migrate later, but production setup and examples now target WorkOS so operators have one tested path rather than an abstract menu of identity providers.
 
-## Required capabilities
+## Why this fits the MCP product
 
-Before selecting the production provider, verify the actual account/plan supports:
+WorkOS Connect exposes the OAuth endpoints required by current MCP clients, including:
 
-- OAuth 2.1 / Authorization Code + PKCE behavior required by the target MCP host;
-- authorization-server metadata/discovery;
-- protected-resource/MCP discovery required by the target platform;
-- stable user `sub` claim;
-- resource/audience binding for the MCP endpoint;
-- scope delivery (`osi:use` initial scope);
-- token introspection or an equivalently strong standards-based verifier;
-- refresh/revocation/disabled-user behavior;
-- production custom domain if desired;
-- email/GitHub/social login methods suitable for target users.
+- OAuth authorization-server metadata;
+- Authorization Code + PKCE;
+- refresh tokens;
+- Client ID Metadata Document (CIMD);
+- optional Dynamic Client Registration (DCR) for older MCP clients;
+- resource indicators for MCP audience binding;
+- token introspection;
+- stable user `sub` claims.
 
-## Production values to create
+The official MCP Python SDK used by this repository automatically exposes RFC 9728 Protected Resource Metadata when `TokenVerifier` and `AuthSettings.resource_server_url` are configured. Clients can therefore discover WorkOS from the MCP server after the initial 401 instead of asking a user to paste a bearer token.
 
-Use the final public MCP URL, for example:
+## WorkOS dashboard setup
+
+Use one WorkOS production environment for the public Plugin and a separate sandbox/staging environment while validating.
+
+### 1. Configure AuthKit / Connect
+
+Create/configure the customer-facing Connect OAuth application for **AI Open Source Intelligence**.
+
+Use:
+
+```text
+Application name: AI Open Source Intelligence
+Scope: osi:use
+PKCE: enabled
+```
+
+Keep profile/email scopes only if the product actually needs them. The current MCP entitlement mapping requires only issuer + subject and deliberately does not send raw email/name into the billing/model backend.
+
+### 2. Enable MCP client registration compatibility
+
+In **Connect → Configuration**:
+
+- enable **Client ID Metadata Document (CIMD)**;
+- enable **Dynamic Client Registration (DCR)** only if compatibility testing shows an older target MCP client still needs it.
+
+CIMD is the preferred launch path for current MCP clients.
+
+### 3. Add the MCP Resource Indicator
+
+Add this exact production MCP endpoint as a WorkOS Resource Indicator:
 
 ```text
 https://mcp.aiworkstation.cn/mcp
 ```
 
-Create/configure:
+The token `aud` claim must resolve to this same resource. The MCP resource server rejects tokens issued for another audience.
+
+Use a separate staging URL while testing, for example:
 
 ```text
-issuer URL
-introspection URL
-resource-server client ID
-resource-server client secret
-resource/audience = exact MCP URL
-scope = osi:use
+https://mcp-staging.aiworkstation.cn/mcp
 ```
 
-Then inject them only into Hosted MCP deployment secrets:
+and never accept a staging token on production.
+
+### 4. Read metadata from the WorkOS domain
+
+The WorkOS AuthKit domain exposes:
 
 ```text
-OSI_OAUTH_ISSUER_URL
-OSI_OAUTH_INTROSPECTION_URL
-OSI_OAUTH_CLIENT_ID
-OSI_OAUTH_CLIENT_SECRET
-OSI_OAUTH_RESOURCE_URL
+https://<your-authkit-domain>/.well-known/oauth-authorization-server
+```
+
+Read the actual values from that document. For current WorkOS Connect these include an issuer and an introspection endpoint such as:
+
+```text
+https://<your-authkit-domain>/oauth2/introspection
+```
+
+Do not guess endpoint paths when configuring production; use the environment's discovery document.
+
+### 5. Create a Connect client secret
+
+Create the WorkOS client secret used by the MCP resource server for token introspection. Store the secret only in server-side deployment secrets.
+
+WorkOS token introspection authenticates the resource-server client by sending `client_id` and `client_secret` in the form body, so the production default is:
+
+```text
+OSI_OAUTH_INTROSPECTION_AUTH=body
+```
+
+The implementation still supports `basic` for a future standards-compatible provider.
+
+## Hosted MCP environment
+
+Inject only through server secrets:
+
+```text
+OSI_OAUTH_ISSUER_URL=https://<your-authkit-domain>
+OSI_OAUTH_INTROSPECTION_URL=https://<your-authkit-domain>/oauth2/introspection
+OSI_OAUTH_CLIENT_ID=<workos-connect-client-id>
+OSI_OAUTH_CLIENT_SECRET=<server-secret>
+OSI_OAUTH_RESOURCE_URL=https://mcp.aiworkstation.cn/mcp
 OSI_OAUTH_REQUIRED_SCOPES=osi:use
+OSI_OAUTH_INTROSPECTION_AUTH=body
 ```
 
-## User identity
+Never commit the client secret or a real access/refresh token.
 
-The authorization server's raw `sub` is not the internal entitlement key.
+## User identity and billing identity
 
-After verification:
+The authorization server's raw `sub` is not used directly as the AI Workstation entitlement key.
+
+After token verification:
 
 ```text
 (issuer, subject)
@@ -65,27 +124,54 @@ After verification:
    -> oidc_<opaque-id>
 ```
 
-This lets one user keep the same free-trial/subscription state across refreshed access tokens without exposing the raw identity to AI Workstation billing/model services.
+The same user therefore keeps the same free-trial/Pro state across refreshed OAuth tokens while the private AI Workstation backend never needs the raw WorkOS user subject, email or access token.
+
+## First-use user experience
+
+The intended public flow is:
+
+```text
+Install AI Open Source Intelligence once
+          ↓
+First live tool call
+          ↓
+MCP returns OAuth challenge + resource metadata
+          ↓
+Client discovers WorkOS
+          ↓
+Browser login / consent
+          ↓
+Return to ChatGPT / Codex
+          ↓
+Nine live Radar tools available
+          ↓
+First successful Premium deep research = free trial
+```
+
+Users must not manually paste bearer tokens or configure a database/API URL.
 
 ## Fresh-account acceptance
 
-From the real target host, with no existing session:
+From each real target host with no existing session:
 
 1. install/connect AI Open Source Intelligence;
 2. authorization UI opens automatically;
 3. complete login/consent;
 4. call `get_radar_overview`;
-5. call one ranking/collection/category browse;
-6. disconnect/reconnect and verify identity continuity;
-7. revoke/disable the user/token;
-8. verify the MCP no longer accepts it;
-9. verify a token for the wrong resource or missing `osi:use` scope is rejected.
+5. browse at least one ranking, collection and category;
+6. call `browse_radar_skills`;
+7. run one successful Premium deep research and verify `credit_source=free_trial`;
+8. disconnect/reconnect and verify identity continuity;
+9. revoke/disable the WorkOS session/token;
+10. verify MCP access fails;
+11. verify a token for the wrong Resource Indicator or missing `osi:use` is rejected.
 
 ## Do not ship if
 
 - users must manually paste bearer tokens;
-- access is silently anonymous when OAuth fails;
+- access silently becomes anonymous when OAuth fails;
 - the server trusts a client-supplied username/header as identity;
-- one user's OAuth identity can select another user's entitlement;
-- OAuth subject/token appears in tool results/logs/payment metadata;
-- revoked/expired/wrong-audience tokens are accepted.
+- one OAuth identity can select another user's entitlement;
+- OAuth subject/token/email appears in tool results, logs or payment metadata;
+- revoked, expired, wrong-audience or wrong-scope tokens are accepted;
+- `/.well-known/oauth-protected-resource` cannot be discovered by the target MCP host.
