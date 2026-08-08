@@ -74,6 +74,8 @@ jobs:
               "ROADMAP.md",
               "docs/QUICKSTART.md",
               "docs/FAQ.md",
+              "docs/alpha-tester-guide.md",
+              "docs/external-alpha-checklist.md",
               "skills/open-source-project-research/SKILL.md",
               "skills/open-source-project-comparison/SKILL.md",
               "skills/open-source-stack-planner/SKILL.md",
@@ -118,7 +120,7 @@ jobs:
                   "- License: `Apache-2.0`",
                   "- Live MCP bundled: `false`",
                   "",
-                  "The package contains the three reviewed Skills plus bilingual quickstart, license, terms, security, privacy and support documentation.",
+                  "The package contains the three reviewed Skills plus bilingual quickstart, alpha tester guidance, license, terms, security, privacy and support documentation.",
               ]
           ) + "\n"
           Path("dist/alpha/SUMMARY.md").write_text(summary, encoding="utf-8")
