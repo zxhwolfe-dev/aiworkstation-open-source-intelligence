@@ -90,11 +90,13 @@ OSI_OAUTH_INTROSPECTION_URL=<WorkOS discovery/introspection endpoint>
 OSI_OAUTH_CLIENT_ID=<WorkOS Connect client ID>
 OSI_OAUTH_CLIENT_SECRET=<WorkOS Connect client secret>
 OSI_OAUTH_RESOURCE_URL=https://mcp.aiworkstation.cn/mcp
-OSI_OAUTH_REQUIRED_SCOPES=osi:use
+OSI_OAUTH_REQUIRED_SCOPES=
 OSI_OAUTH_INTROSPECTION_AUTH=body
 
 OSI_BACKEND_SERVICE_TOKEN=<random shared service secret>
 ```
+
+For the documented WorkOS MCP flow, the exact Resource Indicator/audience is the authorization boundary; do not invent a mandatory `osi:use` scope. `OSI_OAUTH_REQUIRED_SCOPES` remains available only for another provider that actually issues and exposes configured resource-server scopes.
 
 Rate limits have safe defaults in the compose template and remain configurable.
 
@@ -160,14 +162,13 @@ Minimum production configuration:
 
 ```text
 Connect application: AI Open Source Intelligence
-scope: osi:use
 CIMD: enabled
 Resource Indicator: https://mcp.aiworkstation.cn/mcp
 ```
 
-Use the WorkOS authorization-server discovery document for issuer and introspection URLs; do not guess them.
+Use the WorkOS authorization-server discovery document for issuer and introspection URLs; do not guess them. WorkOS binds MCP access tokens to the requested Resource Indicator through the `aud` claim.
 
-Before broad launch, test revoked, expired, wrong-scope and wrong-resource tokens.
+Before broad launch, test revoked, expired and wrong-resource access tokens, plus direct refresh-token-as-bearer rejection. Test wrong-scope rejection only if a future provider explicitly enables resource-server scope enforcement.
 
 ## Paddle
 
@@ -251,7 +252,7 @@ Use a fresh WorkOS test user.
 15. exhaust credits and verify `quota_exhausted` with no duplicate checkout;
 16. hit standard and Premium rate-limit thresholds and verify model/backend work is blocked before cost is incurred;
 17. revoke the WorkOS session/token and verify access fails;
-18. verify expired/wrong-scope/wrong-resource tokens fail;
+18. verify expired/wrong-resource access tokens fail and a refresh token cannot be used directly as bearer; if provider-specific scopes are configured, verify a missing configured scope also fails;
 19. verify public Pricing/Privacy/Terms in zh/en;
 20. verify no raw OAuth token, raw OAuth subject, email, payment-card data, complete Premium prompt, or private backend token enters MCP result/telemetry artifacts.
 
