@@ -13,19 +13,27 @@ from .endpoint_policy import validate_mcp_endpoint
 from .hosted_auth import load_hosted_oauth_config
 from .hosted_backend import load_hosted_backend_config
 from .hosted_mcp_server import build_hosted_mcp_server
+from .hosted_rate_limit import load_hosted_rate_limit_config
 from .http_server import HttpServerConfig, validate_http_configuration
 
 
-def _validate_hosted_configuration() -> tuple[HttpServerConfig, str, str, str]:
+def _validate_hosted_configuration() -> tuple[HttpServerConfig, str, str, str, dict[str, int]]:
     if str(os.getenv("OSI_PROVIDER") or "").strip().lower() != "http":
         raise ValueError("public hosted MCP requires OSI_PROVIDER=http")
     http_config = validate_http_configuration()
     oauth = load_hosted_oauth_config()
     backend = load_hosted_backend_config()
+    rate_limit = load_hosted_rate_limit_config()
     resource_url = validate_mcp_endpoint(oauth.resource_url, allow_http_localhost=False)
     if not resource_url.startswith("https://") or not resource_url.endswith("/mcp"):
         raise ValueError("OSI_OAUTH_RESOURCE_URL must be the public HTTPS /mcp endpoint")
-    return http_config, oauth.issuer_url, resource_url, backend.base_url
+    limits = {
+        "per_minute": rate_limit.per_minute,
+        "per_hour": rate_limit.per_hour,
+        "premium_per_minute": rate_limit.premium_per_minute,
+        "max_subjects": rate_limit.max_subjects,
+    }
+    return http_config, oauth.issuer_url, resource_url, backend.base_url, limits
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        config, issuer_url, resource_url, backend_url = _validate_hosted_configuration()
+        config, issuer_url, resource_url, backend_url, rate_limits = _validate_hosted_configuration()
     except ValueError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
         return 2
@@ -60,6 +68,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "allowed_origins": list(config.allowed_origins),
         "cors_enabled": config.cors_enabled,
         "request_body_limit": config.request_body_limit,
+        "rate_limits": rate_limits,
         "stateless_http": True,
         "json_response": True,
     }
