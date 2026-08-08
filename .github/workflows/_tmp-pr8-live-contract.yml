@@ -1,0 +1,67 @@
+name: tmp-pr8-live-contract
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ROOT: tmp/pr8-live-contract
+      BASE_URL: https://aiworkstation.cn
+      PROJECT_ID: infiniflow/ragflow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[mcp]"
+      - name: Probe EN and ZH
+        run: |
+          set -euo pipefail
+          mkdir -p "$ROOT"
+          osi-probe --base-url "$BASE_URL" --locale en --project-id "$PROJECT_ID" --output "$ROOT/probe-en.json"
+          osi-probe --base-url "$BASE_URL" --locale zh --project-id "$PROJECT_ID" --output "$ROOT/probe-zh.json"
+      - name: Capture EN and ZH
+        run: |
+          set -euo pipefail
+          osi-capture-contracts --base-url "$BASE_URL" --locale en --project-id "$PROJECT_ID" --output-dir "$ROOT/contracts-en"
+          osi-capture-contracts --base-url "$BASE_URL" --locale zh --project-id "$PROJECT_ID" --output-dir "$ROOT/contracts-zh"
+      - name: Validate and replay
+        run: |
+          set -euo pipefail
+          for locale in en zh; do
+            osi-validate-contracts --directory "$ROOT/contracts-$locale"
+            osi-replay-contracts --directory "$ROOT/contracts-$locale" --output "$ROOT/replay-$locale.json"
+          done
+      - name: Privacy scan
+        run: |
+          set -euo pipefail
+          forbidden_key_pattern='"(authorization|cookie|cookies|api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|bearer[_-]?token|password|secret|email|client_id|request_id|query|prompt|raw|raw_content|source_hash|evidence_ids|claim_refs|publication_version|validated_version|assignment_version|prompt_version)"[[:space:]]*:'
+          if grep -RniE "$forbidden_key_pattern" "$ROOT/contracts-en" "$ROOT/contracts-zh"; then
+            echo "Forbidden or unsanitized JSON key found in captured artifacts." >&2
+            exit 1
+          fi
+      - name: Assert reports are green
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ["ROOT"])
+          for locale in ("en", "zh"):
+              probe = json.loads((root / f"probe-{locale}.json").read_text())
+              replay = json.loads((root / f"replay-{locale}.json").read_text())
+              if probe.get("ok") is not True:
+                  raise SystemExit(f"probe {locale} failed")
+              if replay.get("ok") is not True:
+                  raise SystemExit(f"replay {locale} failed")
+              print(json.dumps({"locale": locale, "probe_checks": len(probe.get("checks") or []), "replay_checks": len(replay.get("checks") or [])}))
+          PY
