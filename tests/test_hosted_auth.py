@@ -95,7 +95,7 @@ class HostedAuthTests(unittest.TestCase):
             "scope": "openid osi:use",
             "aud": ["https://mcp.example.com/mcp"],
             "exp": 4_000_000_000,
-            "token_type": "access_token",
+            "token_type": "Bearer",
         }
         with patch.object(verifier, "_introspect", return_value=payload):
             token = asyncio.run(verifier.verify_token("bearer-token"))
@@ -205,6 +205,7 @@ class HostedAuthTests(unittest.TestCase):
             {**base, "sub": ""},
             {**base, "client_id": ""},
             {**base, "token_type": "refresh_token"},
+            {**base, "token_type": "unexpected-token-type"},
         ]
         for payload in variants:
             with self.subTest(payload=payload), patch.object(verifier, "_introspect", return_value=payload):
