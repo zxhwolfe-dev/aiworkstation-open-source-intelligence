@@ -6,7 +6,7 @@ The first public Hosted MCP release uses **WorkOS AuthKit / Connect** as the OAu
 
 This is deliberately a managed authorization layer. AI Open Source Intelligence remains the MCP resource server and continues to own tool permissions, entitlement mapping, rate limits, billing policy and data access. WorkOS handles browser login/consent, OAuth client interoperability, token issuance, refresh/revocation and authorization-server discovery.
 
-The implementation remains standards-based and provider-neutral enough to migrate later, but production setup and examples now target WorkOS so operators have one tested path rather than an abstract menu of identity providers.
+The implementation remains standards-based and provider-neutral enough to migrate later, but production setup and examples target WorkOS so operators have one tested path rather than an abstract menu of identity providers.
 
 ## Why this fits the MCP product
 
@@ -17,11 +17,34 @@ WorkOS Connect exposes the OAuth endpoints required by current MCP clients, incl
 - refresh tokens;
 - Client ID Metadata Document (CIMD);
 - optional Dynamic Client Registration (DCR) for older MCP clients;
-- resource indicators for MCP audience binding;
+- **Resource Indicators** for exact MCP audience binding;
 - token introspection;
 - stable user `sub` claims.
 
 The official MCP Python SDK used by this repository automatically exposes RFC 9728 Protected Resource Metadata when `TokenVerifier` and `AuthSettings.resource_server_url` are configured. Clients can therefore discover WorkOS from the MCP server after the initial 401 instead of asking a user to paste a bearer token.
+
+## Authorization boundary
+
+For the initial WorkOS deployment the mandatory resource-server checks are:
+
+```text
+active == true
+issuer == configured WorkOS issuer
+subject is present
+client_id is present
+token is not expired
+resource/audience contains exactly the configured MCP resource
+```
+
+Production resource:
+
+```text
+https://mcp.aiworkstation.cn/mcp
+```
+
+WorkOS' public introspection contract guarantees audience/resource information but does not currently guarantee a `scope` field in every introspection response. Therefore **custom scope checking is optional by default**. `OSI_OAUTH_REQUIRED_SCOPES` remains available for a future/provider configuration that explicitly returns scopes through introspection.
+
+Do not weaken the exact resource/audience check; it is the primary WorkOS MCP access boundary.
 
 ## WorkOS dashboard setup
 
@@ -35,11 +58,12 @@ Use:
 
 ```text
 Application name: AI Open Source Intelligence
-Scope: osi:use
 PKCE: enabled
 ```
 
-Keep profile/email scopes only if the product actually needs them. The current MCP entitlement mapping requires only issuer + subject and deliberately does not send raw email/name into the billing/model backend.
+A custom `osi:use` scope is not required for the initial WorkOS integration because the exact MCP Resource Indicator is the mandatory boundary. If you add custom scopes later, only set `OSI_OAUTH_REQUIRED_SCOPES` after confirming the production introspection response actually returns them.
+
+Avoid requesting profile/email scopes unless the product actually needs them. The current MCP entitlement mapping requires only issuer + subject and deliberately does not send raw email/name into the billing/model backend.
 
 ### 2. Enable MCP client registration compatibility
 
@@ -76,7 +100,7 @@ The WorkOS AuthKit domain exposes:
 https://<your-authkit-domain>/.well-known/oauth-authorization-server
 ```
 
-Read the actual values from that document. For current WorkOS Connect these include an issuer and an introspection endpoint such as:
+Read the actual values from that document. Current WorkOS metadata includes issuer, authorization/token endpoints and an introspection endpoint such as:
 
 ```text
 https://<your-authkit-domain>/oauth2/introspection
@@ -94,7 +118,7 @@ WorkOS token introspection authenticates the resource-server client by sending `
 OSI_OAUTH_INTROSPECTION_AUTH=body
 ```
 
-The implementation still supports `basic` for a future standards-compatible provider.
+The implementation still supports `basic` for a future compatible provider.
 
 ## Hosted MCP environment
 
@@ -106,7 +130,7 @@ OSI_OAUTH_INTROSPECTION_URL=https://<your-authkit-domain>/oauth2/introspection
 OSI_OAUTH_CLIENT_ID=<workos-connect-client-id>
 OSI_OAUTH_CLIENT_SECRET=<server-secret>
 OSI_OAUTH_RESOURCE_URL=https://mcp.aiworkstation.cn/mcp
-OSI_OAUTH_REQUIRED_SCOPES=osi:use
+OSI_OAUTH_REQUIRED_SCOPES=
 OSI_OAUTH_INTROSPECTION_AUTH=body
 ```
 
@@ -164,7 +188,8 @@ From each real target host with no existing session:
 8. disconnect/reconnect and verify identity continuity;
 9. revoke/disable the WorkOS session/token;
 10. verify MCP access fails;
-11. verify a token for the wrong Resource Indicator or missing `osi:use` is rejected.
+11. verify a token for the wrong Resource Indicator is rejected;
+12. if an optional required scope is configured, verify a token missing that returned scope is rejected.
 
 ## Do not ship if
 
@@ -173,5 +198,6 @@ From each real target host with no existing session:
 - the server trusts a client-supplied username/header as identity;
 - one OAuth identity can select another user's entitlement;
 - OAuth subject/token/email appears in tool results, logs or payment metadata;
-- revoked, expired, wrong-audience or wrong-scope tokens are accepted;
+- revoked, expired or wrong-audience tokens are accepted;
+- a configured optional required scope is not enforced when WorkOS/provider returns scope data;
 - `/.well-known/oauth-protected-resource` cannot be discovered by the target MCP host.
