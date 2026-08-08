@@ -17,6 +17,32 @@ from aiworkstation_osi.http_provider import JsonResponse
 
 
 class EchoingSelectorTransport:
+    def __init__(self) -> None:
+        self._task_results: dict[str, dict[str, Any]] = {}
+        self._task_counter = 0
+
+    @staticmethod
+    def _selector_result(body: Mapping[str, Any] | None) -> dict[str, Any]:
+        request_text = str((body or {}).get("query") or "")
+        no_match = bool((body or {}).get("filters"))
+        return {
+            "snapshot_id": "snapshot-1",
+            "evidence_status": "available",
+            "items": [],
+            "no_match_reason": "No match." if no_match else "",
+            "requirement_token": "opaque-but-query-bearing-token",
+            "requirement_spec": {
+                "goal": request_text,
+                "search_queries": {"en": [request_text]},
+            },
+            "query_analysis": {
+                "goal": request_text,
+                "search_queries": {"en": [f"paraphrase of {request_text}"]},
+            },
+            "understanding": f"Paraphrased request about {request_text}",
+            "notice": f"Safe retained result can still exactly echo {request_text}",
+        }
+
     def request(
         self,
         method: str,
@@ -26,6 +52,8 @@ class EchoingSelectorTransport:
         body: Mapping[str, Any] | None = None,
         timeout: float = 30.0,
     ) -> JsonResponse:
+        method_upper = method.upper()
+        status = 200
         if path.endswith("/projects"):
             payload: dict[str, Any] = {
                 "snapshot_id": "snapshot-1",
@@ -46,30 +74,32 @@ class EchoingSelectorTransport:
                     "full_name": "infiniflow/ragflow",
                 },
             }
-        elif path.endswith("/selector"):
-            request_text = str((body or {}).get("query") or "")
-            no_match = bool((body or {}).get("filters"))
-            payload = {
-                "snapshot_id": "snapshot-1",
-                "evidence_status": "available",
-                "items": [],
-                "no_match_reason": "No match." if no_match else "",
-                "requirement_token": "opaque-but-query-bearing-token",
-                "requirement_spec": {
-                    "goal": request_text,
-                    "search_queries": {"en": [request_text]},
-                },
-                "query_analysis": {
-                    "goal": request_text,
-                    "search_queries": {"en": [f"paraphrase of {request_text}"]},
-                },
-                "understanding": f"Paraphrased request about {request_text}",
-                "notice": f"Safe retained result can still exactly echo {request_text}",
-            }
+        elif method_upper == "POST" and path.endswith("/selector/tasks"):
+            self._task_counter += 1
+            task_id = f"privacy-task-{self._task_counter}"
+            self._task_results[task_id] = self._selector_result(body)
+            status = 202
+            payload = {"ok": True, "task_id": task_id, "status": "queued"}
+        elif method_upper == "GET" and "/selector/tasks/" in path:
+            task_id = path.rsplit("/", 1)[-1]
+            result = self._task_results.get(task_id)
+            if result is None:
+                status = 404
+                payload = {}
+            else:
+                payload = {
+                    "task_id": task_id,
+                    "status": "completed",
+                    "error": "",
+                    "result": result,
+                }
+        elif method_upper == "DELETE" and "/selector/tasks/" in path:
+            status = 202
+            payload = {"ok": True, "status": "cancelling"}
         else:
             raise AssertionError((method, path, query, body, timeout))
         return JsonResponse(
-            status=200,
+            status=status,
             headers={"content-type": "application/json"},
             payload=payload,
             url="https://example.test" + path,
