@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 
 from .contracts import utc_now_iso
 from .errors import ToolError
-from .strict_http_provider import AIWorkstationHttpProvider
+from .full_radar_provider import FullRadarHttpProvider
 from .tools import ToolRegistry
 
 DEFAULT_EN_QUERY = "Find a self-hosted RAG project with Docker and a web UI."
@@ -136,7 +136,11 @@ def run_probe(
 ) -> dict[str, Any]:
     """Run three read-only calls and return a sanitized validation report."""
 
-    provider = AIWorkstationHttpProvider(base_url, timeout=timeout, hydrate_limit=3)
+    # Use the same full production provider as the MCP/CLI live surface. Besides
+    # browse tools, it owns the selector-task transport needed for long-running
+    # deterministic project search; using the strict base class directly would
+    # accidentally fall back to the deprecated synchronous selector request.
+    provider = FullRadarHttpProvider(base_url, timeout=timeout, hydrate_limit=3)
     registry = ToolRegistry(provider)
     facts = registry.invoke(
         "get_project_facts",
