@@ -76,6 +76,31 @@ class HostedAuthTests(unittest.TestCase):
         self.assertIn("osi:use", token.scopes)
         self.assertEqual(token.claims["iss"], "https://auth.example.com")
 
+    def test_workos_style_introspection_without_scope_accepts_exact_resource(self) -> None:
+        config = HostedOAuthConfig(
+            issuer_url="https://auth.example.com",
+            introspection_url="https://auth.example.com/oauth2/introspection",
+            client_id="mcp-client",
+            client_secret="private-secret",
+            resource_url="https://mcp.example.com/mcp",
+            required_scopes=(),
+        )
+        verifier = IntrospectionTokenVerifier(config)
+        payload = {
+            "active": True,
+            "client_id": "openai-plugin",
+            "sub": "user-1",
+            "iss": "https://auth.example.com",
+            "aud": "https://mcp.example.com/mcp",
+            "exp": 4_000_000_000,
+        }
+        with patch.object(verifier, "_introspect", return_value=payload):
+            token = asyncio.run(verifier.verify_token("bearer-token"))
+        self.assertIsNotNone(token)
+        assert token is not None
+        self.assertEqual(token.scopes, [])
+        self.assertEqual(token.resource, "https://mcp.example.com/mcp")
+
     def test_verifier_fails_closed_on_inactive_expired_wrong_scope_resource_or_issuer(self) -> None:
         verifier = IntrospectionTokenVerifier(self.config)
         base = {
@@ -100,13 +125,24 @@ class HostedAuthTests(unittest.TestCase):
             with self.subTest(payload=payload), patch.object(verifier, "_introspect", return_value=payload):
                 self.assertIsNone(asyncio.run(verifier.verify_token("token")))
 
-    def test_auth_settings_publish_resource_and_required_scope(self) -> None:
+    def test_auth_settings_publish_resource_and_optional_required_scope(self) -> None:
         settings = hosted_auth_settings(self.config)
         self.assertEqual(str(settings.issuer_url).rstrip("/"), "https://auth.example.com")
         self.assertEqual(str(settings.resource_server_url).rstrip("/"), "https://mcp.example.com/mcp")
         self.assertEqual(settings.required_scopes, ["osi:use"])
 
-    def test_env_config_defaults_to_workos_body_introspection(self) -> None:
+        no_scope = hosted_auth_settings(
+            HostedOAuthConfig(
+                issuer_url="https://auth.example.com",
+                introspection_url="https://auth.example.com/introspect",
+                client_id="client",
+                client_secret="secret",
+                resource_url="https://mcp.example.com/mcp",
+            )
+        )
+        self.assertEqual(no_scope.required_scopes, [])
+
+    def test_env_config_defaults_to_workos_body_introspection_and_no_scope_dependency(self) -> None:
         good = {
             "OSI_OAUTH_ISSUER_URL": "https://auth.example.com",
             "OSI_OAUTH_INTROSPECTION_URL": "https://auth.example.com/introspect",
@@ -116,8 +152,12 @@ class HostedAuthTests(unittest.TestCase):
         }
         with patch.dict("os.environ", good, clear=True):
             config = load_hosted_oauth_config()
-        self.assertEqual(config.required_scopes, ("osi:use",))
+        self.assertEqual(config.required_scopes, ())
         self.assertEqual(config.introspection_auth, "body")
+
+        with patch.dict("os.environ", {**good, "OSI_OAUTH_REQUIRED_SCOPES": "osi:use"}, clear=True):
+            scoped = load_hosted_oauth_config()
+        self.assertEqual(scoped.required_scopes, ("osi:use",))
 
     def test_env_config_rejects_non_https_urls_or_missing_credentials(self) -> None:
         good = {
