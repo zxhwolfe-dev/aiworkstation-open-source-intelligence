@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
 import json
 import os
 import subprocess
@@ -119,9 +120,12 @@ def _interactive_oauth_provider(url: str) -> Any:
         print(authorization_url, flush=True)
 
     async def callback_handler() -> Any:
+        # The callback URL contains a short-lived authorization code. Hide the
+        # pasted value from terminal echo even though it is never written to
+        # evidence or persistent OAuth storage.
         redirected = await asyncio.to_thread(
-            input,
-            "Paste the final callback URL from the browser address bar: ",
+            getpass.getpass,
+            "Paste the final callback URL from the browser address bar (hidden): ",
         )
         params = parse_qs(urlparse(str(redirected).strip()).query)
         if not params.get("code"):
