@@ -16,12 +16,15 @@ from .contracts import utc_now_iso
 from .fixture_validation import validate_contract_directory
 from .http_provider import JsonResponse, PUBLIC_API_PREFIX
 from .probe import evaluate_probe
+from .selector_task_transport import SelectorTaskJsonTransport
 from .strict_http_provider import AIWorkstationHttpProvider
 from .tools import ToolRegistry
 
 
 class FixtureReplayTransport:
     """Serve a validated capture directory through the JsonTransport protocol."""
+
+    TASK_ID = "fixture-selector-task"
 
     def __init__(self, directory: Path, *, selector_scenario: str = "formal") -> None:
         self.directory = Path(directory)
@@ -47,6 +50,11 @@ class FixtureReplayTransport:
             raise ValueError(f"{filename} must contain a JSON object")
         return payload
 
+    def _selector_fixture(self) -> Mapping[str, Any]:
+        return self._fixtures[
+            "selector-formal" if self.selector_scenario == "formal" else "selector-no-match"
+        ]
+
     def request(
         self,
         method: str,
@@ -56,35 +64,81 @@ class FixtureReplayTransport:
         body: Mapping[str, Any] | None = None,
         timeout: float = 30.0,
     ) -> JsonResponse:
+        method_upper = method.upper()
         self.calls.append(
             {
-                "method": method.upper(),
+                "method": method_upper,
                 "path": path,
                 "query_keys": sorted((query or {}).keys()),
                 "body_keys": sorted((body or {}).keys()),
                 "timeout": timeout,
             }
         )
-        if method.upper() == "GET" and path == f"{PUBLIC_API_PREFIX}/projects":
+        fixture: Mapping[str, Any] | None = None
+        status = 200
+        headers: Mapping[str, Any] = {"content-type": "application/json"}
+        observed_at = utc_now_iso()
+        scenario = "task"
+
+        if method_upper == "GET" and path == f"{PUBLIC_API_PREFIX}/projects":
             fixture = self._fixtures["project-list"]
-        elif method.upper() == "GET" and path.startswith(f"{PUBLIC_API_PREFIX}/projects/"):
+        elif method_upper == "GET" and path.startswith(f"{PUBLIC_API_PREFIX}/projects/"):
             fixture = self._fixtures["project-detail"]
-        elif method.upper() == "POST" and path == f"{PUBLIC_API_PREFIX}/selector":
-            fixture = self._fixtures[
-                "selector-formal" if self.selector_scenario == "formal" else "selector-no-match"
-            ]
+        elif method_upper == "POST" and path == f"{PUBLIC_API_PREFIX}/selector/tasks":
+            status = 202
+            payload: Mapping[str, Any] = {
+                "ok": True,
+                "task_id": self.TASK_ID,
+                "status": "queued",
+            }
+            return JsonResponse(
+                status=status,
+                headers={"content-type": "application/json"},
+                payload=payload,
+                url=f"fixture://{self.directory.name}/selector/tasks",
+                observed_at=observed_at,
+            )
+        elif method_upper == "GET" and path == f"{PUBLIC_API_PREFIX}/selector/tasks/{self.TASK_ID}":
+            selector_fixture = self._selector_fixture()
+            result = selector_fixture.get("payload")
+            if not isinstance(result, Mapping):
+                raise ValueError("selector fixture is missing payload")
+            return JsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                payload={
+                    "task_id": self.TASK_ID,
+                    "status": "completed",
+                    "error": "",
+                    "result": dict(result),
+                },
+                url=f"fixture://{self.directory.name}/selector/tasks/{self.TASK_ID}",
+                observed_at=str(selector_fixture.get("observed_at") or observed_at),
+            )
+        elif method_upper == "DELETE" and path == f"{PUBLIC_API_PREFIX}/selector/tasks/{self.TASK_ID}":
+            return JsonResponse(
+                status=202,
+                headers={"content-type": "application/json"},
+                payload={"ok": True, "status": "cancelling"},
+                url=f"fixture://{self.directory.name}/selector/tasks/{self.TASK_ID}",
+                observed_at=observed_at,
+            )
         else:
             raise ValueError(f"fixture transport has no response for {method} {path}")
-        payload = fixture.get("payload")
-        headers = fixture.get("headers")
-        if not isinstance(payload, Mapping) or not isinstance(headers, Mapping):
+
+        payload = fixture.get("payload") if fixture else None
+        fixture_headers = fixture.get("headers") if fixture else None
+        if not isinstance(payload, Mapping) or not isinstance(fixture_headers, Mapping):
             raise ValueError("fixture response is missing payload or headers")
+        headers = fixture_headers
+        observed_at = str(fixture.get("observed_at") or utc_now_iso())
+        scenario = str(fixture.get("scenario") or "fixture")
         return JsonResponse(
             status=int(fixture.get("status") or 0),
             headers={str(key).lower(): str(value) for key, value in headers.items()},
             payload=dict(payload),
-            url=f"fixture://{self.directory.name}/{fixture.get('scenario')}",
-            observed_at=str(fixture.get("observed_at") or utc_now_iso()),
+            url=f"fixture://{self.directory.name}/{scenario}",
+            observed_at=observed_at,
         )
 
 
@@ -110,7 +164,7 @@ def replay_contract_directory(directory: Path) -> dict[str, Any]:
     formal_registry = ToolRegistry(
         AIWorkstationHttpProvider(
             "https://fixture.invalid",
-            transport=formal_transport,
+            transport=SelectorTaskJsonTransport(formal_transport, poll_interval=0),
             hydrate_limit=3,
         )
     )
@@ -138,7 +192,7 @@ def replay_contract_directory(directory: Path) -> dict[str, Any]:
     no_match_registry = ToolRegistry(
         AIWorkstationHttpProvider(
             "https://fixture.invalid",
-            transport=no_match_transport,
+            transport=SelectorTaskJsonTransport(no_match_transport, poll_interval=0),
             hydrate_limit=3,
         )
     )
