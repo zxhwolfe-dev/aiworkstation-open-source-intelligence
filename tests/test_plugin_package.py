@@ -87,10 +87,11 @@ class PluginPackageTests(unittest.TestCase):
         self.assertIn("Read", interface["capabilities"])
         self.assertNotIn("Write", interface["capabilities"])
 
-    def test_manifest_claims_public_legal_metadata_but_not_unready_mcp_binding(self) -> None:
+    def test_manifest_uses_hosted_service_legal_pages_but_not_fake_mcp_binding(self) -> None:
         interface = self.manifest["interface"]
-        self.assertIn("github.com", interface["privacyPolicyURL"])
-        self.assertIn("github.com", interface["termsOfServiceURL"])
+        self.assertEqual(interface["privacyPolicyURL"], "https://useaistation.com/githubai/privacy/")
+        self.assertEqual(interface["termsOfServiceURL"], "https://useaistation.com/githubai/terms/")
+        self.assertEqual(interface["websiteURL"], "https://useaistation.com/githubai/")
         self.assertIn("github.com", interface["supportURL"])
         self.assertNotIn("mcpServers", self.manifest)
         self.assertNotIn("apps", self.manifest)
