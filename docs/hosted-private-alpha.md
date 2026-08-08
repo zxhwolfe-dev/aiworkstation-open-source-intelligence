@@ -24,9 +24,18 @@ All of these must refer to that exact Git SHA:
 - EN/ZH live-validation evidence;
 - Codex acceptance report + ledger;
 - human review of that candidate's sanitized live artifact;
+- deployed Hosted MCP `serverInfo.version` identity;
 - Hosted remote OAuth/MCP evidence.
 
 Do not reuse `d338faf0...` External Alpha artifacts to certify a later Hosted commit. They remain valid for the frozen External Alpha build only.
+
+The deployment must receive the exact 40-character candidate SHA through:
+
+```text
+OSI_RELEASE_COMMIT=<exact-hosted-candidate-sha>
+```
+
+The Hosted MCP exposes this non-secret identity in `serverInfo.version` as `0.1.0+git.<sha>`. Remote evidence rejects a service whose deployed SHA does not match the validator checkout, closing the gap where new local code could otherwise test an old remote image.
 
 ## 1. Candidate code gates
 
@@ -152,11 +161,12 @@ WorkOS introspection authenticates the application with `client_id` and `client_
 
 ## 5. Server-only environment
 
-Create the production secret environment outside source control. Do not put these values in GitHub issues, PRs, logs, screenshots, or shell history.
+Create the production secret environment outside source control. Do not put credential values in GitHub issues, PRs, logs, screenshots, or shell history.
 
 Required shape:
 
 ```text
+OSI_RELEASE_COMMIT=<exact-40-character-hosted-candidate-sha>
 OSI_OAUTH_ISSUER_URL=https://<authkit-domain>
 OSI_OAUTH_INTROSPECTION_URL=https://<authkit-domain>/oauth2/introspection
 OSI_OAUTH_CLIENT_ID=<workos-connect-application-client-id>
@@ -165,6 +175,12 @@ OSI_OAUTH_RESOURCE_URL=https://mcp.aiworkstation.cn/mcp
 OSI_OAUTH_REQUIRED_SCOPES=
 OSI_OAUTH_INTROSPECTION_AUTH=body
 OSI_BACKEND_SERVICE_TOKEN=<server-only-aiworkstation-service-token>
+```
+
+`OSI_RELEASE_COMMIT` is intentionally non-secret, but it must still be exact. Generate it from the candidate checkout rather than typing it from memory:
+
+```bash
+printf 'OSI_RELEASE_COMMIT=%s\n' "$(git rev-parse HEAD)"
 ```
 
 Prefer a root-readable environment file or platform secret store. Set restrictive filesystem permissions if a file is used.
@@ -195,12 +211,15 @@ osi-mcp-hosted --check-config
 The output is intentionally non-secret. Confirm:
 
 - mode = `hosted-oauth`;
+- `release_commit` = exact `git rev-parse HEAD` of this candidate;
 - provider = `http`;
 - OAuth resource = exact canonical MCP URL;
 - backend origin = `https://aiworkstation.cn`;
 - expected allowed hosts;
 - expected rate limits;
 - no secret/token is rendered.
+
+Fail the deployment if `release_commit` is absent, shortened, or belongs to another checkout.
 
 ## 7. Start the Hosted MCP
 
@@ -235,7 +254,8 @@ The Hosted validator checks that it receives:
 - HTTP 401;
 - Bearer `WWW-Authenticate`;
 - `resource_metadata` on the same MCP origin;
-- protected-resource metadata with exact `resource`;
+- protected-resource metadata HTTP 200 with exact `resource`;
+- `bearer_methods_supported` containing `header`;
 - the expected WorkOS issuer in `authorization_servers`.
 
 Manually useful metadata check:
@@ -276,13 +296,17 @@ The command will print the authorization URL. Complete sign-in in a browser and 
 Required result:
 
 - `ok=true`;
-- report commit = exact Hosted candidate SHA;
+- report `commit` = exact local Hosted candidate SHA;
+- report `deployment_commit` = the same exact SHA, extracted from remote `serverInfo.version`;
+- `deployment-identity` check = passed;
 - OAuth boundary = passed;
 - authenticated MCP connection = passed;
 - exactly 10 tools discovered: nine standard + `deep_research_ai_projects`;
 - standard/Premium annotations correct;
 - standard `search_ai_projects` call succeeds;
 - no Premium invocation occurs.
+
+A mismatch between local `commit` and remote `deployment_commit` means the server is running a different build and **must not** be accepted as Hosted evidence.
 
 ### Controlled bearer diagnostic
 
@@ -298,12 +322,12 @@ osi-remote-smoke \
   --profile hosted \
   --auth-mode bearer-env \
   --expected-oauth-issuer https://<authkit-domain> \
-  --output tmp/hosted-remote.json
+  --output tmp/hosted-remote-diagnostic.json
 
 unset OSI_HOSTED_MCP_BEARER_TOKEN
 ```
 
-Treat a shell/session containing that token as sensitive until cleared.
+Treat a shell/session containing that token as sensitive until cleared. `bearer-env` is troubleshooting evidence only and cannot make `osi-hosted-evidence-readiness` pass; final Hosted Private Alpha evidence requires `auth.mode=oauth`.
 
 ## 10. Negative OAuth tests
 
@@ -320,11 +344,11 @@ Before Hosted Private Alpha is signed off, verify the deployed resource server f
 
 Do not log the raw rejected tokens.
 
-The ordinary Hosted remote evidence proves the public 401/metadata boundary and successful authenticated route. The negative matrix is an operator/security validation record and should be completed before expanding beyond a small invited cohort.
+The ordinary Hosted remote evidence proves the public 401/metadata boundary, exact deployed build identity, real OAuth flow, and successful authenticated route. The negative matrix is an operator/security validation record and should be completed before expanding beyond a small invited cohort.
 
 ## 11. Final evidence-first Hosted readiness
 
-Once **fresh Hosted-candidate** CI/live/Codex evidence exists, that candidate's live artifact has been reviewed, and `tmp/hosted-remote.json` is green:
+Once **fresh Hosted-candidate** CI/live/Codex evidence exists, that candidate's live artifact has been reviewed, the exact candidate is deployed through `OSI_RELEASE_COMMIT`, and `tmp/hosted-remote.json` is green:
 
 ```bash
 osi-hosted-evidence-readiness \
@@ -358,8 +382,9 @@ Before inviting testers, record a rollback owner and make rollback mechanical:
 1. retain the prior image/commit identifier;
 2. keep Nginx config versioned and validate with `nginx -t` before reload;
 3. keep server secrets outside image/source control;
-4. if authentication or MCP behavior regresses, remove the invited connection, stop the Hosted container, or route the gateway to a known-good image;
-5. do not relax OAuth validation as a recovery shortcut.
+4. set `OSI_RELEASE_COMMIT` to the SHA actually contained in the rollback image—never leave the newer SHA attached to an older image;
+5. if authentication or MCP behavior regresses, remove the invited connection, stop the Hosted container, or route the gateway to a known-good image;
+6. do not relax OAuth validation as a recovery shortcut.
 
 ## 13. Explicit stop line
 
