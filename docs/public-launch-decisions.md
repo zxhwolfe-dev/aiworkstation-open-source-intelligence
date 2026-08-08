@@ -149,38 +149,46 @@ Never commit placeholder technical IDs.
 
 ## Hosted Private Alpha evidence sequence
 
-The private-alpha gate is intentionally evidence-first rather than based on operator booleans:
+The private-alpha gate is intentionally evidence-first rather than based on operator booleans. Because Hosted development creates a new candidate SHA, the frozen `d338faf0...` External Alpha artifacts remain historical proof for that build but do not certify the newer Hosted tree.
 
-1. keep the already-reviewed External Alpha CI/live/Codex/human evidence for the Hosted candidate;
-2. deploy the candidate behind the canonical HTTPS gateway;
-3. configure WorkOS AuthKit/Connect and the exact MCP Resource Indicator;
-4. run `osi-remote-smoke --profile hosted --auth-mode oauth` from the same candidate checkout;
-5. require a Bearer 401 challenge + protected-resource metadata before authenticated access;
-6. discover exactly nine standard tools plus the Premium tool;
-7. invoke one standard read-only search over authenticated MCP;
-8. feed that sanitized report into `osi-hosted-evidence-readiness`;
-9. require `hosted_private_alpha_ready=true` before inviting hosted testers.
+For the **exact Hosted candidate SHA**:
 
-This does not invoke the Premium model and therefore does not consume a trial/credit during ordinary Hosted Private Alpha connectivity validation.
+1. obtain fresh Python 3.10/3.12 CI evidence;
+2. obtain fresh EN/ZH live-validation evidence;
+3. run a fresh nine-standard-tool Codex acceptance and verify its ledger;
+4. have a named human review that candidate's sanitized live artifact;
+5. deploy that same candidate behind the canonical HTTPS gateway;
+6. configure WorkOS AuthKit/Connect and the exact MCP Resource Indicator;
+7. run `osi-remote-smoke --profile hosted --auth-mode oauth` from the same candidate checkout;
+8. require a Bearer 401 challenge + protected-resource metadata before authenticated access;
+9. discover exactly nine standard tools plus the Premium tool;
+10. invoke one standard read-only search over authenticated MCP;
+11. feed all candidate-bound artifacts into `osi-hosted-evidence-readiness`;
+12. require `hosted_private_alpha_ready=true` before inviting hosted testers.
+
+This connectivity smoke does not invoke the Premium model and therefore does not consume a trial/credit during ordinary Hosted Private Alpha validation.
+
+See [`hosted-private-alpha.md`](hosted-private-alpha.md) for the deployment and verification runbook.
 
 ## Required public launch sequence
 
 1. current unit/CI suite green;
 2. evidence-critical EN/ZH live validation green;
 3. full Radar EN/ZH browse validation green;
-4. deploy HTTPS Hosted MCP behind protected gateway;
-5. configure real WorkOS OAuth provider;
-6. remote OAuth discovery + authenticated 9-standard + 1-Premium tool discovery + standard-tool smoke;
-7. obtain evidence-first Hosted Private Alpha readiness;
-8. Paddle sandbox end-to-end;
-9. Premium first-free / upgrade / paid / refund smoke;
-10. revocation/rate-limit/secret/privacy review;
-11. publish final pricing/legal/retention pages;
-12. register final hosted MCP connection;
-13. update Plugin with real connection identity;
-14. fresh-install combined Plugin acceptance;
-15. platform submission/review;
-16. staged public rollout.
+4. obtain evidence-complete External Alpha quality gates for the exact Hosted candidate;
+5. deploy HTTPS Hosted MCP behind protected gateway;
+6. configure real WorkOS OAuth provider;
+7. remote OAuth discovery + authenticated 9-standard + 1-Premium tool discovery + standard-tool smoke;
+8. obtain evidence-first Hosted Private Alpha readiness;
+9. Paddle sandbox end-to-end;
+10. Premium first-free / upgrade / paid / refund smoke;
+11. revocation/rate-limit/secret/privacy review;
+12. publish final pricing/legal/retention pages;
+13. register final hosted MCP connection;
+14. update Plugin with real connection identity;
+15. fresh-install combined Plugin acceptance;
+16. platform submission/review;
+17. staged public rollout.
 
 ## Things that should not block early hosted sandbox testing
 
