@@ -38,7 +38,11 @@ class HostedOAuthConfig:
     client_id: str
     client_secret: str
     resource_url: str
-    required_scopes: tuple[str, ...] = ("osi:use",)
+    # WorkOS AuthKit MCP access is bound to the configured Resource Indicator
+    # through the access-token audience. Its current introspection response does
+    # not expose custom resource scopes, so scope enforcement is opt-in for
+    # providers that actually issue and introspect them.
+    required_scopes: tuple[str, ...] = ()
     # WorkOS AuthKit/Connect is the initial production authorization provider
     # and its documented introspection flow authenticates with client credentials
     # in the POST body. ``basic`` remains available for compatible providers.
@@ -82,7 +86,7 @@ def load_hosted_oauth_config() -> HostedOAuthConfig:
     if not client_secret or len(client_secret) > 4096:
         raise ValueError("OSI_OAUTH_CLIENT_SECRET is required")
     required = tuple(
-        part for part in str(os.getenv("OSI_OAUTH_REQUIRED_SCOPES") or "osi:use").split() if part
+        part for part in str(os.getenv("OSI_OAUTH_REQUIRED_SCOPES") or "").split() if part
     )
     auth_style = str(os.getenv("OSI_OAUTH_INTROSPECTION_AUTH") or "body").strip().lower()
     if auth_style not in {"basic", "body"}:
@@ -127,7 +131,10 @@ class IntrospectionTokenVerifier(TokenVerifier):
         raw_token = str(token or "").strip()
         if not raw_token or len(raw_token) > 16_384:
             return None
-        fields: dict[str, str] = {"token": raw_token}
+        fields: dict[str, str] = {
+            "token": raw_token,
+            "token_type_hint": "access_token",
+        }
         headers = {
             "accept": "application/json",
             "content-type": "application/x-www-form-urlencoded",
@@ -163,11 +170,14 @@ class IntrospectionTokenVerifier(TokenVerifier):
     def _validate(self, token: str, payload: Mapping[str, Any]) -> AccessToken | None:
         if payload.get("active") is not True:
             return None
+        token_type = str(payload.get("token_type") or "").strip().lower()
+        if token_type and token_type != "access_token":
+            return None
         subject = str(payload.get("sub") or "").strip()
         client_id = str(payload.get("client_id") or "").strip()
         if not subject or not client_id:
             return None
-        issuer = str(payload.get("iss") or self.config.issuer_url).strip().rstrip("/")
+        issuer = str(payload.get("iss") or "").strip().rstrip("/")
         if issuer != self.config.issuer_url:
             return None
         expires_at: int | None = None
@@ -179,7 +189,9 @@ class IntrospectionTokenVerifier(TokenVerifier):
             if expires_at <= int(time.time()):
                 return None
         granted_scopes = _scopes(payload.get("scope") or payload.get("scopes"))
-        if any(scope not in granted_scopes for scope in self.config.required_scopes):
+        if self.config.required_scopes and any(
+            scope not in granted_scopes for scope in self.config.required_scopes
+        ):
             return None
         audience = payload.get("aud") or payload.get("resource")
         if isinstance(audience, str):
