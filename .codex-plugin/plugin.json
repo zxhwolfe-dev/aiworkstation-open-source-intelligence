@@ -1,13 +1,13 @@
 {
   "name": "aiworkstation-open-source-intelligence",
   "version": "0.1.0",
-  "description": "Evidence-backed research, comparison, license verification, and stack planning for open-source AI projects; live project evidence requires the separately configured read-only MCP server.",
+  "description": "Evidence-backed research, comparison, license verification, and stack planning for open-source AI projects; the final hosted product combines these Skills with AI Workstation Radar MCP tools.",
   "license": "Apache-2.0",
   "author": {
     "name": "AI Workstation",
     "url": "https://aiworkstation.cn"
   },
-  "homepage": "https://aiworkstation.cn/githubai/",
+  "homepage": "https://useaistation.com/githubai/",
   "repository": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence",
   "keywords": [
     "open-source-ai",
@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "AI Open Source Intelligence",
     "shortDescription": "Evidence-backed open-source AI research and selection",
-    "longDescription": "Research and evaluate open-source AI projects using evidence-backed workflows. Find projects from deployment and technical requirements, structure named-project verification, compare alternatives, and design candidate AI stacks while keeping verified facts, recommendations, unknowns, and risks explicitly separated. Live project evidence requires the separately configured read-only MCP server.",
+    "longDescription": "Research and evaluate open-source AI projects using evidence-backed workflows. Find projects from deployment and technical requirements, browse Radar rankings, collections, categories and Skills, verify project/license evidence, compare alternatives, and design candidate AI stacks while keeping verified facts, recommendations, unknowns, and risks explicitly separated. The final hosted product uses the separately registered AI Workstation Radar MCP connection; the package does not invent a connection ID before platform registration.",
     "developerName": "AI Workstation",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,15 +30,15 @@
       "Research",
       "Compare"
     ],
-    "websiteURL": "https://aiworkstation.cn/githubai/",
+    "websiteURL": "https://useaistation.com/githubai/",
     "supportURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/SUPPORT.md",
-    "privacyPolicyURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/PRIVACY.md",
-    "termsOfServiceURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/TERMS.md",
+    "privacyPolicyURL": "https://useaistation.com/githubai/privacy/",
+    "termsOfServiceURL": "https://useaistation.com/githubai/terms/",
     "defaultPrompt": [
+      "Show me the current AI Open Source Radar and help me browse its rankings, collections, categories, use cases, and Skills.",
       "Find a self-hosted RAG platform with Docker and a Web UI. Keep hard requirements separate from preferences.",
       "Compare Dify and RAGFlow for an enterprise knowledge-base use case, clearly separating verified facts from assumptions and unknowns.",
       "Check what evidence I need before relying on an open-source AI project's license for commercial adoption.",
-      "Find alternatives to an open-source AI project while preserving my deployment constraints.",
       "Design a self-hosted open-source AI stack for internal document question answering and mark every unverified compatibility or license condition."
     ],
     "brandColor": "#24292F"
