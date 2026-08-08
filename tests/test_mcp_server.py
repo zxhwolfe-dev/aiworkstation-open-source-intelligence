@@ -11,16 +11,19 @@ from aiworkstation_osi.mcp_server import SERVER_INSTRUCTIONS, build_mcp_server
 
 class MCPServerTests(unittest.TestCase):
     def test_server_instructions_lead_with_safety_and_workflow_boundaries(self) -> None:
-        first_window = SERVER_INSTRUCTIONS[:512]
+        first_window = SERVER_INSTRUCTIONS[:900]
         self.assertIn("read-only", first_window)
         self.assertIn("verified_facts", first_window)
         self.assertIn("Never execute", first_window)
+        self.assertIn("get_radar_overview", first_window)
+        self.assertIn("browse_radar_projects", first_window)
+        self.assertIn("browse_radar_skills", first_window)
         self.assertIn("search_ai_projects", first_window)
         self.assertIn("get_project_facts", first_window)
         self.assertIn("get_license_evidence", first_window)
         self.assertIn("not legal advice", SERVER_INSTRUCTIONS)
 
-    def test_in_memory_client_lists_annotated_read_only_tools_and_calls_one(self) -> None:
+    def test_in_memory_client_lists_annotated_read_only_tools_and_calls_browse(self) -> None:
         async def run() -> None:
             server = build_mcp_server(create_default_registry())
             async with Client(server) as client:
@@ -35,6 +38,9 @@ class MCPServerTests(unittest.TestCase):
                         "compare_ai_projects",
                         "find_alternatives",
                         "compose_ai_stack",
+                        "get_radar_overview",
+                        "browse_radar_projects",
+                        "browse_radar_skills",
                     },
                 )
                 for tool in listed.tools:
@@ -48,17 +54,13 @@ class MCPServerTests(unittest.TestCase):
                         self.assertIs(tool.annotations.open_world_hint, True)
 
                 result = await client.call_tool(
-                    "search_ai_projects",
-                    {
-                        "query": "self-hosted RAG",
-                        "constraints": {"docker": "required"},
-                        "locale": "en",
-                    },
+                    "browse_radar_projects",
+                    {"ranking": "daily", "limit": 2, "locale": "en"},
                 )
                 self.assertFalse(result.is_error)
                 self.assertIsNotNone(result.structured_content)
                 assert result.structured_content is not None
-                self.assertEqual(result.structured_content["tool"], "search_ai_projects")
+                self.assertEqual(result.structured_content["tool"], "browse_radar_projects")
                 self.assertEqual(result.structured_content["schema_version"], "osi.tool-result.v1")
 
         asyncio.run(run())
