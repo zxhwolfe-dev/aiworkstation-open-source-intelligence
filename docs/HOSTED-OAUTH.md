@@ -9,15 +9,15 @@ The public hosted product uses standard OAuth resource-server semantics. Users s
 ```text
 MCP host
   |
-  | OAuth authorization
+  | OAuth authorization with Resource Indicator
   v
 Authorization server
   |
-  | access token scoped to public MCP resource
+  | access token bound to the public MCP resource audience
   v
 https://<public-mcp-host>/mcp
   |
-  | token introspection
+  | access-token introspection
   v
 Authorization server
 ```
@@ -25,32 +25,37 @@ Authorization server
 The MCP server validates:
 
 - token is active;
+- token is an access token when the provider reports a token type;
 - issuer equals the configured issuer;
 - token has a subject and client ID;
-- expiration has not passed;
-- required scopes are present;
-- audience/resource includes the exact public MCP resource URL.
+- expiration has not passed when an expiration is present;
+- audience/resource includes the exact public MCP resource URL;
+- configured required scopes are present only when scope enforcement is explicitly enabled for a provider that actually exposes them.
+
+For the initial WorkOS AuthKit/Connect deployment, the primary authorization boundary is the exact MCP **Resource Indicator/audience**. WorkOS's current authorization metadata advertises standard OIDC/offline scopes and its current introspection response documents `active`, `client_id`, `iss`, `aud`, `sub`, expiry and `token_type`, but not custom MCP resource scopes. Do not invent a mandatory `osi:use` scope for that provider contract.
 
 ## Environment
 
-The hosted candidate expects:
+The hosted WorkOS candidate expects:
 
 ```text
 OSI_PROVIDER=http
 AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn
 
-OSI_OAUTH_ISSUER_URL=https://<authorization-server>
-OSI_OAUTH_INTROSPECTION_URL=https://<authorization-server>/<introspection-path>
-OSI_OAUTH_CLIENT_ID=<resource-server-client-id>
+OSI_OAUTH_ISSUER_URL=https://<authkit-domain>
+OSI_OAUTH_INTROSPECTION_URL=https://<authkit-domain>/oauth2/introspection
+OSI_OAUTH_CLIENT_ID=<workos-application-client-id>
 OSI_OAUTH_CLIENT_SECRET=<server-only-secret>
 OSI_OAUTH_RESOURCE_URL=https://<public-mcp-host>/mcp
-OSI_OAUTH_REQUIRED_SCOPES=osi:use
-OSI_OAUTH_INTROSPECTION_AUTH=basic
+OSI_OAUTH_REQUIRED_SCOPES=
+OSI_OAUTH_INTROSPECTION_AUTH=body
 OSI_OAUTH_TIMEOUT_SECONDS=10
 
 OSI_BACKEND_BASE_URL=https://aiworkstation.cn
 OSI_BACKEND_SERVICE_TOKEN=<server-only-backend-service-secret>
 ```
+
+`OSI_OAUTH_REQUIRED_SCOPES` is optional. Leave it empty for the documented WorkOS MCP flow. A different standards-compatible provider may set one or more space-separated scopes only when those scopes are actually issued and returned by its token verifier/introspection contract.
 
 Existing public-bind protections are also mandatory for a non-loopback hosted deployment:
 
@@ -65,6 +70,32 @@ Validate without opening a socket:
 ```bash
 osi-mcp-hosted --check-config
 ```
+
+## WorkOS Resource Indicator
+
+Configure the exact public MCP endpoint in WorkOS Connect as a valid Resource Indicator, for example:
+
+```text
+https://mcp.aiworkstation.cn/mcp
+```
+
+MCP clients send this as the OAuth `resource` parameter. WorkOS issues access tokens with an `aud` claim matching the requested resource, and this server requires that exact value. A token issued for another resource is rejected even when it belongs to the same WorkOS environment and user.
+
+## Token introspection
+
+The WorkOS introspection endpoint accepts both access and refresh tokens. The hosted MCP therefore sends:
+
+```text
+token_type_hint=access_token
+```
+
+and fails closed when an introspection result explicitly says:
+
+```text
+token_type=refresh_token
+```
+
+The bearer credential must also include the configured issuer, subject/client identity, and matching MCP audience/resource. Missing issuer is not inferred from local configuration.
 
 ## Identity privacy
 
@@ -122,19 +153,19 @@ The implementation is intentionally bounded and in-process for the initial singl
 
 ## Authorization-provider selection
 
-The code uses a generic RFC 7662 introspection verifier rather than importing a vendor SDK into tool logic. A production provider must support the MCP/OAuth client flow expected by the target host and expose standards-compliant authorization-server/resource metadata.
+The code uses a generic RFC 7662 introspection verifier rather than importing a vendor SDK into tool logic. WorkOS AuthKit/Connect is the initial production target; another provider can be substituted if it exposes the required MCP/OAuth metadata and verification contract.
 
 Before public launch verify, with the actual target platform:
 
 - authorization-server discovery;
 - protected resource metadata;
-- client registration requirements;
+- client registration/CIMD requirements;
 - authorization flow from a fresh user;
-- token audience/resource value;
-- scope delivery;
-- refresh/revocation behavior;
-- logout/revocation and disabled-user behavior.
+- exact token audience/resource value;
+- optional scope delivery only when scope enforcement is deliberately configured;
+- refresh/reconnect behavior;
+- revocation and disabled-user behavior.
 
 ## Fail-closed rules
 
-Public Hosted MCP must not start as an unauthenticated fallback when OAuth configuration is missing. Invalid issuer, scope, audience, expiration or introspection failures return authentication failure rather than downgrading to anonymous access.
+Public Hosted MCP must not start as an unauthenticated fallback when OAuth configuration is missing. Inactive tokens, refresh tokens presented as bearer access tokens, invalid/missing issuer, wrong audience/resource, expired tokens, configured-scope failures, or introspection failures return authentication failure rather than downgrading to anonymous access.
