@@ -21,8 +21,12 @@ class ReleaseIdentityTests(unittest.TestCase):
         self.assertEqual(version, f"{__version__}+git.{'a' * 40}")
         self.assertEqual(release_commit_from_server_version(version), "a" * 40)
 
+    def test_surrounding_environment_whitespace_is_normalized(self) -> None:
+        commit = "a" * 40
+        self.assertEqual(normalize_release_commit(f"  {commit}\n"), commit)
+
     def test_invalid_release_commit_fails_closed(self) -> None:
-        for value in ("", "abc", "g" * 40, "a" * 39, "a" * 41, "a" * 40 + " "):
+        for value in ("", "abc", "g" * 40, "a" * 39, "a" * 41):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 normalize_release_commit(value)
 
