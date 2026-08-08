@@ -13,7 +13,7 @@ from .hosted_backend import load_hosted_backend_config
 from .hosted_mcp_server import build_hosted_mcp_server
 from .hosted_rate_limit import load_hosted_rate_limit_config
 from .http_server import HttpServerSettings, load_http_server_settings
-from .release_identity import load_release_commit
+from .release_identity import validate_hosted_deployment_identity
 
 
 def _validate_hosted_configuration() -> tuple[HttpServerSettings, str, str, str, dict[str, int], str]:
@@ -26,7 +26,7 @@ def _validate_hosted_configuration() -> tuple[HttpServerSettings, str, str, str,
     resource_url = validate_mcp_endpoint(oauth.resource_url, allow_http_localhost=False)
     if not resource_url.startswith("https://") or not resource_url.endswith("/mcp"):
         raise ValueError("OSI_OAUTH_RESOURCE_URL must be the public HTTPS /mcp endpoint")
-    release_commit = load_release_commit(required=True)
+    release_commit = validate_hosted_deployment_identity()
     limits = {
         "per_minute": rate_limit.per_minute,
         "per_hour": rate_limit.per_hour,
