@@ -106,7 +106,7 @@ class HostedAuthTests(unittest.TestCase):
         self.assertEqual(str(settings.resource_server_url).rstrip("/"), "https://mcp.example.com/mcp")
         self.assertEqual(settings.required_scopes, ["osi:use"])
 
-    def test_env_config_rejects_non_https_urls_or_missing_credentials(self) -> None:
+    def test_env_config_defaults_to_workos_body_introspection(self) -> None:
         good = {
             "OSI_OAUTH_ISSUER_URL": "https://auth.example.com",
             "OSI_OAUTH_INTROSPECTION_URL": "https://auth.example.com/introspect",
@@ -117,7 +117,16 @@ class HostedAuthTests(unittest.TestCase):
         with patch.dict("os.environ", good, clear=True):
             config = load_hosted_oauth_config()
         self.assertEqual(config.required_scopes, ("osi:use",))
+        self.assertEqual(config.introspection_auth, "body")
 
+    def test_env_config_rejects_non_https_urls_or_missing_credentials(self) -> None:
+        good = {
+            "OSI_OAUTH_ISSUER_URL": "https://auth.example.com",
+            "OSI_OAUTH_INTROSPECTION_URL": "https://auth.example.com/introspect",
+            "OSI_OAUTH_CLIENT_ID": "client",
+            "OSI_OAUTH_CLIENT_SECRET": "secret",
+            "OSI_OAUTH_RESOURCE_URL": "https://mcp.example.com/mcp",
+        }
         for key, value in (
             ("OSI_OAUTH_ISSUER_URL", "http://auth.example.com"),
             ("OSI_OAUTH_INTROSPECTION_URL", "https://user:pass@auth.example.com/introspect"),
