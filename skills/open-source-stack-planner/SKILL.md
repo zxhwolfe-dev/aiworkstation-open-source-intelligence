@@ -45,7 +45,7 @@ Before naming current projects as architecture components, confirm the required 
 
 If live tools are unavailable:
 
-1. do not invent a current component list/license status;
+1. Do not populate the roles with remembered project names; use neutral role names instead.
 2. state that live project evidence is unavailable;
 3. produce a vendor-neutral reference architecture using role names;
 4. specify the facts, interfaces and compatibility tests required before selecting each role;
