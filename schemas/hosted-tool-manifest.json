@@ -5,7 +5,7 @@
   "authentication": {
     "required": true,
     "scheme": "OAuth 2.1 resource server",
-    "required_scopes": ["osi:use"]
+    "required_scopes": []
   },
   "base_tools": [
     "search_ai_projects",
