@@ -40,6 +40,12 @@ class PublicHostedComposeTests(unittest.TestCase):
         self.assertIn("AIWORKSTATION_RADAR_BASE_URL: https://aiworkstation.cn", self.content)
         self.assertIn("OSI_OAUTH_RESOURCE_URL: https://mcp.aiworkstation.cn/mcp", self.content)
         self.assertIn("OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network", self.content)
+        self.assertIn('OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES: "262144"', self.content)
+        self.assertNotIn("OSI_MCP_HTTP_BODY_LIMIT_BYTES", self.content)
+
+    def test_workos_scope_gate_is_optional_by_default(self) -> None:
+        self.assertIn("OSI_OAUTH_REQUIRED_SCOPES: ${OSI_OAUTH_REQUIRED_SCOPES:-}", self.content)
+        self.assertNotIn("OSI_OAUTH_REQUIRED_SCOPES: osi:use", self.content)
 
     def test_user_and_premium_rate_limits_are_explicit(self) -> None:
         self.assertIn('OSI_RATE_LIMIT_PER_MINUTE: "60"', self.content)
