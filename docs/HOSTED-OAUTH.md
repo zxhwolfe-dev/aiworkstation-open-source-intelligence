@@ -77,6 +77,7 @@ The WorkOS hosted candidate expects:
 ```text
 OSI_PROVIDER=http
 AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn
+OSI_RELEASE_COMMIT=<exact-40-character-hosted-candidate-sha>
 
 OSI_OAUTH_ISSUER_URL=https://<authkit-domain>
 OSI_OAUTH_INTROSPECTION_URL=https://<authkit-domain>/oauth2/introspection
@@ -90,6 +91,14 @@ OSI_OAUTH_TIMEOUT_SECONDS=10
 OSI_BACKEND_BASE_URL=https://aiworkstation.cn
 OSI_BACKEND_SERVICE_TOKEN=<server-only-backend-service-secret>
 ```
+
+`OSI_RELEASE_COMMIT` is non-secret but mandatory for the Hosted runtime. Set it to the exact Git SHA of the deployed candidate, not the branch name, tag name, shortened SHA, or a manually chosen label. The server exposes that SHA only through MCP `serverInfo.version` as:
+
+```text
+0.1.0+git.<40-character-sha>
+```
+
+`osi-remote-smoke --profile hosted` compares the **remote server-reported deployment commit** with the local candidate checkout. A new checkout testing an old deployed image therefore fails the Hosted evidence gate instead of accidentally certifying stale code.
 
 `OSI_OAUTH_REQUIRED_SCOPES` may be set for a different authorization provider whose contract guarantees those scopes. It should remain empty for the initial WorkOS configuration unless WorkOS explicitly adds and returns the chosen custom scope.
 
@@ -108,7 +117,7 @@ Validate configuration without opening a socket:
 osi-mcp-hosted --check-config
 ```
 
-The command intentionally prints only non-secret configuration.
+The command intentionally prints only non-secret configuration, including the candidate `release_commit`, and never prints OAuth/backend secrets.
 
 ## Protected Resource Metadata
 
@@ -153,10 +162,11 @@ The validator:
 1. proves an unauthenticated request receives a Bearer `401` challenge;
 2. fetches and validates protected-resource metadata;
 3. runs a real OAuth MCP client flow using ephemeral in-memory token storage;
-4. discovers exactly nine standard Radar tools plus `deep_research_ai_projects`;
-5. checks the standard/Premium side-effect annotations;
-6. invokes one standard read-only `search_ai_projects` call;
-7. writes a sanitized candidate-bound report containing no token.
+4. reads the remote MCP `serverInfo.version` and proves the deployed `OSI_RELEASE_COMMIT` equals the local candidate SHA;
+5. discovers exactly nine standard Radar tools plus `deep_research_ai_projects`;
+6. checks the standard/Premium side-effect annotations;
+7. invokes one standard read-only `search_ai_projects` call;
+8. writes a sanitized candidate-bound report containing no token.
 
 For controlled diagnostics where an access token was obtained separately, use an environment-only token rather than a command-line argument:
 
@@ -172,10 +182,12 @@ osi-remote-smoke \
   --profile hosted \
   --auth-mode bearer-env \
   --expected-oauth-issuer https://<authkit-domain> \
-  --output tmp/hosted-remote.json
+  --output tmp/hosted-remote-diagnostic.json
 
 after_test
 ```
+
+`bearer-env` is diagnostic-only. It can verify transport/token/resource behavior but **cannot** satisfy `osi-hosted-evidence-readiness`, because it does not prove that the MCP client completed the advertised OAuth authorization flow.
 
 Never put a bearer token in GitHub Actions logs, shell arguments, evidence JSON, screenshots, issues, or pull-request comments.
 
@@ -250,4 +262,4 @@ Verify with the actual target MCP host, not only the project validator:
 
 ## Fail-closed rules
 
-Hosted MCP must not start as an unauthenticated fallback when OAuth configuration is missing. Invalid issuer, token type, audience/resource, expiration, configured required scope, or introspection response returns authentication failure rather than downgrading to anonymous access.
+Hosted MCP must not start as an unauthenticated fallback when OAuth configuration is missing. Missing/invalid `OSI_RELEASE_COMMIT`, invalid issuer, token type, audience/resource, expiration, configured required scope, or introspection response returns failure rather than downgrading the release/authentication boundary.
