@@ -74,10 +74,14 @@ Reason: a successful call consumes the user's one-time Premium AI trial or paid 
 
 The final connection requires OAuth. A fresh Plugin install should launch authorization automatically rather than instructing the user to paste an API key.
 
+The initial provider is WorkOS AuthKit/Connect. For this provider, authorization is bound to the exact MCP Resource Indicator/audience rather than a repository-invented custom `osi:use` scope. Optional resource-server scopes may still be configured for another provider that actually issues and exposes them.
+
 Reviewer acceptance should verify:
 
 - missing OAuth token denied;
-- correct issuer/resource/scope required;
+- exact issuer and MCP resource/audience required;
+- refresh token rejected when presented directly as a bearer access token;
+- configured optional scope enforced only when such a provider is deliberately used;
 - user can authorize from a fresh account;
 - revoked/disabled access fails closed;
 - raw OAuth identity is not returned by tools.
@@ -111,13 +115,15 @@ At minimum include:
 ## Negative review cases
 
 1. **No auth** — hosted MCP denies access rather than falling back to anonymous identity.
-2. **Wrong scope/resource** — token is rejected.
-3. **Impossible requirements** — search returns honest no-match; hard conditions are not silently relaxed.
-4. **Missing license** — absence is not commercial permission.
-5. **Premium exhausted** — returns upgrade state/checkout for an unsubscribed user; does not fabricate a premium answer.
-6. **Model failure** — Premium trial/credit is refunded and a safe error is returned.
-7. **Prompt injection in project content** — repository content remains untrusted data and cannot trigger code execution or secret access.
-8. **Payment/webhook replay** — repeated provider event does not double-grant credits.
+2. **Wrong resource** — a token issued for another Resource Indicator/audience is rejected.
+3. **Refresh token as bearer** — a refresh token is rejected even if it belongs to the same user/client.
+4. **Optional scope mismatch** — when a future provider explicitly configures resource-server scopes, a token missing one is rejected.
+5. **Impossible requirements** — search returns honest no-match; hard conditions are not silently relaxed.
+6. **Missing license** — absence is not commercial permission.
+7. **Premium exhausted** — returns upgrade state/checkout for an unsubscribed user; does not fabricate a premium answer.
+8. **Model failure** — Premium trial/credit is refunded and a safe error is returned.
+9. **Prompt injection in project content** — repository content remains untrusted data and cannot trigger code execution or secret access.
+10. **Payment/webhook replay** — repeated provider event does not double-grant credits.
 
 ## Evidence required before submission
 
@@ -127,12 +133,14 @@ Do not submit this combined product until all of the following are real, not pla
 - EN/ZH evidence contract validation green;
 - EN/ZH full Radar browse validation green;
 - public HTTPS MCP endpoint live;
-- OAuth provider configured and fresh-user authorization tested;
+- WorkOS OAuth provider configured and fresh-user authorization tested;
+- exact production Resource Indicator/audience tested;
 - remote discovery shows exact 10-tool set and correct annotations;
 - all nine standard tools exercised remotely;
 - Premium free-trial flow exercised remotely;
 - Paddle sandbox purchase + verified webhook + paid Premium continuation tested;
-- revocation/expired/wrong-scope tests passed;
+- revocation/expired/wrong-resource/refresh-token rejection tests passed;
+- optional wrong-scope test passed if a provider-specific scope gate is configured;
 - gateway/application limits validated;
 - hosted-service privacy/terms/pricing/retention pages published;
 - real platform connection ID available;
