@@ -2,6 +2,8 @@
 
 Install the optional dependency with ``python -m pip install -e '.[mcp]'``.
 The server uses deterministic mock data unless ``OSI_PROVIDER=http`` is set.
+Hosted deployments can pass standard MCP ``TokenVerifier`` and ``AuthSettings``
+without changing the nine tool implementations.
 """
 
 from __future__ import annotations
@@ -10,6 +12,8 @@ from time import perf_counter
 from typing import Any, Literal
 
 from mcp.server import MCPServer
+from mcp.server.auth.provider import TokenVerifier
+from mcp.server.auth.settings import AuthSettings
 from mcp.types import ToolAnnotations
 
 from .app import create_registry_from_env
@@ -82,11 +86,18 @@ def _invoke(registry: ToolRegistry, tool_name: str, arguments: dict[str, Any]) -
     return result
 
 
-def build_mcp_server(registry: ToolRegistry | None = None) -> MCPServer:
+def build_mcp_server(
+    registry: ToolRegistry | None = None,
+    *,
+    token_verifier: TokenVerifier | None = None,
+    auth: AuthSettings | None = None,
+) -> MCPServer:
     active_registry = registry or create_registry_from_env()
     server = MCPServer(
         "AI Workstation Open Source Intelligence",
         instructions=SERVER_INSTRUCTIONS,
+        token_verifier=token_verifier,
+        auth=auth,
     )
 
     @server.tool(annotations=_read_only_annotations("Search open-source AI projects"))
