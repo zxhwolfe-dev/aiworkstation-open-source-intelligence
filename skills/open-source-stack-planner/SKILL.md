@@ -1,174 +1,157 @@
 ---
 name: open-source-stack-planner
-description: Design a candidate open-source AI technology stack from a business goal, deployment environment, privacy requirements, budget and engineering constraints. Use for RAG, Agent, internal knowledge-base and AI application architecture planning.
+description: Design a candidate open-source AI technology stack from business goals, deployment/privacy/budget constraints and live AI Open Source Radar evidence. Use for RAG, Agent, knowledge-base and AI application architecture planning.
 ---
 
 # Open Source Stack Planner
 
-Use this Skill when the user wants a practical architecture assembled from
-open-source AI projects rather than a single-project recommendation.
+Use this Skill when the user wants a practical architecture assembled from open-source AI projects rather than a single-project recommendation.
 
-The generated architecture is a recommendation. Individual project facts may be
-verified, but cross-project compatibility remains unknown until tested.
+The generated architecture is a recommendation. Individual project facts may be verified; cross-project compatibility remains unknown until tested.
+
+## Route the request
+
+### Architecture roles first
+
+Before choosing projects, decompose the goal into necessary roles such as:
+
+- UI/application surface;
+- Agent/orchestration;
+- document ingestion/parsing;
+- retrieval/reranking;
+- model serving/API;
+- vector/relational storage;
+- authentication/authorization;
+- observability/evaluation;
+- deployment/secrets management.
+
+Do not add a component just because it is popular.
+
+### Discover candidate components
+
+Use `get_radar_overview` + `browse_radar_projects` when the user wants candidates from a specific current category, collection, scenario or ranking context.
+
+Use `compose_ai_stack` for a business-goal/constraints-driven candidate composition. Verify serious components with `get_project_facts` and `get_license_evidence`; use `find_alternatives` or `compare_ai_projects` when a role has competing candidates.
+
+### Explicit deeper architecture analysis
+
+If `deep_research_ai_projects` is available, use `focus=stack` only when the user explicitly requests a deeper publisher-model architecture brief after standard Radar evidence has been gathered.
+
+Premium narrative remains analysis, not verified compatibility.
 
 ## Live-tool availability gate
 
-Before naming current projects as architecture components, confirm that these
-companion tools are available:
+Before naming current projects as architecture components, confirm the required live tools are available.
 
-- `compose_ai_stack`;
-- `get_project_facts`;
-- `get_license_evidence` when license matters;
-- `find_alternatives` and `compare_ai_projects` when selection requires them.
+If live tools are unavailable:
 
-The plugin can be installed as Skills-only. If the tools are unavailable:
+1. do not invent a current component list/license status;
+2. state that live project evidence is unavailable;
+3. produce a vendor-neutral reference architecture using role names;
+4. specify the facts, interfaces and compatibility tests required before selecting each role;
+5. label user-supplied project examples as unverified.
 
-1. do not invent a current component list or license status;
-2. state that live project evidence is unavailable in this session;
-3. produce a vendor-neutral reference architecture using component roles rather
-   than project names;
-4. provide the exact facts, interfaces and compatibility tests required before
-   selecting each role;
-5. label any user-supplied project examples as unverified;
-6. direct the user to connect the companion read-only MCP server or use the AI
-   Open Source Radar before requesting a verified project stack.
+A generic architecture can still be useful, but it must not imply that a named project currently satisfies the requirements.
 
-A generic architecture may still be useful, but it must not imply that any named
-project currently satisfies the requirements.
+## Define operating context
 
-## Step 1: define the operating context
+Collect the minimum useful inputs:
 
-Collect the minimum decision inputs:
-
-- business goal and success condition;
-- users, scale and expected workload;
-- data types and sensitivity;
-- self-hosted, cloud, offline or hybrid requirement;
-- existing infrastructure and technology stack;
-- preferred languages or frameworks;
+- business goal/success condition;
+- users, scale and workload;
+- data types/sensitivity;
+- self-hosted/cloud/offline/hybrid requirement;
+- existing infrastructure/stack;
+- preferred languages/frameworks;
 - available hardware;
-- engineering and operations skill;
-- budget and delivery horizon;
+- engineering/operations skill;
+- budget/delivery horizon;
 - authentication, permission and audit needs;
-- license or commercial-use constraints.
+- license/commercial-use constraints.
 
-Ask a focused clarification when deployment, data sensitivity or expected scale
-is missing and would materially change the architecture. Otherwise declare a
-conservative assumption.
+Ask a focused clarification when deployment, data sensitivity or expected scale is missing and would materially change the architecture. Otherwise state a conservative assumption.
 
-## Step 2: decompose the system
+## Compose and verify components
 
-Break the goal into necessary roles before choosing projects. Depending on the
-scenario, roles may include:
+When `compose_ai_stack` is available:
 
-- user interface;
-- application or Agent orchestration;
-- document ingestion and parsing;
-- retrieval and reranking;
-- model serving or model API;
-- vector or relational storage;
-- authentication and authorization;
-- observability and evaluation;
-- deployment and secrets management.
+1. call it with the business goal, structured constraints and existing stack;
+2. call `get_project_facts` for decision-critical facts;
+3. call `get_license_evidence` when licensing affects adoption;
+4. use `find_alternatives` when a candidate conflicts with a hard requirement or lacks evidence;
+5. use `compare_ai_projects` when two candidates remain viable for one role.
 
-Do not add a component merely because it is popular. Every component must have a
-clear job in the proposed system.
+Do not claim two projects integrate successfully merely because each is individually valid. Mark integration unverified unless evidence or a controlled test supports it.
 
-## Step 3: compose candidate components
-
-When available, call `compose_ai_stack` with the business goal, structured
-constraints and existing stack. For every proposed component:
-
-1. call `get_project_facts` for decision-critical facts;
-2. call `get_license_evidence` when licensing affects adoption;
-3. use `find_alternatives` when the primary component conflicts with a hard
-   requirement or lacks evidence;
-4. use `compare_ai_projects` when two candidates remain viable for one role.
-
-Do not claim that two projects integrate successfully merely because each
-project is individually valid. Mark the integration as unverified unless current
-evidence or a controlled test supports it.
-
-When live tools are unavailable, stop at the role-level architecture and
-verification plan. Do not populate the roles with remembered project names.
-
-## Step 4: design the architecture
+## Design the architecture
 
 Describe:
 
-- components or component roles and their responsibilities;
-- data flow and trust boundaries;
+- components/roles and responsibilities;
+- data flow/trust boundaries;
 - deployment topology;
-- persistent data and backup needs;
+- persistent data/backup needs;
 - external network dependencies;
-- secrets and permission boundaries;
-- likely cost and operational drivers;
-- failure and fallback behavior.
+- secrets/permission boundaries;
+- likely cost/operational drivers;
+- failure/fallback behavior.
 
 Separate verified component facts from architectural choices and assumptions.
 
-## Step 5: create an implementation path
+## Implementation path
 
 Use incremental stages:
 
-1. requirements and evidence verification;
+1. requirements/evidence verification;
 2. isolated proof of concept;
-3. integration and compatibility tests;
-4. security, privacy and license review;
+3. integration/compatibility tests;
+4. security/privacy/license review;
 5. evaluation against a fixed test set;
-6. staged deployment and observability;
-7. rollback and replacement plan.
+6. staged deployment/observability;
+7. rollback/replacement plan.
 
-The proof of concept should test the highest-risk unknown first, not implement
-the entire architecture.
+Test the highest-risk unknown first rather than implementing the whole architecture.
 
-## Output structure
+## Output
 
 ### Assumptions and hard constraints
 
-List what is known, assumed and still missing.
+List what is known, assumed and missing.
 
 ### Recommended architecture
 
-Show a readable component and data-flow diagram in text or Mermaid, followed by
-a short explanation. If live tools are unavailable, use neutral role names such
-as `orchestrator`, `vector store` and `document parser` rather than named
-projects.
+Show a readable component/data-flow diagram and concise explanation. Without live tools, use neutral role names rather than remembered project names.
 
 ### Component table
 
-When live tools returned verified candidates, include for each role:
+For verified candidates include:
 
-- primary project and stable ID;
-- verified facts and evidence;
-- why it was selected;
+- role;
+- primary project/stable ID;
+- verified facts/evidence;
+- reason selected;
 - alternative;
-- unresolved compatibility or license issue.
-
-Without live tools, replace this with a role-selection table containing required
-interfaces, evidence and acceptance tests.
+- unresolved compatibility/license issue.
 
 ### Implementation plan
 
-Provide ordered stages, validation criteria and rollback points.
+Give ordered stages, validation criteria and rollback points.
 
 ### Risks and unknowns
 
-At minimum cover integration, operations, security, privacy, license, data
-migration and project-maintenance risk.
+Cover integration, operations, security, privacy, license, data migration and maintenance.
 
 ### Recommendation
 
-State whether the user should prototype, gather more evidence or avoid the
-proposed stack under the current constraints. Do not recommend named components
-without live verification.
+State whether to prototype, gather more evidence or avoid the stack under current constraints.
 
 ## Safety and quality rules
 
 - Never execute third-party project code as part of research.
-- Never expose credentials or recommend committing secrets.
+- Never expose/commit credentials.
 - Never present estimated compatibility as verified compatibility.
 - Never hide missing evidence behind an architecture diagram.
 - Never treat a license observation as legal advice.
-- Never claim a current named-project stack when the companion MCP tools are unavailable.
-- Prefer replaceable interfaces and staged adoption over irreversible coupling.
+- Never claim a current named-project stack when required live tools are unavailable.
+- Prefer replaceable interfaces and staged adoption.
+- Never invoke Premium AI without an explicit deeper-analysis request.
