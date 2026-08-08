@@ -1,0 +1,114 @@
+name: tmp-pr8-search-trace
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[mcp]"
+      - name: Trace production search request stages
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          from typing import Any, Mapping
+
+          from aiworkstation_osi.full_radar_provider import FullRadarHttpProvider
+          from aiworkstation_osi.strict_http_provider import SafeUrllibJsonTransport
+          from aiworkstation_osi.tools import ToolRegistry
+
+          BASE_URL = "https://aiworkstation.cn"
+
+          class TraceTransport:
+              def __init__(self):
+                  self.delegate = SafeUrllibJsonTransport(BASE_URL)
+                  self.detail_index = 0
+
+              def label(self, method: str, path: str) -> str:
+                  method = method.upper()
+                  if path.endswith("/selector/tasks") and method == "POST":
+                      return "selector_create"
+                  if "/selector/tasks/" in path and method == "GET":
+                      return "selector_poll"
+                  if path.endswith("/projects") and method == "GET":
+                      return "project_lookup"
+                  if "/projects/" in path and method == "GET":
+                      self.detail_index += 1
+                      return f"project_detail_{self.detail_index}"
+                  return "other_public_request"
+
+              def request(
+                  self,
+                  method: str,
+                  path: str,
+                  *,
+                  query: Mapping[str, Any] | None = None,
+                  body: Mapping[str, Any] | None = None,
+                  timeout: float = 30.0,
+              ):
+                  label = self.label(method, path)
+                  started = time.monotonic()
+                  try:
+                      response = self.delegate.request(
+                          method,
+                          path,
+                          query=query,
+                          body=body,
+                          timeout=timeout,
+                      )
+                  except Exception as exc:
+                      print(json.dumps({
+                          "stage": label,
+                          "elapsed_ms": int((time.monotonic() - started) * 1000),
+                          "failure_type": type(exc).__name__,
+                          "timeout_seconds": timeout,
+                      }, separators=(",", ":")), flush=True)
+                      raise
+                  print(json.dumps({
+                      "stage": label,
+                      "status": response.status,
+                      "elapsed_ms": int((time.monotonic() - started) * 1000),
+                      "timeout_seconds": timeout,
+                  }, separators=(",", ":")), flush=True)
+                  return response
+
+          registry = ToolRegistry(
+              FullRadarHttpProvider(
+                  BASE_URL,
+                  transport=TraceTransport(),
+                  timeout=30.0,
+                  hydrate_limit=5,
+              )
+          )
+          result = registry.invoke(
+              "search_ai_projects",
+              {
+                  "query": "self-hosted RAG knowledge base with Docker and a web UI",
+                  "constraints": {
+                      "required": ["docker", "web-ui", "self-hosted"],
+                  },
+                  "locale": "en",
+                  "source_mode": "required",
+                  "request_id": "trace-only",
+              },
+          )
+          print(json.dumps({
+              "tool": result.tool,
+              "total": int(result.data.get("total") or 0),
+              "unknown_count": len(result.unknowns),
+              "risk_codes": [str(row.get("code") or "") for row in result.risks],
+          }, separators=(",", ":")))
+          PY
