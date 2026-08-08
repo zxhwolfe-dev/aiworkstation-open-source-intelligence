@@ -13,6 +13,9 @@ TOOL_NAMES: Final[tuple[str, ...]] = (
     "compare_ai_projects",
     "find_alternatives",
     "compose_ai_stack",
+    "get_radar_overview",
+    "browse_radar_projects",
+    "browse_radar_skills",
 )
 
 Locale = Literal["zh", "en"]
@@ -69,7 +72,7 @@ class Risk:
 
 @dataclass(frozen=True, slots=True)
 class ToolResult:
-    """Envelope returned by every M0 tool.
+    """Envelope returned by every public tool.
 
     The four product boundaries are first-class fields: verified facts,
     recommendations, unknowns and risks. Tool-specific structured data belongs
