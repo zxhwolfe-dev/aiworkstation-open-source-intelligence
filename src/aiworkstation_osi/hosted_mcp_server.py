@@ -31,10 +31,6 @@ HOSTED_INSTRUCTIONS = SERVER_INSTRUCTIONS + (
 
 
 def _premium_annotations() -> ToolAnnotations:
-    # A successful call consumes a one-time trial or paid AI credit. When access
-    # is unavailable it may create an unpaid checkout transaction URL. It never
-    # modifies third-party projects or user data, but it is intentionally not
-    # marked read-only/idempotent because billing entitlement state changes.
     return ToolAnnotations(
         title="Deep AI research on open-source projects",
         read_only_hint=False,
@@ -89,10 +85,8 @@ def build_hosted_mcp_server(
         registry or create_registry_from_env(),
         token_verifier=token_verifier,
         auth=auth,
+        instructions=HOSTED_INSTRUCTIONS,
     )
-    # The base tool implementations already carry their own safety instructions;
-    # update the server-level text for hosts that display it.
-    server._lowlevel_server.instructions = HOSTED_INSTRUCTIONS  # type: ignore[attr-defined]
 
     @server.tool(annotations=_premium_annotations())
     async def deep_research_ai_projects(
