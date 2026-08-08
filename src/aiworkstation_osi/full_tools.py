@@ -35,6 +35,13 @@ def _optional_text(
     return value
 
 
+def _optional_bool(payload: Mapping[str, Any], field: str, *, default: bool = False) -> bool:
+    raw = payload.get(field, default)
+    if not isinstance(raw, bool):
+        raise InvalidInputError(f"{field} must be a boolean", details={"field": field})
+    return raw
+
+
 def _bounded_int(
     payload: Mapping[str, Any],
     field: str,
@@ -82,7 +89,7 @@ class FullToolRegistry(ToolRegistry):
             ),
             ToolSpec(
                 "browse_radar_skills",
-                "Browse and search the AI Open Source Radar Skills library.",
+                "Browse, filter, search or open one item from the AI Open Source Radar Skills library.",
                 (),
             ),
         )
@@ -100,6 +107,10 @@ class FullToolRegistry(ToolRegistry):
             "collection",
             "category",
             "scenario",
+            "role",
+            "topic",
+            "github_topic",
+            "radar_topic",
             "use_case",
             "resource_type",
             "license",
@@ -117,6 +128,10 @@ class FullToolRegistry(ToolRegistry):
             "collection": _optional_text(payload, "collection"),
             "category": _optional_text(payload, "category"),
             "scenario": _optional_text(payload, "scenario"),
+            "role": _optional_text(payload, "role"),
+            "topic": _optional_text(payload, "topic"),
+            "github_topic": _optional_text(payload, "github_topic"),
+            "radar_topic": _optional_text(payload, "radar_topic"),
             "use_case": _optional_text(payload, "use_case"),
             "resource_type": _optional_text(payload, "resource_type"),
             "license": _optional_text(payload, "license"),
@@ -130,16 +145,47 @@ class FullToolRegistry(ToolRegistry):
         return self._result("browse_radar_projects", payload, output)
 
     def _browse_radar_skills(self, payload: Mapping[str, Any]):
-        _reject_unknown_fields(
-            payload,
-            {"query", "category", "limit", "offset", "locale", "request_id"},
-        )
+        allowed = {
+            "skill_id",
+            "query",
+            "category",
+            "kind",
+            "license",
+            "installable",
+            "sort",
+            "limit",
+            "offset",
+            "locale",
+            "request_id",
+        }
+        _reject_unknown_fields(payload, allowed)
+        skill_id = _optional_text(payload, "skill_id", max_length=512)
         request = {
+            "skill_id": skill_id,
             "query": _optional_text(payload, "query", max_length=1000),
             "category": _optional_text(payload, "category"),
+            "kind": _optional_text(payload, "kind"),
+            "license": _optional_text(payload, "license"),
+            "installable": _optional_bool(payload, "installable"),
+            "sort": _optional_text(payload, "sort"),
             "limit": _bounded_int(payload, "limit", default=20, minimum=1, maximum=50),
             "offset": _bounded_int(payload, "offset", default=0, minimum=0, maximum=10000),
             "locale": _locale(payload),
         }
+        if skill_id:
+            list_only_values = (
+                request["query"],
+                request["category"],
+                request["kind"],
+                request["license"],
+                request["installable"],
+                request["sort"],
+                request["offset"],
+            )
+            if any(list_only_values):
+                raise InvalidInputError(
+                    "skill_id cannot be combined with Skills-list filters",
+                    details={"field": "skill_id"},
+                )
         output = _provider_output(self._provider.browse_radar_skills(request), "browse_radar_skills")
         return self._result("browse_radar_skills", payload, output)
