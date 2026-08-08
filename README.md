@@ -1,43 +1,89 @@
 # AI Open Source Intelligence
 
-**Evidence-backed research, comparison, license verification, and stack planning for open-source AI projects.**
+**Evidence-backed open-source AI research, Radar browsing, comparison, license verification and stack planning.**
 
-[简体中文](README.zh-CN.md) · [Quickstart](docs/QUICKSTART.md) · [FAQ](docs/FAQ.md) · [Website](https://aiworkstation.cn/githubai/)
+[简体中文](README.zh-CN.md) · [AI Open Source Radar](https://aiworkstation.cn/githubai/) · [Quickstart](docs/QUICKSTART.md) · [Architecture](docs/ONE-INSTALL-PRODUCT.md)
 
-> 3 Skills · 6 read-only MCP tools · English & Chinese · Apache-2.0
+AI Open Source Intelligence is the plugin/product layer for **AI Open Source Radar**. The final product is designed to be installed once: the user signs in once, then ChatGPT, Codex or another compatible MCP host can use live Radar data without manually cloning a repository, configuring a database, or copying API keys.
 
-AI Open Source Intelligence is AI Workstation's research and technology-selection layer for the open-source AI ecosystem. It helps developers, technical leaders, and AI builders discover, verify, compare, and compose open-source projects while keeping **verified facts, recommendations, unknowns, and risks** explicitly separated.
-
-## What can it do?
-
-- **Find projects** from deployment, privacy, budget, and technical constraints.
-- **Verify a project** using current public project/detail evidence.
-- **Check license evidence** without treating a label or missing license as permission.
-- **Compare projects** in one explicit decision context.
-- **Find alternatives** without silently relaxing hard requirements.
-- **Compose a candidate stack** while keeping cross-project compatibility unverified until tested.
-
-## Why not just ask a general AI model?
-
-General models are excellent at reasoning, but open-source project metadata, deployment claims, maintenance state, and license information change over time. This project adds a maintained evidence contract and a disciplined selection workflow.
-
-### Verified facts are not the same as analysis
-
-Every tool result separates:
+## Final product experience
 
 ```text
-data
-verified_facts
-recommendations
-unknowns
-risks
+Install AI Open Source Intelligence once
+            |
+        OAuth sign-in
+            |
+   +--------+---------------------------+
+   |                                    |
+3 Skills                        Hosted MCP
+workflow/reasoning            live AI Workstation Radar
+                                        |
+                     +------------------+------------------+
+                     |                                     |
+              9 Radar tools                        Premium AI research
+           data/research/browse                  publisher model + credits
+                                                        |
+                                               first successful task free
 ```
 
-A value appearing in `data` does not automatically become a verified fact.
+The user should not need to understand the implementation split between Skills and MCP. Skills teach the host how to research safely; the hosted MCP supplies current Radar data, identity, rate limits and premium entitlements.
 
-### Field-level evidence states
+## What it can do
 
-The live provider distinguishes:
+### Discover and verify projects
+
+- search open-source AI projects from natural-language requirements;
+- verify project identity, repository/public metadata and evidence freshness;
+- verify direct public license evidence without treating a missing license as permission;
+- find alternatives while preserving hard requirements;
+- compare two to five projects in one decision context;
+- compose a candidate open-source AI stack and expose integration unknowns.
+
+### Browse almost the whole AI Open Source Radar
+
+The live product adds three compact browsing tools instead of dozens of tiny endpoint-shaped tools:
+
+- `get_radar_overview` — discover current rankings, collections, categories, scenarios and navigation/filter dimensions;
+- `browse_radar_projects` — browse/search projects by ranking, collection, category, scenario, role, topic, deployment, license and other public filters;
+- `browse_radar_skills` — browse/filter/search the Radar Skills library or open one Skill by ID.
+
+This allows requests such as:
+
+- “Show me today’s AI open-source ranking.”
+- “What collections are available?”
+- “Browse the RAG category.”
+- “Show self-hosted projects with Docker.”
+- “Find installable code-review Skills.”
+- “Open this Skill and explain how to use it.”
+
+### Optional Premium AI research
+
+The hosted product also defines:
+
+- `deep_research_ai_projects`
+
+Ordinary Radar data tools do **not** consume publisher AI credits. Premium deep research first performs rules-first Radar retrieval, then sends only bounded public Radar context to the AI Workstation model for deeper synthesis.
+
+Current product policy in the hosted candidate:
+
+- first **successful** premium research task: free;
+- failed model requests refund the reserved trial/credit;
+- later premium tasks consume AI credits;
+- no available credit: return an upgrade state and, for unsubscribed users, a checkout URL;
+- an active paid subscription that exhausts its monthly credits must not silently create a duplicate subscription.
+
+The premium narrative remains **model analysis**, not a new verified-fact source.
+
+## Evidence model
+
+Every standard tool result keeps four boundaries explicit:
+
+1. **verified facts** — source-backed facts that crossed the evidence boundary;
+2. **recommendations** — analysis or decision guidance;
+3. **unknowns** — unavailable or unverified information;
+4. **risks** — license, maintenance, deployment, security and integration limits.
+
+A value in `data` is not automatically a verified fact. The hardened provider distinguishes fields such as:
 
 ```text
 verified_public_metadata
@@ -46,59 +92,47 @@ public_projection_only
 unknown
 ```
 
-### License verification is deliberately strict
+License is stricter still: a label is promoted to a verified license only when direct public `License` evidence and a public excerpt are available.
 
-A visible license label alone is not enough to enter `verified_facts`. Missing, indirect, or ambiguous license evidence remains unknown and can raise `LICENSE_UNVERIFIED`. License output is technical evidence, not legal advice.
+## Tools
 
-### Hard requirements stay hard
+### Nine standard live tools
 
-When nothing satisfies every required constraint, the correct result is an explicit no-match. Near matches remain separate and disclose their blocker.
-
-### Comparisons preserve snapshot consistency
-
-Time-sensitive project records are not compared as though they were simultaneous when their public snapshot identities are incompatible.
-
-## Three Skills
-
-### `open-source-project-research`
-
-Discover or verify open-source AI projects from a user's task, deployment, privacy, budget, license, and engineering constraints.
-
-### `open-source-project-comparison`
-
-Compare two to five projects for a concrete use case while separating current evidence, trade-offs, unknowns, and conditions that could reverse the recommendation.
-
-### `open-source-stack-planner`
-
-Decompose a system into roles, then design a candidate open-source AI stack. Individual project facts can be verified; cross-project compatibility remains a recommendation until tested.
-
-## Six read-only MCP tools
-
-| Tool | Purpose |
-| --- | --- |
-| `search_ai_projects` | Find projects from a task and constraints |
-| `get_project_facts` | Fetch current public project facts and evidence state |
-| `get_license_evidence` | Inspect direct public license evidence |
-| `compare_ai_projects` | Compare 2–5 named projects |
-| `find_alternatives` | Find alternatives while preserving constraints |
-| `compose_ai_stack` | Compose a candidate open-source AI stack |
-
-All current product tools are read-only. They do not modify GitHub and do not install or execute third-party repository code.
-
-## Use it in three ways
-
-### A. Skills-only — fastest setup
-
-```bash
-codex plugin marketplace add zxhwolfe-dev/aiworkstation-open-source-intelligence --ref main
-codex plugin marketplace list
+```text
+search_ai_projects
+get_project_facts
+get_license_evidence
+compare_ai_projects
+find_alternatives
+compose_ai_stack
+get_radar_overview
+browse_radar_projects
+browse_radar_skills
 ```
 
-**Skills-only does not directly connect to the live AI Workstation project database.**
+These tools are read-only with respect to user data, AI Workstation content, GitHub and third-party repositories. They never execute or install third-party repository code.
 
-Without live MCP tools, the Skills can still structure requirements, preserve hard/preferred constraints, create verification matrices, and design vendor-neutral architectures. They must not claim current project or license facts from model memory alone.
+### Hosted-only premium tool
 
-### B. Local MCP — current full research capability
+```text
+deep_research_ai_projects
+```
+
+It is non-destructive but intentionally not declared read-only/idempotent because a successful call consumes a one-time trial or AI credit.
+
+See [`schemas/tool-manifest.json`](schemas/tool-manifest.json) and [`schemas/hosted-tool-manifest.json`](schemas/hosted-tool-manifest.json).
+
+## Skills
+
+- `open-source-project-research`
+- `open-source-project-comparison`
+- `open-source-stack-planner`
+
+The Skills package remains useful in local/offline mode, but the **final public product is not intended to be Skills-only**. Live rankings, collections, categories, project facts, Skills-library data and premium entitlement all belong to the hosted MCP connection.
+
+## Current installation modes
+
+### Developer/local mode
 
 ```bash
 python -m venv .venv
@@ -106,13 +140,13 @@ source .venv/bin/activate
 python -m pip install -e ".[mcp]"
 ```
 
-Start offline:
+Offline mock:
 
 ```bash
 OSI_PROVIDER=mock osi-mcp
 ```
 
-Enable the public read-only Radar provider:
+Live public Radar data through local stdio MCP:
 
 ```bash
 OSI_PROVIDER=http \
@@ -120,97 +154,101 @@ AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn \
 osi-mcp
 ```
 
-See [`docs/codex-setup.md`](docs/codex-setup.md).
+This local mode exposes the **nine standard tools** and does not include hosted OAuth billing or the premium tool.
 
-### C. CLI — scripting and automation
+### Hosted one-install mode
 
-```bash
-osi-m0 provider-info
-osi-m0 list-tools
-osi-m0 invoke search_ai_projects \
-  --arguments '{"query":"Find a self-hosted RAG project with Docker and a Web UI.","locale":"en"}'
-```
-
-## Does search call another AI Workstation model?
-
-For the current M1 live provider, selector requests are sent with `use_model=false`. The normal six-tool research path therefore does not require an additional AI Workstation-funded LLM call for search/retrieval.
-
-ChatGPT, Codex, or another MCP host model still interprets the user request, decides which Skills/tools to use, and synthesizes the final answer. The AI Workstation MCP/data layer provides structured retrieval and evidence.
-
-See [`docs/MODEL-AND-DATA-FLOW.md`](docs/MODEL-AND-DATA-FLOW.md).
-
-## Does MCP expose the whole AI Workstation website?
-
-No. MCP exposes only capabilities explicitly implemented as tools. The current six tools cover the core Open Source Intelligence / Open Source Radar research workflow; they do not expose every AI Workstation product, UI page, account feature, private database operation, maintenance task, or internal API.
-
-New online capabilities should be added through explicit, reviewed tool contracts rather than by treating the website backend as an unrestricted API surface.
-
-## Quickstart
-
-See [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
-
-## FAQ
-
-See [`docs/FAQ.md`](docs/FAQ.md).
-
-## Development
+The repository now contains the hosted candidate command:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[mcp]"
-python -m compileall -q src tests
-python -m unittest discover -s tests -v
-osi-validate-plugin --root .
+osi-mcp-hosted --check-config
 ```
 
-CI covers Python 3.10 and 3.12.
+The public hosted mode requires, at minimum:
 
-## Repository layout
+- live HTTP Radar provider;
+- protected public HTTPS `/mcp` endpoint;
+- standard OAuth resource-server configuration;
+- stable OAuth issuer + subject identity;
+- service-to-service backend authentication;
+- per-user rate limits;
+- premium entitlement storage;
+- verified payment webhooks;
+- final production privacy/terms/retention policy.
+
+It intentionally fails closed when those controls are missing.
+
+## Authentication and privacy
+
+The hosted candidate uses standard OAuth resource-server semantics. A verified `(issuer, subject)` pair is transformed into a stable opaque entitlement ID before it is sent to AI Workstation billing/model services. Raw access tokens, raw OAuth subjects and payment-provider customer/subscription IDs are not part of public tool results.
+
+The nine ordinary data tools are rate-limited by authenticated user identity. Premium AI has a stricter rate window in addition to trial/credit enforcement.
+
+## Billing architecture
+
+Billing is provider-neutral inside the product:
 
 ```text
-.codex-plugin/               Skills-only plugin manifest
-.agents/plugins/             repo-scoped marketplace manifest
-.github/workflows/           CI, validation, packaging, and publishing workflows
-skills/                      reusable Skill workflows
-src/aiworkstation_osi/       core, providers, MCP, and validation tools
-schemas/                     tool and result contracts
-evals/                       bilingual evaluation cases
-tests/                       automated tests
-docs/                        architecture, setup, deployment, and release docs
+OAuth user
+   |
+opaque entitlement ID
+   |
+free trial / plan / AI credits
+   |
+Payment adapter (Paddle first; replaceable later)
 ```
 
-## Distribution and release
+The private backend contains an entitlement ledger, idempotent payment-event processing and lifecycle ordering. The initial Paddle adapter creates a recurring Pro checkout, verifies signed webhook bodies, provisions credits only from recognized completed transactions, and prevents replayed/stale events from corrupting subscription state.
 
-- Skills-only plugin package for ChatGPT/Codex-style plugin distribution
-- local stdio MCP for Codex and other MCP hosts
-- CLI for scripting
-- guarded Streamable HTTP MCP for local/private-alpha deployment
-- PyPI and GHCR publishing workflows prepared for versioned public releases
+See [`docs/BILLING-AND-ENTITLEMENTS.md`](docs/BILLING-AND-ENTITLEMENTS.md).
 
-The guarded HTTP transport is **not yet approved as an unrestricted public multi-user MCP service**. Broad hosted release still requires final identity/authentication, revocation, quotas, rate limiting, abuse controls, monitoring, and service-specific operational/legal decisions.
+## Live contract validation
 
-See [`ROADMAP.md`](ROADMAP.md), [`docs/plugin-packaging.md`](docs/plugin-packaging.md), and [`docs/public-launch-decisions.md`](docs/public-launch-decisions.md).
+Two independent workflow layers protect the release:
 
-## OpenAI submission preparation
+- evidence-critical live contract validation for project facts, selectors, license and privacy-safe captures;
+- full Radar browse validation for EN/ZH overview, rankings, collections, categories, scenarios, Skills listing and Skill detail.
 
-The maintained Skills-only listing copy, starter prompts, five positive cases, three negative/boundary cases, privacy notes, and release checklist are in [`docs/openai-plugin-submission.md`](docs/openai-plugin-submission.md).
+The browse probe is also available as:
 
-## Security and privacy
+```bash
+python -m aiworkstation_osi.radar_browse_probe \
+  --base-url https://aiworkstation.cn \
+  --locale en
+```
 
-- [Security policy](SECURITY.md)
-- [Privacy statement](PRIVACY.md)
-- [Terms](TERMS.md)
-- [Support](SUPPORT.md)
+## Status
 
-Do not submit passwords, API keys, private source code, customer records, or confidential documents.
+**Hosted public-product candidate — not yet a public hosted launch.**
 
-## Contributing
+The previously validated Skills/local release foundation remains intact, but the product scope is now intentionally larger. The new hosted candidate must still complete real execution gates before public release:
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Use the structured issue templates for bugs, evidence problems, public-contract regressions, project requests, and feature proposals.
+- full unit/CI validation of the nine-tool and hosted OAuth/Premium paths;
+- EN/ZH live Radar browse validation;
+- real OAuth provider configuration and login flow;
+- public HTTPS hosted MCP deployment and remote tool discovery;
+- Paddle sandbox checkout/webhook/renewal/cancel end-to-end test;
+- one-free-premium-task and paid-credit end-to-end test;
+- final public service privacy/terms/retention review;
+- OpenAI Skills + MCP connection registration and platform review.
+
+Do not describe the hosted MCP as publicly launched until those gates are observed.
+
+## Documentation
+
+- [`docs/ONE-INSTALL-PRODUCT.md`](docs/ONE-INSTALL-PRODUCT.md)
+- [`docs/HOSTED-OAUTH.md`](docs/HOSTED-OAUTH.md)
+- [`docs/BILLING-AND-ENTITLEMENTS.md`](docs/BILLING-AND-ENTITLEMENTS.md)
+- [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
+- [`docs/FAQ.md`](docs/FAQ.md)
+- [`docs/MODEL-AND-DATA-FLOW.md`](docs/MODEL-AND-DATA-FLOW.md)
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/hosted-mcp.md`](docs/hosted-mcp.md)
+- [`docs/release-readiness.md`](docs/release-readiness.md)
+- [`SECURITY.md`](SECURITY.md)
+- [`PRIVACY.md`](PRIVACY.md)
+- [`TERMS.md`](TERMS.md)
 
 ## License
 
-This public repository is licensed under the [Apache License 2.0](LICENSE).
-
-**Scope note:** Apache-2.0 covers this public repository. It does not automatically license AI Workstation's private databases, unpublished datasets, private backend systems, hosted infrastructure, or trademarks.
+The public distribution repository is licensed under Apache-2.0. That does not grant rights to private AI Workstation databases, unpublished Radar production data, private backend systems, service credentials, payment accounts or AI Workstation trademarks.
