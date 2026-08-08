@@ -1,4 +1,4 @@
-"""Run a real Codex CLI acceptance pass against the six-tool stdio MCP server.
+"""Run a real Codex CLI acceptance pass against the nine-tool stdio MCP server.
 
 The command uses ``codex exec`` non-interactively and injects a temporary MCP
 configuration with ``-c`` overrides. It does not persist Codex configuration.
@@ -50,6 +50,17 @@ TOOL_ACCEPTANCE_TASKS = {
         "compose a private document-QA/RAG stack that is self-hosted and "
         "Docker-oriented, locale=en"
     ),
+    "get_radar_overview": (
+        "retrieve the English Radar overview and inspect available rankings, "
+        "collections, categories or scenarios"
+    ),
+    "browse_radar_projects": (
+        "browse the English daily ranking with limit=3; do not replace this with "
+        "search_ai_projects"
+    ),
+    "browse_radar_skills": (
+        "browse the English Radar Skills library with limit=3"
+    ),
 }
 
 
@@ -62,7 +73,6 @@ def _timestamp_slug() -> str:
 
 
 def _toml_string(value: str) -> str:
-    # JSON strings are valid TOML basic strings for the characters used here.
     return json.dumps(str(value), ensure_ascii=False)
 
 
@@ -89,14 +99,14 @@ def acceptance_prompt() -> str:
 
     return f"""This is a read-only acceptance test for the MCP server `{SERVER_NAME}`.
 Do not edit files. Do not use shell commands or web search to answer these tasks.
-Use the named MCP server and make at least one successful call to EACH of its six tools.
+Use the named MCP server and make at least one successful call to EACH of its nine tools.
 Do not skip a tool because an earlier result seems sufficient. Unknown or no-match results are acceptable when honest.
 If a tool call returns a recoverable/model-readable error, make one safe corrected retry for that same tool before moving on.
 
 Perform these calls in the listed order:
 {_task_lines(TOOL_NAMES)}
 
-After all six tool calls finish, output exactly: ACCEPTANCE_COMPLETE
+After all nine tool calls finish, output exactly: ACCEPTANCE_COMPLETE
 """
 
 
@@ -183,8 +193,6 @@ def build_codex_command(
         "OSI_HTTP_TIMEOUT_SECONDS": "45",
         "OSI_HYDRATE_LIMIT": "5",
         "OSI_ACCEPTANCE_LEDGER_PATH": str(ledger_path.resolve()),
-        # Success events still enter the acceptance ledger even when ordinary
-        # stderr telemetry remains at its conservative default threshold.
         "OSI_LOG_LEVEL": "WARNING",
     }
     if provider == "http":
