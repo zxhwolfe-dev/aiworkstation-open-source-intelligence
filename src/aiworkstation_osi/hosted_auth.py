@@ -2,9 +2,9 @@
 
 The MCP server delegates login and token issuance to a standards-compliant
 authorization server. This module verifies opaque access tokens through RFC 7662
-introspection, validates issuer/resource/scope boundaries, and converts the
-issuer+subject pair into an opaque entitlement identifier before any identity is
-sent to the AI Workstation backend.
+introspection, validates issuer/resource/optional-scope boundaries, and converts
+the issuer+subject pair into an opaque entitlement identifier before any identity
+is sent to the AI Workstation backend.
 """
 
 from __future__ import annotations
@@ -38,10 +38,12 @@ class HostedOAuthConfig:
     client_id: str
     client_secret: str
     resource_url: str
-    required_scopes: tuple[str, ...] = ("osi:use",)
-    # WorkOS AuthKit/Connect is the initial production authorization provider
-    # and its documented introspection flow authenticates with client credentials
-    # in the POST body. ``basic`` remains available for compatible providers.
+    # WorkOS Resource Indicator/audience is the primary MCP authorization
+    # boundary. Optional required scopes remain available for providers whose
+    # introspection contract explicitly returns them.
+    required_scopes: tuple[str, ...] = ()
+    # WorkOS AuthKit/Connect introspection authenticates with client credentials
+    # in the POST body. `basic` remains available for compatible providers.
     introspection_auth: str = "body"
     timeout_seconds: float = 10.0
 
@@ -82,7 +84,7 @@ def load_hosted_oauth_config() -> HostedOAuthConfig:
     if not client_secret or len(client_secret) > 4096:
         raise ValueError("OSI_OAUTH_CLIENT_SECRET is required")
     required = tuple(
-        part for part in str(os.getenv("OSI_OAUTH_REQUIRED_SCOPES") or "osi:use").split() if part
+        part for part in str(os.getenv("OSI_OAUTH_REQUIRED_SCOPES") or "").split() if part
     )
     auth_style = str(os.getenv("OSI_OAUTH_INTROSPECTION_AUTH") or "body").strip().lower()
     if auth_style not in {"basic", "body"}:
@@ -178,9 +180,7 @@ class IntrospectionTokenVerifier(TokenVerifier):
                 return None
             if expires_at <= int(time.time()):
                 return None
-        granted_scopes = _scopes(payload.get("scope") or payload.get("scopes"))
-        if any(scope not in granted_scopes for scope in self.config.required_scopes):
-            return None
+
         audience = payload.get("aud") or payload.get("resource")
         if isinstance(audience, str):
             audiences = {audience.rstrip("/")}
@@ -190,6 +190,13 @@ class IntrospectionTokenVerifier(TokenVerifier):
             audiences = set()
         if self.config.resource_url not in audiences:
             return None
+
+        granted_scopes = _scopes(payload.get("scope") or payload.get("scopes"))
+        if self.config.required_scopes and any(
+            scope not in granted_scopes for scope in self.config.required_scopes
+        ):
+            return None
+
         claims = {
             "iss": issuer,
             "aud": payload.get("aud") or payload.get("resource"),
