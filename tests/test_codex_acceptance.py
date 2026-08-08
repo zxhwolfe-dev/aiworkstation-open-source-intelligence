@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from aiworkstation_osi.codex_acceptance import (
     SERVER_NAME,
+    acceptance_prompt,
     build_codex_command,
     evaluate_ledger,
     retry_acceptance_prompt,
@@ -49,6 +50,12 @@ class CodexAcceptanceTests(unittest.TestCase):
         for tool in TOOL_NAMES:
             self.assertIn(tool, rendered)
 
+    def test_acceptance_prompt_names_every_public_tool(self) -> None:
+        prompt = acceptance_prompt()
+        self.assertIn("each of its nine tools", prompt.lower())
+        for tool in TOOL_NAMES:
+            self.assertIn(tool, prompt)
+
     def test_retry_prompt_targets_only_missing_tools(self) -> None:
         prompt = retry_acceptance_prompt(["find_alternatives"])
         self.assertIn("find_alternatives", prompt)
@@ -57,7 +64,7 @@ class CodexAcceptanceTests(unittest.TestCase):
             if tool != "find_alternatives":
                 self.assertNotIn(f". {tool}:", prompt)
 
-    def test_ledger_requires_success_from_all_six_tools(self) -> None:
+    def test_ledger_requires_success_from_all_nine_tools(self) -> None:
         events = [
             {
                 "schema_version": "osi.codex-acceptance-ledger.v1",
