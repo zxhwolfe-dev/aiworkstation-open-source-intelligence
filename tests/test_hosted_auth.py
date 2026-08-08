@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import urllib.parse
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from mcp.server.auth.provider import AccessToken
 
@@ -103,6 +104,52 @@ class HostedAuthTests(unittest.TestCase):
         self.assertEqual(token.scopes, [])
         self.assertEqual(token.resource, "https://mcp.example.com/mcp")
 
+    def test_generic_rfc_bearer_token_type_remains_supported(self) -> None:
+        verifier = IntrospectionTokenVerifier(self.config)
+        payload = {
+            "active": True,
+            "token_type": "Bearer",
+            "client_id": "generic-client",
+            "sub": "user-1",
+            "iss": "https://auth.example.com",
+            "scope": "osi:use",
+            "aud": "https://mcp.example.com/mcp",
+            "exp": 4_000_000_000,
+        }
+        with patch.object(verifier, "_introspect", return_value=payload):
+            token = asyncio.run(verifier.verify_token("generic-bearer-token"))
+        self.assertIsNotNone(token)
+
+    def test_introspection_sends_access_token_hint_and_body_credentials(self) -> None:
+        config = HostedOAuthConfig(
+            issuer_url="https://auth.example.com",
+            introspection_url="https://auth.example.com/oauth2/introspection",
+            client_id="resource-server",
+            client_secret="private-secret",
+            resource_url="https://mcp.example.com/mcp",
+            introspection_auth="body",
+            timeout_seconds=7,
+        )
+        verifier = IntrospectionTokenVerifier(config)
+        opener = MagicMock()
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b'{"active": false}'
+        opener.open.return_value.__enter__.return_value = response
+        verifier._opener = opener
+
+        self.assertEqual(verifier._introspect("presented-token"), {"active": False})
+        call = opener.open.call_args
+        self.assertIsNotNone(call)
+        assert call is not None
+        request = call.args[0]
+        form = urllib.parse.parse_qs(request.data.decode("utf-8"))
+        self.assertEqual(form["token"], ["presented-token"])
+        self.assertEqual(form["token_type_hint"], ["access_token"])
+        self.assertEqual(form["client_id"], ["resource-server"])
+        self.assertEqual(form["client_secret"], ["private-secret"])
+        self.assertEqual(call.kwargs["timeout"], 7)
+
     def test_verifier_fails_closed_on_invalid_access_token_boundaries(self) -> None:
         verifier = IntrospectionTokenVerifier(self.config)
         base = {
@@ -119,10 +166,12 @@ class HostedAuthTests(unittest.TestCase):
             {**base, "active": False},
             {**base, "token_type": "refresh_token"},
             {**base, "token_type": ""},
+            {**base, "token_type": "unknown"},
             {**base, "exp": 1},
             {**base, "scope": "openid"},
             {**base, "aud": "https://other.example.com/mcp"},
             {**base, "iss": "https://evil.example.com"},
+            {**base, "iss": ""},
             {**base, "sub": ""},
             {**base, "client_id": ""},
         ]

@@ -129,7 +129,10 @@ class IntrospectionTokenVerifier(TokenVerifier):
         raw_token = str(token or "").strip()
         if not raw_token or len(raw_token) > 16_384:
             return None
-        fields: dict[str, str] = {"token": raw_token}
+        fields: dict[str, str] = {
+            "token": raw_token,
+            "token_type_hint": "access_token",
+        }
         headers = {
             "accept": "application/json",
             "content-type": "application/x-www-form-urlencoded",
@@ -165,15 +168,17 @@ class IntrospectionTokenVerifier(TokenVerifier):
     def _validate(self, token: str, payload: Mapping[str, Any]) -> AccessToken | None:
         if payload.get("active") is not True:
             return None
-        # WorkOS can introspect both access and refresh tokens. A refresh token
-        # must never be accepted as an MCP bearer credential.
-        if str(payload.get("token_type") or "").strip().lower() != "access_token":
+        # WorkOS reports access_token/refresh_token; RFC 7662 providers commonly
+        # report bearer. Reject refresh/unknown token types at the MCP bearer
+        # boundary while preserving compatibility with both valid forms.
+        token_type = str(payload.get("token_type") or "").strip().lower()
+        if token_type not in {"access_token", "bearer"}:
             return None
         subject = str(payload.get("sub") or "").strip()
         client_id = str(payload.get("client_id") or "").strip()
         if not subject or not client_id:
             return None
-        issuer = str(payload.get("iss") or self.config.issuer_url).strip().rstrip("/")
+        issuer = str(payload.get("iss") or "").strip().rstrip("/")
         if issuer != self.config.issuer_url:
             return None
         expires_at: int | None = None

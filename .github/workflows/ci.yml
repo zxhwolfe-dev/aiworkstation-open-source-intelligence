@@ -3,6 +3,8 @@ name: ci
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -37,6 +39,7 @@ jobs:
           python -m json.tool .codex-plugin/plugin.json >/dev/null
           python -m json.tool .agents/plugins/marketplace.json >/dev/null
           python -m json.tool schemas/tool-manifest.json >/dev/null
+          python -m json.tool schemas/hosted-tool-manifest.json >/dev/null
           python -m json.tool schemas/tool-result.schema.json >/dev/null
           python -m json.tool evals/cases.json >/dev/null
           python -m json.tool evals/plugin-cases.json >/dev/null
@@ -108,6 +111,7 @@ jobs:
           osi-m0 list-tools >/dev/null
           osi-m0 invoke search_ai_projects --arguments '{"query":"self-hosted RAG"}' >/dev/null
           osi-mcp-http --check-config >/dev/null
+          osi-mcp-hosted --help >/dev/null
           osi-remote-smoke --help >/dev/null
           osi-probe --help >/dev/null
           osi-capture-contracts --help >/dev/null
@@ -119,6 +123,27 @@ jobs:
           osi-codex-acceptance --help >/dev/null
           osi-evidence-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
+
+      - name: Validate public hosted OAuth configuration
+        if: matrix.python-version == '3.12'
+        env:
+          OSI_PROVIDER: http
+          AIWORKSTATION_RADAR_BASE_URL: https://aiworkstation.cn
+          OSI_MCP_HTTP_HOST: 0.0.0.0
+          OSI_MCP_HTTP_PORT: "8000"
+          OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network
+          OSI_MCP_HTTP_ALLOWED_HOSTS: mcp.example.com,mcp.example.com:*
+          OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES: "262144"
+          OSI_OAUTH_ISSUER_URL: https://auth.example.com
+          OSI_OAUTH_INTROSPECTION_URL: https://auth.example.com/oauth2/introspection
+          OSI_OAUTH_CLIENT_ID: test-client
+          OSI_OAUTH_CLIENT_SECRET: test-secret
+          OSI_OAUTH_RESOURCE_URL: https://mcp.example.com/mcp
+          OSI_OAUTH_REQUIRED_SCOPES: ""
+          OSI_OAUTH_INTROSPECTION_AUTH: body
+          OSI_BACKEND_BASE_URL: https://aiworkstation.cn
+          OSI_BACKEND_SERVICE_TOKEN: test-service-token
+        run: osi-mcp-hosted --check-config >/dev/null
 
       - name: End-to-end Streamable HTTP MCP round trip
         if: matrix.python-version == '3.12'
@@ -167,6 +192,12 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f compose.hosted.example.yml config >/dev/null
+          OSI_OAUTH_ISSUER_URL=https://auth.example.com \
+          OSI_OAUTH_INTROSPECTION_URL=https://auth.example.com/oauth2/introspection \
+          OSI_OAUTH_CLIENT_ID=test-client \
+          OSI_OAUTH_CLIENT_SECRET=test-secret \
+          OSI_BACKEND_SERVICE_TOKEN=test-service-token \
+            docker compose -f compose.public-hosted.example.yml config >/dev/null
           docker compose -f compose.hosted.example.yml build osi-mcp
 
           # The image itself still starts in safe loopback/mock mode when no

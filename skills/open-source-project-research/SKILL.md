@@ -68,8 +68,8 @@ Before claiming current project, ranking, deployment, maintenance or license fac
 
 The repository can still be used locally without a hosted connection. If required live tools are unavailable:
 
-1. do not invent current rankings, shortlist or facts;
-2. state that live Radar evidence is unavailable in this session;
+1. do not invent a shortlist, current ranking or project fact from model memory;
+2. state that live evidence is unavailable in this session because the required Radar tools cannot be reached;
 3. provide only the interpreted requirements, research plan, candidate-evaluation matrix and manual verification checklist;
 4. label user-supplied project examples as unverified;
 5. direct the user to the hosted AI Open Source Intelligence connection or AI Open Source Radar before requesting a verified result.

@@ -7,20 +7,18 @@ import json
 import os
 from typing import Sequence
 
-from mcp.server.transport_security import TransportSecuritySettings
-
 from .endpoint_policy import validate_mcp_endpoint
 from .hosted_auth import load_hosted_oauth_config
 from .hosted_backend import load_hosted_backend_config
 from .hosted_mcp_server import build_hosted_mcp_server
 from .hosted_rate_limit import load_hosted_rate_limit_config
-from .http_server import HttpServerConfig, validate_http_configuration
+from .http_server import HttpServerSettings, load_http_server_settings
 
 
-def _validate_hosted_configuration() -> tuple[HttpServerConfig, str, str, str, dict[str, int]]:
+def _validate_hosted_configuration() -> tuple[HttpServerSettings, str, str, str, dict[str, int]]:
     if str(os.getenv("OSI_PROVIDER") or "").strip().lower() != "http":
         raise ValueError("public hosted MCP requires OSI_PROVIDER=http")
-    http_config = validate_http_configuration()
+    http_config = load_http_server_settings()
     oauth = load_hosted_oauth_config()
     backend = load_hosted_backend_config()
     rate_limit = load_hosted_rate_limit_config()
@@ -66,52 +64,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         "backend_origin": backend_url,
         "allowed_hosts": list(config.allowed_hosts),
         "allowed_origins": list(config.allowed_origins),
-        "cors_enabled": config.cors_enabled,
-        "request_body_limit": config.request_body_limit,
+        "cors_enabled": bool(config.allowed_origins),
+        "request_body_limit": config.max_request_body_size,
         "rate_limits": rate_limits,
-        "stateless_http": True,
-        "json_response": True,
+        "stateless_http": config.stateless_http,
+        "json_response": config.json_response,
     }
     if args.check_config:
         print(json.dumps(public_config, ensure_ascii=False, indent=2))
         return 0
 
-    try:
-        import uvicorn
-    except ImportError:
-        print(json.dumps({"ok": False, "error": "uvicorn is not installed"}, indent=2))
-        return 2
-
     server = build_hosted_mcp_server()
-    transport_security = TransportSecuritySettings(
-        enable_dns_rebinding_protection=True,
-        allowed_hosts=list(config.allowed_hosts),
-        allowed_origins=list(config.allowed_origins),
-    )
-    app = server.streamable_http_app(
-        transport_security=transport_security,
-        stateless_http=True,
-        json_response=True,
-    )
-    if config.cors_enabled:
-        from starlette.middleware.cors import CORSMiddleware
+    run_arguments: dict[str, object] = {
+        "transport": "streamable-http",
+        "host": config.host,
+        "port": config.port,
+        "stateless_http": config.stateless_http,
+        "json_response": config.json_response,
+        "max_request_body_size": config.max_request_body_size,
+    }
+    transport_security = config.transport_security()
+    if transport_security is not None:
+        run_arguments["transport_security"] = transport_security
 
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=list(config.allowed_origins),
-            allow_methods=["GET", "POST", "DELETE"],
-            allow_headers=["Authorization", "Content-Type", "MCP-Protocol-Version"],
-            expose_headers=["MCP-Session-Id"],
-            allow_credentials=False,
-        )
     print(json.dumps(public_config, ensure_ascii=False), flush=True)
-    uvicorn.run(
-        app,
-        host=config.host,
-        port=config.port,
-        log_level="info",
-        access_log=False,
-    )
+    server.run(**run_arguments)
     return 0
 
 

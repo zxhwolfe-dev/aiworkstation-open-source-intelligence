@@ -37,6 +37,17 @@ class ToolManifestAlignmentTests(unittest.TestCase):
             self.assertEqual(properties["offset"]["minimum"], 0)
             self.assertEqual(properties["offset"]["maximum"], 10000)
 
+    def test_hosted_manifest_matches_workos_scope_default_and_tool_surface(self) -> None:
+        hosted = json.loads(
+            (self.ROOT / "schemas" / "hosted-tool-manifest.json").read_text(encoding="utf-8")
+        )
+        authentication = hosted["authentication"]
+        self.assertIs(authentication["required"], True)
+        self.assertEqual(authentication["required_scopes"], [])
+        self.assertEqual(hosted["base_tools"], list(TOOL_NAMES))
+        hosted_names = [str(row["name"]) for row in hosted["hosted_only_tools"]]
+        self.assertEqual(hosted_names, ["deep_research_ai_projects"])
+
 
 if __name__ == "__main__":
     unittest.main()
