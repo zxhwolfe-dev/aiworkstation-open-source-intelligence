@@ -111,7 +111,7 @@
     },
     {
       "name": "browse_radar_projects",
-      "description": "Browse Radar projects by ranking, collection, category, scenario, search text and public filters.",
+      "description": "Browse Radar projects by ranking, collection, category, scenario, topic, search text and public filters.",
       "read_only": true,
       "input_schema": {
         "type": "object",
@@ -122,6 +122,10 @@
           "collection": {"type": "string", "maxLength": 256},
           "category": {"type": "string", "maxLength": 256},
           "scenario": {"type": "string", "maxLength": 256},
+          "role": {"type": "string", "maxLength": 256},
+          "topic": {"type": "string", "maxLength": 256},
+          "github_topic": {"type": "string", "maxLength": 256},
+          "radar_topic": {"type": "string", "maxLength": 256},
           "use_case": {"type": "string", "maxLength": 256},
           "resource_type": {"type": "string", "maxLength": 256},
           "license": {"type": "string", "maxLength": 256},
@@ -136,14 +140,19 @@
     },
     {
       "name": "browse_radar_skills",
-      "description": "Browse and search the AI Open Source Radar Skills library.",
+      "description": "Browse, filter and search the AI Open Source Radar Skills library, or open one Skill by ID.",
       "read_only": true,
       "input_schema": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "skill_id": {"type": "string", "maxLength": 512},
           "query": {"type": "string", "maxLength": 1000},
           "category": {"type": "string", "maxLength": 256},
+          "kind": {"type": "string", "maxLength": 256},
+          "license": {"type": "string", "maxLength": 256},
+          "installable": {"type": "boolean", "default": false},
+          "sort": {"type": "string", "maxLength": 256},
           "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
           "offset": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0},
           "locale": {"enum": ["zh", "en"], "default": "en"},
