@@ -2,9 +2,10 @@
 
 The default ``standard`` profile preserves the nine-tool public Radar smoke.
 The ``hosted`` profile verifies the OAuth boundary, authenticates through either
-an interactive OAuth flow or an environment-only bearer token, discovers the
-nine standard tools plus the Premium tool, and invokes one standard read-only
-search. Tokens are never written to the report.
+an interactive OAuth flow or an environment-only bearer token, proves the
+remote deployment commit, discovers the nine standard tools plus the Premium
+tool, and invokes one standard read-only search. Tokens are never written to
+the report.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from .hosted_remote_evidence import (
     expected_hosted_tools,
     inspect_oauth_boundary,
 )
+from .release_identity import release_commit_from_server_version
 
 # Backward-compatible private alias used by existing tests/release tooling. The
 # policy itself lives in a dependency-free module so importing it does not
@@ -212,6 +214,23 @@ async def smoke_remote_endpoint(
     checks: list[dict[str, Any]] = []
     expected_names = _expected_tool_names(profile)
     async with _open_client(url, auth_mode=auth_mode, bearer_token=bearer_token) as client:
+        server_info = getattr(client, "server_info", None)
+        server_version = str(getattr(server_info, "version", "") or "")
+        deployment_commit = release_commit_from_server_version(server_version)
+        if profile == "hosted":
+            deployment_match = bool(candidate_commit) and deployment_commit == str(candidate_commit).strip().lower()
+            checks.append(
+                {
+                    "id": "deployment-identity",
+                    "ok": deployment_match,
+                    "message": "Remote MCP serverInfo.version identifies the exact local Hosted candidate commit.",
+                    "details": {
+                        "deployment_commit": deployment_commit,
+                        "candidate_commit": str(candidate_commit or "").strip().lower(),
+                    },
+                }
+            )
+
         listed = await client.list_tools()
         tools = list(listed.tools)
         names = [tool.name for tool in tools]
@@ -294,11 +313,13 @@ async def smoke_remote_endpoint(
         return {
             "schema_version": HOSTED_REMOTE_SCHEMA,
             "generated_at": utc_now_iso(),
-            "commit": str(candidate_commit or "").strip(),
+            "commit": str(candidate_commit or "").strip().lower(),
             "profile": profile,
             "endpoint": url,
             "protocol_version": str(getattr(client, "protocol_version", "") or ""),
-            "server_info": str(getattr(client, "server_info", "") or ""),
+            "server_info": str(server_info or ""),
+            "server_version": server_version,
+            "deployment_commit": deployment_commit,
             "auth": {"mode": auth_mode},
             "oauth_boundary": oauth_boundary,
             "tools": names,
