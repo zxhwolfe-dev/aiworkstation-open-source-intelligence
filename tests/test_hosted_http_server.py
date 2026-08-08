@@ -30,6 +30,14 @@ class HostedHttpServerTests(unittest.TestCase):
     def _backend(self):
         return SimpleNamespace(base_url="https://aiworkstation.cn")
 
+    def _limits(self):
+        return SimpleNamespace(
+            per_minute=60,
+            per_hour=300,
+            premium_per_minute=5,
+            max_subjects=10000,
+        )
+
     def test_hosted_mode_requires_live_http_provider_before_other_configuration(self) -> None:
         with patch.dict("os.environ", {"OSI_PROVIDER": "mock"}, clear=True), self.assertRaises(ValueError) as context:
             _validate_hosted_configuration()
@@ -67,6 +75,23 @@ class HostedHttpServerTests(unittest.TestCase):
             _validate_hosted_configuration()
         self.assertIn("backend", str(context.exception).lower())
 
+    def test_hosted_mode_rejects_invalid_rate_limit_configuration_before_startup(self) -> None:
+        with patch.dict("os.environ", {"OSI_PROVIDER": "http"}, clear=True), patch(
+            "aiworkstation_osi.hosted_http_server.validate_http_configuration",
+            return_value=self._safe_http(),
+        ), patch(
+            "aiworkstation_osi.hosted_http_server.load_hosted_oauth_config",
+            return_value=self._oauth(),
+        ), patch(
+            "aiworkstation_osi.hosted_http_server.load_hosted_backend_config",
+            return_value=self._backend(),
+        ), patch(
+            "aiworkstation_osi.hosted_http_server.load_hosted_rate_limit_config",
+            side_effect=ValueError("rate limit invalid"),
+        ), self.assertRaises(ValueError) as context:
+            _validate_hosted_configuration()
+        self.assertIn("rate limit", str(context.exception).lower())
+
     def test_oauth_resource_must_be_public_https_mcp_endpoint(self) -> None:
         with patch.dict("os.environ", {"OSI_PROVIDER": "http"}, clear=True), patch(
             "aiworkstation_osi.hosted_http_server.validate_http_configuration",
@@ -78,6 +103,9 @@ class HostedHttpServerTests(unittest.TestCase):
             "aiworkstation_osi.hosted_http_server.load_hosted_backend_config",
             return_value=self._backend(),
         ), patch(
+            "aiworkstation_osi.hosted_http_server.load_hosted_rate_limit_config",
+            return_value=self._limits(),
+        ), patch(
             "aiworkstation_osi.hosted_http_server.validate_mcp_endpoint",
             return_value="https://mcp.example.com/not-mcp",
         ), self.assertRaises(ValueError) as context:
@@ -87,6 +115,12 @@ class HostedHttpServerTests(unittest.TestCase):
     def test_check_config_reports_only_public_configuration(self) -> None:
         config = self._safe_http()
         buffer = io.StringIO()
+        limits = {
+            "per_minute": 60,
+            "per_hour": 300,
+            "premium_per_minute": 5,
+            "max_subjects": 10000,
+        }
         with patch(
             "aiworkstation_osi.hosted_http_server._validate_hosted_configuration",
             return_value=(
@@ -94,6 +128,7 @@ class HostedHttpServerTests(unittest.TestCase):
                 "https://auth.example.com",
                 "https://mcp.example.com/mcp",
                 "https://aiworkstation.cn",
+                limits,
             ),
         ), redirect_stdout(buffer):
             rc = main(["--check-config"])
@@ -102,6 +137,7 @@ class HostedHttpServerTests(unittest.TestCase):
         self.assertEqual(payload["mode"], "hosted-oauth")
         self.assertEqual(payload["oauth_resource"], "https://mcp.example.com/mcp")
         self.assertEqual(payload["backend_origin"], "https://aiworkstation.cn")
+        self.assertEqual(payload["rate_limits"], limits)
         rendered = buffer.getvalue().lower()
         self.assertNotIn("secret", rendered)
         self.assertNotIn("token", rendered)
