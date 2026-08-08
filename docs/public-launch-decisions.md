@@ -34,6 +34,8 @@ Nine standard tools use public Radar data/retrieval and do not consume publisher
 
 Hosted MCP uses standard OAuth resource-server verification. Verified issuer+subject is transformed into an opaque entitlement ID before private backend/payment/model use.
 
+WorkOS AuthKit/Connect is the initial managed authorization provider. The production MCP access boundary is the exact WorkOS Resource Indicator/audience for the canonical MCP URL; custom resource-server scopes remain optional for providers that actually issue and expose them.
+
 A separate service credential authenticates Hosted MCP to private AI Workstation Premium/billing endpoints.
 
 ### Rate-limit architecture
@@ -70,17 +72,17 @@ Once registered with a platform, treat the final resource URL as stable.
 
 ### 2. OAuth provider/account
 
-Choose and configure the actual authorization provider/account.
-
-A managed provider is preferred for the first release rather than building a custom authorization server.
+Configure the production WorkOS AuthKit/Connect account and its exact MCP Resource Indicator.
 
 Production must prove:
 
 - fresh-user login/consent;
-- correct resource/audience and `osi:use` scope;
+- correct issuer and exact resource/audience binding;
+- access-token versus refresh-token separation;
 - refresh/reconnect behavior;
 - revocation/disabled-user behavior;
-- wrong-scope/wrong-resource rejection;
+- wrong-resource rejection;
+- configured-scope rejection only if a future provider explicitly enables resource-server scopes;
 - target platform compatibility.
 
 ### 3. Paddle merchant/product
@@ -146,7 +148,7 @@ Never commit placeholder technical IDs.
 2. evidence-critical EN/ZH live validation green;
 3. full Radar EN/ZH browse validation green;
 4. deploy HTTPS Hosted MCP behind protected gateway;
-5. configure real OAuth provider;
+5. configure real WorkOS OAuth provider and Resource Indicator;
 6. remote OAuth discovery + nine standard-tool smoke;
 7. Paddle sandbox end-to-end;
 8. Premium first-free / upgrade / paid / refund smoke;
