@@ -165,6 +165,10 @@ class IntrospectionTokenVerifier(TokenVerifier):
     def _validate(self, token: str, payload: Mapping[str, Any]) -> AccessToken | None:
         if payload.get("active") is not True:
             return None
+        # WorkOS can introspect both access and refresh tokens. A refresh token
+        # must never be accepted as an MCP bearer credential.
+        if str(payload.get("token_type") or "").strip().lower() != "access_token":
+            return None
         subject = str(payload.get("sub") or "").strip()
         client_id = str(payload.get("client_id") or "").strip()
         if not subject or not client_id:
