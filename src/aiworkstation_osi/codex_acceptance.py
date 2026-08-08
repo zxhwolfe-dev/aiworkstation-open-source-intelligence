@@ -26,6 +26,31 @@ SCHEMA_VERSION = "osi.codex-acceptance.v1"
 WORKFLOW_VERSION = "osi.codex-live-workflow.v1"
 SERVER_NAME = "ai_open_source_intelligence_acceptance"
 DEFAULT_BASE_URL = "https://aiworkstation.cn"
+MAX_CODEX_ATTEMPTS = 2
+
+TOOL_ACCEPTANCE_TASKS = {
+    "search_ai_projects": (
+        "find a self-hosted RAG project requiring Docker and a Web UI, "
+        "locale=en, source_mode=required"
+    ),
+    "get_project_facts": "inspect infiniflow/ragflow in English",
+    "get_license_evidence": (
+        "inspect infiniflow/ragflow in English; a missing or unknown license is "
+        "acceptable and must not be inferred"
+    ),
+    "compare_ai_projects": (
+        "compare langgenius/dify and infiniflow/ragflow for deployment and license "
+        "considerations, locale=en"
+    ),
+    "find_alternatives": (
+        "find alternatives to infiniflow/ragflow while preserving self-hosted, "
+        "Docker, and Web UI requirements, locale=en"
+    ),
+    "compose_ai_stack": (
+        "compose a private document-QA/RAG stack that is self-hosted and "
+        "Docker-oriented, locale=en"
+    ),
+}
 
 
 def _utc_now_iso() -> str:
@@ -51,6 +76,14 @@ def _toml_inline_table(values: Mapping[str, str]) -> str:
     ) + "}"
 
 
+def _task_lines(tool_names: Sequence[str]) -> str:
+    selected = [tool for tool in TOOL_NAMES if tool in set(tool_names)]
+    return "\n".join(
+        f"{index}. {tool}: {TOOL_ACCEPTANCE_TASKS[tool]}."
+        for index, tool in enumerate(selected, start=1)
+    )
+
+
 def acceptance_prompt() -> str:
     """Return the fixed read-only workflow that exercises every public tool."""
 
@@ -58,16 +91,29 @@ def acceptance_prompt() -> str:
 Do not edit files. Do not use shell commands or web search to answer these tasks.
 Use the named MCP server and make at least one successful call to EACH of its six tools.
 Do not skip a tool because an earlier result seems sufficient. Unknown or no-match results are acceptable when honest.
+If a tool call returns a recoverable/model-readable error, make one safe corrected retry for that same tool before moving on.
 
-Perform these calls:
-1. search_ai_projects: find a self-hosted RAG project requiring Docker and a Web UI, locale=en, source_mode=required.
-2. get_project_facts: inspect infiniflow/ragflow in English.
-3. get_license_evidence: inspect infiniflow/ragflow in English. A missing or unknown license is acceptable; do not infer one.
-4. compare_ai_projects: compare langgenius/dify and infiniflow/ragflow for deployment and license considerations, locale=en.
-5. find_alternatives: find alternatives to infiniflow/ragflow while preserving self-hosted, Docker, and Web UI requirements, locale=en.
-6. compose_ai_stack: compose a private document-QA/RAG stack that is self-hosted and Docker-oriented, locale=en.
+Perform these calls in the listed order:
+{_task_lines(TOOL_NAMES)}
 
 After all six tool calls finish, output exactly: ACCEPTANCE_COMPLETE
+"""
+
+
+def retry_acceptance_prompt(missing_tools: Sequence[str]) -> str:
+    """Return a focused second-pass prompt for tools not proven successful yet."""
+
+    selected = [tool for tool in TOOL_NAMES if tool in set(missing_tools)]
+    return f"""This is a focused read-only follow-up acceptance test for the MCP server `{SERVER_NAME}`.
+The previous pass did not prove a successful invocation for every tool listed below.
+Do not edit files. Do not use shell commands or web search.
+Call EACH listed MCP tool and obtain at least one successful tool result. Do not skip any listed tool.
+If a call returns a recoverable/model-readable error, adjust only the safe test arguments and retry that tool once.
+
+Required follow-up calls:
+{_task_lines(selected)}
+
+After every listed tool has been called successfully, output exactly: ACCEPTANCE_COMPLETE
 """
 
 
@@ -127,6 +173,7 @@ def build_codex_command(
     ledger_path: Path,
     provider: str,
     base_url: str,
+    prompt: str | None = None,
 ) -> list[str]:
     """Build a non-persistent Codex exec command with one required MCP server."""
 
@@ -169,7 +216,7 @@ def build_codex_command(
     ]
     for override in overrides:
         command.extend(("-c", override))
-    command.append(acceptance_prompt())
+    command.append(prompt or acceptance_prompt())
     return command
 
 
@@ -257,6 +304,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "codex_completed": False,
         "ok": False,
     }
+    attempts: list[dict[str, Any]] = []
+    requested_tools = list(TOOL_NAMES)
 
     try:
         codex_bin = _resolve_executable(args.codex_bin)
@@ -267,29 +316,69 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         report["codex_version"] = _codex_version(codex_bin)
         report["mcp_command"] = mcp_command
-        command = build_codex_command(
-            codex_bin=codex_bin,
-            root=root,
-            mcp_command=mcp_command,
-            ledger_path=ledger_path,
-            provider=args.provider,
-            base_url=args.base_url,
+        prompt = acceptance_prompt()
+
+        for attempt_number in range(1, MAX_CODEX_ATTEMPTS + 1):
+            command = build_codex_command(
+                codex_bin=codex_bin,
+                root=root,
+                mcp_command=mcp_command,
+                ledger_path=ledger_path,
+                provider=args.provider,
+                base_url=args.base_url,
+                prompt=prompt,
+            )
+            completed = subprocess.run(
+                command,
+                cwd=root,
+                env=os.environ.copy(),
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=max(60, int(args.timeout_seconds)),
+                check=False,
+            )
+            attempts.append(
+                {
+                    "attempt": attempt_number,
+                    "returncode": int(completed.returncode),
+                    "requested_tools": list(requested_tools),
+                }
+            )
+            if completed.returncode != 0:
+                break
+
+            current_ledger = evaluate_ledger(load_ledger(ledger_path))
+            if current_ledger["ok"]:
+                break
+            missing_tools = [str(tool) for tool in current_ledger.get("missing_tools") or []]
+            if attempt_number >= MAX_CODEX_ATTEMPTS or not missing_tools:
+                break
+            requested_tools = missing_tools
+            prompt = retry_acceptance_prompt(missing_tools)
+
+        report["codex_attempts"] = attempts
+        nonzero = next(
+            (int(row["returncode"]) for row in attempts if int(row["returncode"]) != 0),
+            0,
         )
-        completed = subprocess.run(
-            command,
-            cwd=root,
-            env=os.environ.copy(),
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=max(60, int(args.timeout_seconds)),
-            check=False,
+        report["codex_returncode"] = nonzero if attempts else None
+        report["codex_completed"] = bool(attempts) and all(
+            int(row["returncode"]) == 0 for row in attempts
         )
-        report["codex_returncode"] = int(completed.returncode)
-        report["codex_completed"] = completed.returncode == 0
     except subprocess.TimeoutExpired:
+        attempts.append(
+            {
+                "attempt": len(attempts) + 1,
+                "returncode": None,
+                "requested_tools": list(requested_tools),
+                "timed_out": True,
+            }
+        )
+        report["codex_attempts"] = attempts
         report["error"] = {"code": "CODEX_TIMEOUT", "message": "Codex acceptance run timed out."}
     except (OSError, ValueError) as exc:
+        report["codex_attempts"] = attempts
         report["error"] = {"code": "CODEX_START_FAILED", "message": str(exc)}
 
     events = load_ledger(ledger_path)
