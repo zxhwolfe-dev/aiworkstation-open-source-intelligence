@@ -16,6 +16,9 @@ from aiworkstation_osi.hosted_remote_evidence import (
     validate_hosted_remote_evidence,
 )
 
+CANDIDATE = "a" * 40
+OTHER_CANDIDATE = "b" * 40
+
 
 class _JsonResponse:
     def __init__(self, payload: dict, *, status: int = 200) -> None:
@@ -82,7 +85,9 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
         payload = {
             "schema_version": HOSTED_REMOTE_SCHEMA,
             "ok": True,
-            "commit": "candidate-sha",
+            "commit": CANDIDATE,
+            "deployment_commit": CANDIDATE,
+            "server_version": f"0.1.0+git.{CANDIDATE}",
             "profile": "hosted",
             "endpoint": "https://mcp.aiworkstation.cn/mcp",
             "protocol_version": "2026-07-28",
@@ -90,6 +95,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
             "oauth_boundary": self._boundary(),
             "tools": tools,
             "checks": [
+                {"id": "deployment-identity", "ok": True},
                 {"id": "tool-set", "ok": True},
                 {"id": "tool-annotations", "ok": True},
                 {"id": "search-invocation", "ok": True},
@@ -137,21 +143,23 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
         self.assertIn("same MCP origin", " ".join(result["errors"]))
         self.assertEqual(opener.calls, 1)
 
-    def test_valid_report_is_candidate_and_oauth_bound(self) -> None:
+    def test_valid_report_is_candidate_oauth_and_deployment_bound(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             report = self._write_report(Path(temp_dir) / "hosted.json")
             result = validate_hosted_remote_evidence(
                 report,
-                candidate_commit="candidate-sha",
+                candidate_commit=CANDIDATE,
                 expected_endpoint="https://mcp.aiworkstation.cn/mcp",
                 expected_issuer="https://auth.example.com",
             )
 
         self.assertTrue(result["ok"])
         self.assertTrue(result["oauth_boundary_verified"])
+        self.assertTrue(result["deployment_identity_verified"])
         self.assertTrue(result["search_verified"])
         self.assertIn(HOSTED_PREMIUM_TOOL, result["tools"])
         self.assertEqual(result["auth_mode"], "oauth")
+        self.assertEqual(result["deployment_commit"], CANDIDATE)
         self.assertEqual(result["errors"], [])
 
     def test_different_candidate_fails_closed(self) -> None:
@@ -159,13 +167,32 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
             report = self._write_report(Path(temp_dir) / "hosted.json")
             result = validate_hosted_remote_evidence(
                 report,
-                candidate_commit="newer-sha",
+                candidate_commit=OTHER_CANDIDATE,
                 expected_endpoint="https://mcp.aiworkstation.cn/mcp",
                 expected_issuer="https://auth.example.com",
             )
 
         self.assertFalse(result["ok"])
-        self.assertIn("different candidate commit", " ".join(result["errors"]))
+        rendered = " ".join(result["errors"])
+        self.assertIn("different candidate commit", rendered)
+        self.assertIn("different deployed server commit", rendered)
+
+    def test_forged_or_stale_deployment_identity_cannot_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = self._write_report(
+                Path(temp_dir) / "hosted.json",
+                deployment_commit=OTHER_CANDIDATE,
+                server_version=f"0.1.0+git.{OTHER_CANDIDATE}",
+            )
+            result = validate_hosted_remote_evidence(
+                report,
+                candidate_commit=CANDIDATE,
+                expected_endpoint="https://mcp.aiworkstation.cn/mcp",
+                expected_issuer="https://auth.example.com",
+            )
+
+        self.assertFalse(result["ok"])
+        self.assertIn("different deployed server commit", " ".join(result["errors"]))
 
     def test_missing_premium_or_authentication_cannot_pass(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -177,7 +204,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
             )
             result = validate_hosted_remote_evidence(
                 report,
-                candidate_commit="candidate-sha",
+                candidate_commit=CANDIDATE,
                 expected_endpoint="https://mcp.aiworkstation.cn/mcp",
                 expected_issuer="https://auth.example.com",
             )
@@ -195,7 +222,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
             )
             result = validate_hosted_remote_evidence(
                 report,
-                candidate_commit="candidate-sha",
+                candidate_commit=CANDIDATE,
                 expected_endpoint="https://mcp.aiworkstation.cn/mcp",
                 expected_issuer="https://auth.example.com",
             )
@@ -212,6 +239,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
                     authorization_servers=["https://wrong.example.com"],
                 ),
                 checks=[
+                    {"id": "deployment-identity", "ok": True},
                     {"id": "tool-set", "ok": True},
                     {"id": "tool-annotations", "ok": True},
                     {"id": "search-invocation", "ok": False},
@@ -220,7 +248,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
             )
             result = validate_hosted_remote_evidence(
                 report,
-                candidate_commit="candidate-sha",
+                candidate_commit=CANDIDATE,
                 expected_endpoint="https://mcp.aiworkstation.cn/mcp",
                 expected_issuer="https://auth.example.com",
             )
@@ -242,7 +270,7 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
             )
             result = validate_hosted_remote_evidence(
                 report,
-                candidate_commit="candidate-sha",
+                candidate_commit=CANDIDATE,
                 expected_endpoint="https://mcp.aiworkstation.cn/mcp",
                 expected_issuer="https://auth.example.com",
             )
