@@ -39,7 +39,10 @@ class HostedOAuthConfig:
     client_secret: str
     resource_url: str
     required_scopes: tuple[str, ...] = ("osi:use",)
-    introspection_auth: str = "basic"
+    # WorkOS AuthKit/Connect is the initial production authorization provider
+    # and its documented introspection flow authenticates with client credentials
+    # in the POST body. ``basic`` remains available for compatible providers.
+    introspection_auth: str = "body"
     timeout_seconds: float = 10.0
 
 
@@ -81,7 +84,7 @@ def load_hosted_oauth_config() -> HostedOAuthConfig:
     required = tuple(
         part for part in str(os.getenv("OSI_OAUTH_REQUIRED_SCOPES") or "osi:use").split() if part
     )
-    auth_style = str(os.getenv("OSI_OAUTH_INTROSPECTION_AUTH") or "basic").strip().lower()
+    auth_style = str(os.getenv("OSI_OAUTH_INTROSPECTION_AUTH") or "body").strip().lower()
     if auth_style not in {"basic", "body"}:
         raise ValueError("OSI_OAUTH_INTROSPECTION_AUTH must be basic or body")
     try:
