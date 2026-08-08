@@ -1,16 +1,64 @@
 from __future__ import annotations
 
+import io
 import json
 import tempfile
 import unittest
+import urllib.error
+from email.message import Message
 from pathlib import Path
 
 from aiworkstation_osi.hosted_remote_evidence import (
     HOSTED_PREMIUM_TOOL,
     HOSTED_REMOTE_SCHEMA,
     expected_hosted_tools,
+    inspect_oauth_boundary,
     validate_hosted_remote_evidence,
 )
+
+
+class _JsonResponse:
+    def __init__(self, payload: dict, *, status: int = 200) -> None:
+        self.status = status
+        self.headers = Message()
+        self._raw = json.dumps(payload).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self, limit: int = -1) -> bytes:
+        return self._raw if limit < 0 else self._raw[:limit]
+
+
+class _BoundaryOpener:
+    def __init__(self, *, metadata_url: str) -> None:
+        self.metadata_url = metadata_url
+        self.calls = 0
+
+    def open(self, request, timeout=0):  # type: ignore[no-untyped-def]
+        self.calls += 1
+        if self.calls == 1:
+            headers = Message()
+            headers["WWW-Authenticate"] = (
+                'Bearer resource_metadata="' + self.metadata_url + '"'
+            )
+            raise urllib.error.HTTPError(
+                request.full_url,
+                401,
+                "Unauthorized",
+                headers,
+                io.BytesIO(b'{"error":"unauthorized"}'),
+            )
+        return _JsonResponse(
+            {
+                "resource": "https://mcp.aiworkstation.cn/mcp",
+                "authorization_servers": ["https://auth.example.com"],
+                "bearer_methods_supported": ["header"],
+            }
+        )
 
 
 class HostedRemoteEvidenceTests(unittest.TestCase):
@@ -45,6 +93,38 @@ class HostedRemoteEvidenceTests(unittest.TestCase):
         payload.update(overrides)
         path.write_text(json.dumps(payload), encoding="utf-8")
         return path
+
+    def test_oauth_boundary_accepts_same_origin_protected_resource_metadata(self) -> None:
+        opener = _BoundaryOpener(
+            metadata_url="https://mcp.aiworkstation.cn/.well-known/oauth-protected-resource/mcp"
+        )
+        result = inspect_oauth_boundary(
+            "https://mcp.aiworkstation.cn/mcp",
+            expected_issuer="https://auth.example.com",
+            opener=opener,
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["challenge_status"], 401)
+        self.assertTrue(result["bearer_challenge"])
+        self.assertEqual(result["metadata_status"], 200)
+        self.assertEqual(result["resource"], "https://mcp.aiworkstation.cn/mcp")
+        self.assertEqual(result["authorization_servers"], ["https://auth.example.com"])
+        self.assertEqual(opener.calls, 2)
+
+    def test_oauth_boundary_rejects_cross_origin_metadata_url(self) -> None:
+        opener = _BoundaryOpener(
+            metadata_url="https://evil.example/.well-known/oauth-protected-resource"
+        )
+        result = inspect_oauth_boundary(
+            "https://mcp.aiworkstation.cn/mcp",
+            expected_issuer="https://auth.example.com",
+            opener=opener,
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertIn("same MCP origin", " ".join(result["errors"]))
+        self.assertEqual(opener.calls, 1)
 
     def test_valid_report_is_candidate_and_oauth_bound(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
