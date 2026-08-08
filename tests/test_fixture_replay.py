@@ -137,7 +137,12 @@ class FixtureReplayTests(unittest.TestCase):
         self.assertTrue(by_id["no-match-replay"]["ok"])
         formal_paths = {call["path"] for call in report["request_summary"]["formal_calls"]}
         self.assertIn("/api/v1/ai/githubai/projects", formal_paths)
-        self.assertIn("/api/v1/ai/githubai/selector", formal_paths)
+        self.assertIn("/api/v1/ai/githubai/selector/tasks", formal_paths)
+        self.assertIn(
+            "/api/v1/ai/githubai/selector/tasks/fixture-selector-task",
+            formal_paths,
+        )
+        self.assertNotIn("/api/v1/ai/githubai/selector", formal_paths)
 
     def test_invalid_capture_returns_validation_failure_without_replay(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

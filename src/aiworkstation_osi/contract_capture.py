@@ -18,6 +18,7 @@ from typing import Any, Mapping, Sequence
 from .contracts import utc_now_iso
 from .errors import ProviderUnavailableError, UpstreamContractError
 from .http_provider import PUBLIC_API_PREFIX, JsonResponse, JsonTransport, _project_id
+from .selector_task_transport import SelectorTaskJsonTransport
 from .strict_http_provider import SafeUrllibJsonTransport
 
 FIXTURE_SCHEMA_VERSION = "osi.public-contract-fixture.v1"
@@ -259,7 +260,11 @@ def capture_public_contracts(
     )
     _require_success(detail, "project-detail")
 
-    formal = transport.request(
+    selector_transport = SelectorTaskJsonTransport(
+        transport,
+        task_timeout=max(60.0, float(timeout)),
+    )
+    formal = selector_transport.request(
         "POST",
         f"{PUBLIC_API_PREFIX}/selector",
         body={
@@ -271,7 +276,7 @@ def capture_public_contracts(
         timeout=timeout,
     )
     _require_success(formal, "selector-formal")
-    no_match = transport.request(
+    no_match = selector_transport.request(
         "POST",
         f"{PUBLIC_API_PREFIX}/selector",
         body={

@@ -11,9 +11,14 @@ import urllib.parse
 from typing import Any, Mapping, Sequence
 
 from .errors import UpstreamContractError
-from .http_provider import PUBLIC_API_PREFIX, _snapshot_id
+from .http_provider import DEFAULT_BASE_URL, PUBLIC_API_PREFIX, JsonTransport, _snapshot_id
 from .providers import ProviderOutput
-from .strict_http_provider import AIWorkstationHttpProvider, _find_internal_fields
+from .selector_task_transport import SelectorTaskJsonTransport
+from .strict_http_provider import (
+    AIWorkstationHttpProvider,
+    SafeUrllibJsonTransport,
+    _find_internal_fields,
+)
 
 
 _PROJECT_FILTER_FIELDS = (
@@ -68,6 +73,30 @@ def _total(payload: Mapping[str, Any], items: Sequence[Mapping[str, Any]]) -> in
 
 class FullRadarHttpProvider(AIWorkstationHttpProvider):
     """Hardened project intelligence plus the public Radar browsing surfaces."""
+
+    def __init__(
+        self,
+        base_url: str = DEFAULT_BASE_URL,
+        *,
+        transport: JsonTransport | None = None,
+        timeout: float = 30.0,
+        hydrate_limit: int = 5,
+    ) -> None:
+        delegate = transport or SafeUrllibJsonTransport(base_url)
+        # Keep each individual HTTP request bounded by ``timeout`` while allowing
+        # the already-public long-running selector task contract enough total
+        # time to queue and finish. The wrapper affects only POST /selector;
+        # every read-only browse/detail request is delegated unchanged.
+        selector_transport = SelectorTaskJsonTransport(
+            delegate,
+            task_timeout=max(60.0, float(timeout)),
+        )
+        super().__init__(
+            base_url,
+            transport=selector_transport,
+            timeout=timeout,
+            hydrate_limit=hydrate_limit,
+        )
 
     def get_radar_overview(self, request: Mapping[str, Any]) -> ProviderOutput:
         locale = str(request.get("locale") or "en")

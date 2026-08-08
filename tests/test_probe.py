@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import inspect
 import unittest
 
-from aiworkstation_osi.probe import evaluate_probe
+from aiworkstation_osi.probe import evaluate_probe, run_probe
 
 
 class PublicContractProbeTests(unittest.TestCase):
+    def test_live_probe_uses_full_provider_with_selector_task_transport(self) -> None:
+        source = inspect.getsource(run_probe)
+        self.assertIn("FullRadarHttpProvider(", source)
+        self.assertNotIn("AIWorkstationHttpProvider(", source)
+
     def test_complete_sanitized_envelopes_pass(self) -> None:
         facts = {
             "data": {

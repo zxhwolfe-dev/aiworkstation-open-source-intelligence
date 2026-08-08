@@ -41,26 +41,12 @@ class LiveValidationWorkflowTests(unittest.TestCase):
         self.assertIn('os.environ["BASE_URL"]', self.content)
         self.assertIn('os.environ["PROJECT_ID"]', self.content)
 
-    def test_live_path_diagnostics_are_non_blocking_and_privacy_safe(self) -> None:
-        block = self.content.split("Diagnose public evidence path availability", 1)[1].split(
-            "Run English and Chinese public probes", 1
-        )[0]
-        for stage in ("overview", "project_lookup", "project_detail", "selector"):
-            with self.subTest(stage=stage):
-                self.assertIn(f'"{stage}"', block)
-        self.assertIn('"elapsed_ms"', block)
-        self.assertIn('"failure_type"', block)
-        self.assertIn('timeout=10.0', block)
-        self.assertNotIn("raise SystemExit", block)
-        self.assertNotIn("print(raw", block)
-        self.assertNotIn("print(payload", block)
-        self.assertNotIn("print(url", block)
-        self.assertNotIn("str(exc)", block)
-        self.assertNotIn('"query": project_id', block)
-        # The real probe still follows diagnostics and retains the strict
-        # 30-second provider contract rather than relaxing the release gate.
-        self.assertIn("osi-probe", self.content)
-        self.assertNotIn("--timeout", self.content)
+    def test_workflow_does_not_duplicate_selector_preflight(self) -> None:
+        # The selector task transport is exercised by the real probe/capture path.
+        # Avoid a second heavy selector call merely for diagnostics.
+        self.assertNotIn("Diagnose public evidence path availability", self.content)
+        self.assertIn("Run English and Chinese public probes", self.content)
+        self.assertIn("Capture sanitized public contracts", self.content)
 
     def test_replay_uses_capture_manifest_instead_of_duplicate_identity_flags(self) -> None:
         replay_block = self.content.split("Validate and replay captured contracts", 1)[1].split(

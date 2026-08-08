@@ -15,7 +15,25 @@ from aiworkstation_osi.contract_capture import (
 from aiworkstation_osi.http_provider import JsonResponse
 
 
+def selector_result(body: Mapping[str, Any] | None) -> dict[str, Any]:
+    request_body = dict(body or {})
+    return {
+        "evidence_status": "available",
+        "query": request_body.get("query") or "",
+        "client_id": request_body.get("client_id") or "",
+        "items": [],
+        "no_match_reason": "No exact match."
+        if request_body.get("filters", {}).get("category") == "__osi_contract_no_match_v1__"
+        else "",
+        "claim_refs": ["internal"],
+    }
+
+
 class FixtureTransport:
+    def __init__(self) -> None:
+        self._task_results: dict[str, dict[str, Any]] = {}
+        self._task_counter = 0
+
     def request(
         self,
         method: str,
@@ -25,6 +43,8 @@ class FixtureTransport:
         body: Mapping[str, Any] | None = None,
         timeout: float = 30.0,
     ) -> JsonResponse:
+        method_upper = method.upper()
+        status = 200
         if path.endswith("/projects"):
             payload: dict[str, Any] = {
                 "snapshot_id": "snapshot-1",
@@ -55,19 +75,31 @@ class FixtureTransport:
                     },
                 },
             }
-        elif path.endswith("/selector"):
-            payload = {
-                "evidence_status": "available",
-                "query": body.get("query") if body else "",
-                "client_id": body.get("client_id") if body else "",
-                "items": [],
-                "no_match_reason": "No exact match." if (body or {}).get("filters", {}).get("category") == "__osi_contract_no_match_v1__" else "",
-                "claim_refs": ["internal"],
-            }
+        elif method_upper == "POST" and path.endswith("/selector/tasks"):
+            self._task_counter += 1
+            task_id = f"fixture-task-{self._task_counter}"
+            self._task_results[task_id] = selector_result(body)
+            status = 202
+            payload = {"ok": True, "task_id": task_id, "status": "queued"}
+        elif method_upper == "GET" and "/selector/tasks/" in path:
+            task_id = path.rsplit("/", 1)[-1]
+            if task_id not in self._task_results:
+                status = 404
+                payload = {}
+            else:
+                payload = {
+                    "task_id": task_id,
+                    "status": "completed",
+                    "error": "",
+                    "result": self._task_results[task_id],
+                }
+        elif method_upper == "DELETE" and "/selector/tasks/" in path:
+            status = 202
+            payload = {"ok": True, "status": "cancelling"}
         else:
             raise AssertionError((method, path, query, body, timeout))
         return JsonResponse(
-            status=200,
+            status=status,
             headers={
                 "content-type": "application/json",
                 "etag": '"fixture"',
@@ -82,6 +114,7 @@ class FixtureTransport:
 class EncodedRouteTransport:
     def __init__(self) -> None:
         self.paths: list[str] = []
+        self.task_result: dict[str, Any] = {}
 
     def request(
         self,
@@ -92,7 +125,9 @@ class EncodedRouteTransport:
         body: Mapping[str, Any] | None = None,
         timeout: float = 30.0,
     ) -> JsonResponse:
+        method_upper = method.upper()
         self.paths.append(path)
+        status = 200
         if path.endswith("/projects"):
             payload: dict[str, Any] = {
                 "snapshot_id": "snapshot-1",
@@ -109,16 +144,27 @@ class EncodedRouteTransport:
                 "snapshot_id": "snapshot-1",
                 "item": {"owner": "owner", "repo": "repo", "full_name": "owner/repo"},
             }
-        elif path.endswith("/selector"):
-            payload = {
+        elif method_upper == "POST" and path.endswith("/selector/tasks"):
+            self.task_result = {
                 "evidence_status": "available",
                 "items": [],
                 "no_match_reason": "No exact match.",
             }
+            status = 202
+            payload = {"task_id": "encoded-task", "status": "queued"}
+        elif method_upper == "GET" and path.endswith("/selector/tasks/encoded-task"):
+            payload = {
+                "task_id": "encoded-task",
+                "status": "completed",
+                "result": self.task_result,
+            }
+        elif method_upper == "DELETE" and path.endswith("/selector/tasks/encoded-task"):
+            status = 202
+            payload = {"ok": True, "status": "cancelling"}
         else:
             raise AssertionError((method, path, query, body, timeout))
         return JsonResponse(
-            status=200,
+            status=status,
             headers={"content-type": "application/json"},
             payload=payload,
             url="https://example.test" + path,
@@ -144,10 +190,11 @@ class ContractCaptureTests(unittest.TestCase):
     def test_no_match_capture_sends_structured_filter(self) -> None:
         class RecordingTransport(FixtureTransport):
             def __init__(self) -> None:
+                super().__init__()
                 self.no_match_body: dict[str, Any] | None = None
 
             def request(self, method: str, path: str, *, query=None, body=None, timeout=30.0):
-                if path.endswith("/selector") and body and body.get("filters"):
+                if method.upper() == "POST" and path.endswith("/selector/tasks") and body and body.get("filters"):
                     self.no_match_body = dict(body)
                 return super().request(method, path, query=query, body=body, timeout=timeout)
 
@@ -224,6 +271,8 @@ class ContractCaptureTests(unittest.TestCase):
             )
         self.assertIn("/api/v1/ai/githubai/projects/owner%2Frepo", transport.paths)
         self.assertNotIn("/api/v1/ai/githubai/projects/owner/repo", transport.paths)
+        self.assertIn("/api/v1/ai/githubai/selector/tasks", transport.paths)
+        self.assertNotIn("/api/v1/ai/githubai/selector", transport.paths)
 
     def test_capture_rejects_invalid_timeout_and_empty_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
