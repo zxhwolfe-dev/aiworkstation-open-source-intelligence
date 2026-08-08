@@ -11,7 +11,11 @@ from aiworkstation_osi.app import create_default_registry
 from aiworkstation_osi.contracts import HOSTED_TOOL_NAMES, TOOL_NAMES
 from aiworkstation_osi.hosted_auth import HostedOAuthConfig, hosted_auth_settings
 from aiworkstation_osi.hosted_backend import HostedBackendError
-from aiworkstation_osi.hosted_mcp_server import HOSTED_INSTRUCTIONS, build_hosted_mcp_server
+from aiworkstation_osi.hosted_mcp_server import (
+    HOSTED_INSTRUCTIONS,
+    _rate_limited_registry,
+    build_hosted_mcp_server,
+)
 from aiworkstation_osi.hosted_rate_limit import HostedRateLimitConfig, HostedRateLimiter
 
 
@@ -64,8 +68,20 @@ class FakeBackend:
         }
 
 
+class RecordingLimiter:
+    def __init__(self) -> None:
+        self.current_tools = []
+        self.subject_calls = []
+
+    def check_current(self, tool_name: str) -> None:
+        self.current_tools.append(tool_name)
+
+    def check_subject(self, subject: str, *, premium: bool = False) -> None:
+        self.subject_calls.append((subject, premium))
+
+
 class HostedMcpServerTests(unittest.TestCase):
-    def _build(self, backend):
+    def _build(self, backend, *, limiter=None):
         config = HostedOAuthConfig(
             issuer_url="https://auth.example.com",
             introspection_url="https://auth.example.com/introspect",
@@ -74,7 +90,7 @@ class HostedMcpServerTests(unittest.TestCase):
             resource_url="https://mcp.example.com/mcp",
             required_scopes=("osi:use",),
         )
-        limiter = HostedRateLimiter(
+        limiter = limiter or HostedRateLimiter(
             HostedRateLimitConfig(per_minute=20, per_hour=100, premium_per_minute=5, max_subjects=100)
         )
         return build_hosted_mcp_server(
@@ -113,10 +129,18 @@ class HostedMcpServerTests(unittest.TestCase):
         self.assertIn("premium", HOSTED_INSTRUCTIONS.lower())
         self.assertIn("free premium trial or AI credits", HOSTED_INSTRUCTIONS)
 
-    def test_premium_success_uses_only_opaque_entitlement_subject(self) -> None:
+    def test_ordinary_registry_tools_are_wrapped_by_hosted_limiter(self) -> None:
+        limiter = RecordingLimiter()
+        registry = _rate_limited_registry(create_default_registry(), limiter)  # type: ignore[arg-type]
+        result = registry.invoke("get_radar_overview", {"locale": "en"})
+        self.assertEqual(result.tool, "get_radar_overview")
+        self.assertEqual(limiter.current_tools, ["get_radar_overview"])
+
+    def test_premium_success_uses_only_opaque_entitlement_subject_and_rate_limit(self) -> None:
         async def run():
             backend = FakeBackend()
-            server = self._build(backend)
+            limiter = RecordingLimiter()
+            server = self._build(backend, limiter=limiter)
             with patch(
                 "aiworkstation_osi.hosted_mcp_server.current_entitlement_subject",
                 return_value="oidc_opaque",
@@ -128,6 +152,7 @@ class HostedMcpServerTests(unittest.TestCase):
                     )
             self.assertFalse(result.is_error)
             self.assertEqual(backend.premium_calls[0][0], "oidc_opaque")
+            self.assertEqual(limiter.subject_calls, [("oidc_opaque", True)])
             payload = result.structured_content
             self.assertIsNotNone(payload)
             assert payload is not None
@@ -157,6 +182,31 @@ class HostedMcpServerTests(unittest.TestCase):
             self.assertEqual(payload["data"]["checkout"]["provider"], "paddle")
             self.assertEqual(payload["data"]["checkout"]["checkout_url"], "https://checkout.example/txn")
             self.assertEqual(backend.checkout_calls, ["oidc_opaque"])
+        asyncio.run(run())
+
+    def test_premium_rate_limit_blocks_publisher_model_before_backend(self) -> None:
+        async def run():
+            backend = FakeBackend()
+            limiter = HostedRateLimiter(
+                HostedRateLimitConfig(per_minute=20, per_hour=100, premium_per_minute=1, max_subjects=100)
+            )
+            server = self._build(backend, limiter=limiter)
+            with patch(
+                "aiworkstation_osi.hosted_mcp_server.current_entitlement_subject",
+                return_value="oidc_opaque",
+            ):
+                async with Client(server) as client:
+                    first = await client.call_tool(
+                        "deep_research_ai_projects",
+                        {"query": "First deep research", "locale": "en"},
+                    )
+                    second = await client.call_tool(
+                        "deep_research_ai_projects",
+                        {"query": "Second deep research", "locale": "en"},
+                    )
+            self.assertFalse(first.is_error)
+            self.assertTrue(second.is_error)
+            self.assertEqual(len(backend.premium_calls), 1)
         asyncio.run(run())
 
 
