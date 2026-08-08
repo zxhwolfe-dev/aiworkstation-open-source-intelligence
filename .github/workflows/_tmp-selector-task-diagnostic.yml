@@ -1,0 +1,131 @@
+name: temp-selector-task-diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Measure deterministic selector task completion
+        env:
+          BASE_URL: https://aiworkstation.cn
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          base_url = os.environ["BASE_URL"].rstrip("/")
+          headers = {
+              "accept": "application/json",
+              "content-type": "application/json",
+              "user-agent": "aiworkstation-open-source-intelligence/0.1",
+          }
+          payload = {
+              "query": "public release validation",
+              "filters": {},
+              "lang": "en",
+              "use_model": False,
+              "client_id": "aiworkstation-osi-live-validation",
+          }
+          started = time.monotonic()
+
+          def safe_request(method, path, *, body=None, timeout=10.0):
+              data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
+              req_headers = dict(headers)
+              if body is None:
+                  req_headers.pop("content-type", None)
+              request = urllib.request.Request(
+                  base_url + path,
+                  data=data,
+                  method=method,
+                  headers=req_headers,
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=timeout) as response:
+                      raw = response.read(2_000_001)
+                      status = int(response.status)
+                  try:
+                      result = json.loads(raw.decode("utf-8")) if raw else {}
+                  except (UnicodeDecodeError, json.JSONDecodeError):
+                      result = {}
+                  return status, result if isinstance(result, dict) else {}, ""
+              except urllib.error.HTTPError as exc:
+                  return int(exc.code), {}, "HTTPError"
+              except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                  return None, {}, type(exc).__name__
+
+          create_started = time.monotonic()
+          status, created, failure = safe_request(
+              "POST", "/api/v1/ai/githubai/selector/tasks", body=payload, timeout=10.0,
+          )
+          print(json.dumps({
+              "stage": "create",
+              "http_status": status,
+              "elapsed_ms": int((time.monotonic() - create_started) * 1000),
+              "failure_type": failure or None,
+          }, separators=(",", ":")))
+          task_id = str(created.get("task_id") or "")
+          if status not in {200, 202} or not task_id:
+              raise SystemExit(1)
+
+          previous = None
+          terminal = None
+          deadline = time.monotonic() + 90.0
+          poll_count = 0
+          while time.monotonic() < deadline:
+              poll_count += 1
+              poll_started = time.monotonic()
+              poll_status, snapshot, poll_failure = safe_request(
+                  "GET", "/api/v1/ai/githubai/selector/tasks/" + urllib.parse.quote(task_id, safe=""),
+                  timeout=10.0,
+              )
+              state = str(snapshot.get("status") or "") if poll_status == 200 else ""
+              if state != previous or poll_failure or poll_status != 200:
+                  print(json.dumps({
+                      "stage": "poll",
+                      "http_status": poll_status,
+                      "task_status": state or None,
+                      "elapsed_total_ms": int((time.monotonic() - started) * 1000),
+                      "request_ms": int((time.monotonic() - poll_started) * 1000),
+                      "failure_type": poll_failure or None,
+                  }, separators=(",", ":")))
+                  previous = state
+              if state in {"completed", "failed", "cancelled", "interrupted"}:
+                  terminal = state
+                  break
+              time.sleep(2.0)
+
+          if terminal is None:
+              print(json.dumps({
+                  "stage": "timeout",
+                  "task_status": previous or None,
+                  "elapsed_total_ms": int((time.monotonic() - started) * 1000),
+                  "poll_count": poll_count,
+              }, separators=(",", ":")))
+              safe_request(
+                  "DELETE", "/api/v1/ai/githubai/selector/tasks/" + urllib.parse.quote(task_id, safe=""),
+                  timeout=5.0,
+              )
+              raise SystemExit(2)
+
+          print(json.dumps({
+              "stage": "terminal",
+              "task_status": terminal,
+              "elapsed_total_ms": int((time.monotonic() - started) * 1000),
+              "poll_count": poll_count,
+              "has_result": bool(snapshot.get("result")) if terminal == "completed" else False,
+              "retryable": bool(snapshot.get("retryable")) if terminal == "interrupted" else False,
+          }, separators=(",", ":")))
+          if terminal != "completed" or not isinstance(snapshot.get("result"), dict):
+              raise SystemExit(3)
+          PY
