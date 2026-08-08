@@ -55,10 +55,11 @@ class HostedAuthTests(unittest.TestCase):
         self.assertNotIn("raw-secret-token", first)
         self.assertNotEqual(first, entitlement_subject(other_issuer))
 
-    def test_verifier_accepts_active_matching_subject_scope_resource_and_issuer(self) -> None:
+    def test_verifier_accepts_active_access_token_with_matching_scope_resource_and_issuer(self) -> None:
         verifier = IntrospectionTokenVerifier(self.config)
         payload = {
             "active": True,
+            "token_type": "access_token",
             "client_id": "openai-plugin",
             "sub": "user-1",
             "iss": "https://auth.example.com",
@@ -76,7 +77,7 @@ class HostedAuthTests(unittest.TestCase):
         self.assertIn("osi:use", token.scopes)
         self.assertEqual(token.claims["iss"], "https://auth.example.com")
 
-    def test_workos_style_introspection_without_scope_accepts_exact_resource(self) -> None:
+    def test_workos_style_access_token_without_scope_accepts_exact_resource(self) -> None:
         config = HostedOAuthConfig(
             issuer_url="https://auth.example.com",
             introspection_url="https://auth.example.com/oauth2/introspection",
@@ -88,6 +89,7 @@ class HostedAuthTests(unittest.TestCase):
         verifier = IntrospectionTokenVerifier(config)
         payload = {
             "active": True,
+            "token_type": "access_token",
             "client_id": "openai-plugin",
             "sub": "user-1",
             "iss": "https://auth.example.com",
@@ -101,10 +103,11 @@ class HostedAuthTests(unittest.TestCase):
         self.assertEqual(token.scopes, [])
         self.assertEqual(token.resource, "https://mcp.example.com/mcp")
 
-    def test_verifier_fails_closed_on_inactive_expired_wrong_scope_resource_or_issuer(self) -> None:
+    def test_verifier_fails_closed_on_invalid_access_token_boundaries(self) -> None:
         verifier = IntrospectionTokenVerifier(self.config)
         base = {
             "active": True,
+            "token_type": "access_token",
             "client_id": "client",
             "sub": "user",
             "iss": "https://auth.example.com",
@@ -114,6 +117,8 @@ class HostedAuthTests(unittest.TestCase):
         }
         variants = [
             {**base, "active": False},
+            {**base, "token_type": "refresh_token"},
+            {**base, "token_type": ""},
             {**base, "exp": 1},
             {**base, "scope": "openid"},
             {**base, "aud": "https://other.example.com/mcp"},
