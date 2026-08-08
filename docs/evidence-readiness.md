@@ -10,7 +10,13 @@ The completed External Alpha candidate `d338faf0...` and its reviewed artifacts 
 
 Whenever Hosted work changes code, configuration, tests, or release documents and produces a new candidate SHA, regenerate the candidate-bound CI, live-validation, and Codex evidence for that new SHA. Review the new sanitized live artifact and record the reviewer again. Readiness intentionally rejects stale evidence from an older commit.
 
-This prevents a clean older build from being used to certify untested Hosted changes.
+Hosted deployment adds a second identity boundary: the remote service itself must prove it is running that same candidate. The deployment receives the exact SHA through `OSI_RELEASE_COMMIT`; Hosted MCP publishes it in `serverInfo.version`; the remote validator extracts it as `deployment_commit`; final readiness requires:
+
+```text
+local candidate commit == remote report commit == remote deployment_commit
+```
+
+This prevents a clean local checkout from certifying an older or different deployed image.
 
 ## External Alpha evidence inputs
 
@@ -91,6 +97,12 @@ When live workflow evidence is supplied, the command derives the EN/ZH contract 
 
 Hosted Private Alpha uses the **same types of External Alpha evidence, regenerated for the exact Hosted candidate SHA**, plus one new machine artifact: a candidate-bound, OAuth-authenticated remote MCP report.
 
+Deploy that exact candidate with:
+
+```text
+OSI_RELEASE_COMMIT=<exact-40-character-hosted-candidate-sha>
+```
+
 After the Hosted candidate's fresh CI/live/Codex evidence is green and its sanitized live artifact has been reviewed, configure DNS/TLS/gateway/WorkOS and generate the Hosted remote report from that same candidate checkout:
 
 ```bash
@@ -109,12 +121,13 @@ The hosted profile is intentionally stricter than the ordinary remote smoke. It 
 1. the endpoint is credential-free HTTPS `/mcp`;
 2. unauthenticated MCP access returns `401 Unauthorized` with a Bearer `WWW-Authenticate` challenge;
 3. `resource_metadata` stays on the same MCP origin and uses an RFC 9728 well-known path;
-4. protected-resource metadata binds `resource` to the exact MCP endpoint and advertises the expected WorkOS issuer;
-5. the MCP client authenticates through real OAuth (or, for controlled diagnostics, an environment-only bearer token);
-6. exactly nine standard Radar tools plus `deep_research_ai_projects` are discovered;
-7. standard tools remain read-only/idempotent while Premium is non-destructive but not declared read-only/idempotent;
-8. one standard `search_ai_projects` invocation succeeds end to end;
-9. the report records the local candidate commit and never records an access/refresh token.
+4. protected-resource metadata returns HTTP 200, binds `resource` to the exact MCP endpoint, advertises the expected WorkOS issuer, and supports bearer tokens through the Authorization header;
+5. the MCP client completes the real OAuth flow; `bearer-env` is diagnostic-only and cannot certify Hosted Private Alpha;
+6. remote `serverInfo.version` encodes an exact deployment commit and that SHA equals the local candidate;
+7. exactly nine standard Radar tools plus `deep_research_ai_projects` are discovered;
+8. standard tools remain read-only/idempotent while Premium is non-destructive but not declared read-only/idempotent;
+9. one standard `search_ai_projects` invocation succeeds end to end;
+10. the report records the local candidate commit and remote deployment commit while never recording an access/refresh token.
 
 The ordinary Hosted smoke never calls the Premium model and therefore does not consume the first-free Premium trial or an AI credit.
 
@@ -139,7 +152,7 @@ osi-hosted-evidence-readiness \
 
 This command exits `0` only when `hosted_private_alpha_ready=true`.
 
-The Hosted wrapper deliberately **does not expose manual `--remote-mcp-tested` or `--hosted-gateway-protected` shortcuts**. Those two facts are derived from the hosted remote evidence. A wrong candidate SHA, wrong MCP URL, wrong issuer, missing 401 OAuth boundary, missing Premium tool, failed standard search, unauthenticated run, or failed report causes the gate to fail closed.
+The Hosted wrapper deliberately **does not expose manual `--remote-mcp-tested` or `--hosted-gateway-protected` shortcuts**. Those facts are derived from the hosted remote evidence. A wrong local candidate SHA, wrong deployed SHA, wrong MCP URL, wrong issuer, missing 401 OAuth boundary, diagnostic bearer-only run, missing Premium tool, failed standard search, or failed report causes the gate to fail closed.
 
 ## What Hosted Private Alpha still does not claim
 
