@@ -94,8 +94,15 @@ def inspect_oauth_boundary(
     issuer = str(expected_issuer or "").strip().rstrip("/")
     parsed_issuer = urllib.parse.urlsplit(issuer)
     errors: list[str] = []
-    if parsed_issuer.scheme != "https" or not parsed_issuer.hostname:
-        errors.append("expected OAuth issuer must be HTTPS")
+    if (
+        parsed_issuer.scheme != "https"
+        or not parsed_issuer.hostname
+        or parsed_issuer.username
+        or parsed_issuer.password
+        or parsed_issuer.query
+        or parsed_issuer.fragment
+    ):
+        errors.append("expected OAuth issuer must be credential-free HTTPS without query/fragment")
 
     active_opener = opener or urllib.request.build_opener(_NoRedirect())
     challenge_status = 0
@@ -127,7 +134,8 @@ def inspect_oauth_boundary(
 
     if challenge_status != 401:
         errors.append(f"unauthenticated MCP request returned HTTP {challenge_status or 'unknown'}, expected 401")
-    if not www_authenticate.lower().startswith("bearer"):
+    bearer_challenge = bool(www_authenticate.lower().startswith("bearer"))
+    if not bearer_challenge:
         errors.append("401 response is missing a Bearer WWW-Authenticate challenge")
 
     metadata_url = _extract_resource_metadata(www_authenticate)
@@ -181,15 +189,15 @@ def inspect_oauth_boundary(
         errors.append("protected-resource metadata resource does not match the exact MCP endpoint")
     if issuer and issuer not in authorization_servers:
         errors.append("protected-resource metadata does not advertise the expected OAuth issuer")
-    if bearer_methods and "header" not in bearer_methods:
-        errors.append("protected-resource metadata does not support bearer tokens in the Authorization header")
+    if "header" not in bearer_methods:
+        errors.append("protected-resource metadata must support bearer tokens in the Authorization header")
 
     return {
         "ok": not errors,
         "endpoint": normalized_endpoint,
         "expected_issuer": issuer,
         "challenge_status": challenge_status,
-        "bearer_challenge": bool(www_authenticate.lower().startswith("bearer")),
+        "bearer_challenge": bearer_challenge,
         "resource_metadata_url": metadata_url,
         "metadata_status": metadata_status,
         "resource": resource,
@@ -213,7 +221,7 @@ def validate_hosted_remote_evidence(
     expected_endpoint: str,
     expected_issuer: str,
 ) -> dict[str, Any]:
-    """Fail closed unless a hosted OAuth smoke report proves the deployed boundary."""
+    """Fail closed unless a real OAuth hosted smoke proves the deployed boundary."""
 
     if path is None:
         return {
@@ -240,7 +248,19 @@ def validate_hosted_remote_evidence(
     except ValueError as exc:
         normalized_endpoint = str(expected_endpoint or "").strip()
         errors.append(f"expected hosted MCP endpoint is invalid: {exc}")
+
     issuer = str(expected_issuer or "").strip().rstrip("/")
+    parsed_issuer = urllib.parse.urlsplit(issuer)
+    if (
+        parsed_issuer.scheme != "https"
+        or not parsed_issuer.hostname
+        or parsed_issuer.username
+        or parsed_issuer.password
+        or parsed_issuer.query
+        or parsed_issuer.fragment
+    ):
+        errors.append("expected OAuth issuer is invalid")
+
     report_endpoint = str(payload.get("endpoint") or "").strip().rstrip("/")
     report_commit = str(payload.get("commit") or "").strip()
     profile = str(payload.get("profile") or "").strip()
@@ -265,15 +285,41 @@ def validate_hosted_remote_evidence(
         errors.append("Hosted remote evidence used a different MCP endpoint")
     if profile != "hosted":
         errors.append("Hosted remote evidence was not produced with the hosted profile")
-    if str(auth.get("mode") or "") not in {"oauth", "bearer-env"}:
-        errors.append("Hosted remote evidence did not use authenticated MCP access")
+
+    # A bearer-env run is useful for diagnostics, but it cannot certify Hosted
+    # Private Alpha because it does not prove that an MCP client completed the
+    # authorization flow against the advertised WorkOS authorization server.
+    auth_mode = str(auth.get("mode") or "")
+    if auth_mode != "oauth":
+        errors.append("Hosted Private Alpha evidence must use the real OAuth client flow")
+
     if boundary.get("ok") is not True or int(boundary.get("challenge_status") or 0) != 401:
         errors.append("Hosted remote evidence did not prove the unauthenticated 401 OAuth boundary")
+    if boundary.get("bearer_challenge") is not True:
+        errors.append("Hosted remote evidence did not prove a Bearer WWW-Authenticate challenge")
+    if int(boundary.get("metadata_status") or 0) != 200:
+        errors.append("Hosted protected-resource metadata was not proven HTTP 200")
+    if str(boundary.get("expected_issuer") or "").strip().rstrip("/") != issuer:
+        errors.append("Hosted remote evidence was generated for a different expected OAuth issuer")
+
+    metadata_url = str(boundary.get("resource_metadata_url") or "").strip()
+    try:
+        safe_metadata_url = _safe_metadata_url(normalized_endpoint, metadata_url)
+    except ValueError as exc:
+        safe_metadata_url = ""
+        errors.append(f"Hosted remote evidence has invalid resource metadata URL: {exc}")
+    if metadata_url and safe_metadata_url != metadata_url:
+        errors.append("Hosted remote evidence resource metadata URL is not canonical")
+
     if str(boundary.get("resource") or "").strip().rstrip("/") != normalized_endpoint.rstrip("/"):
         errors.append("Hosted OAuth resource metadata is bound to a different resource")
     advertised = [str(value).strip().rstrip("/") for value in boundary.get("authorization_servers") or []]
     if not issuer or issuer not in advertised:
         errors.append("Hosted OAuth resource metadata does not advertise the expected issuer")
+    bearer_methods = [str(value).strip().lower() for value in boundary.get("bearer_methods_supported") or []]
+    if "header" not in bearer_methods:
+        errors.append("Hosted OAuth resource metadata does not prove Authorization-header bearer support")
+
     if set(discovered) != set(expected_tools) or len(discovered) != len(expected_tools):
         errors.append("Hosted remote evidence did not discover exactly nine standard tools plus Premium")
     for check_id in ("tool-set", "tool-annotations", "search-invocation"):
@@ -292,10 +338,10 @@ def validate_hosted_remote_evidence(
         "report_commit": report_commit,
         "endpoint": report_endpoint,
         "expected_issuer": issuer,
-        "auth_mode": str(auth.get("mode") or ""),
+        "auth_mode": auth_mode,
         "protocol_version": str(payload.get("protocol_version") or ""),
         "tools": discovered,
-        "oauth_boundary_verified": boundary.get("ok") is True,
+        "oauth_boundary_verified": boundary.get("ok") is True and boundary.get("bearer_challenge") is True,
         "search_verified": checks.get("search-invocation") is True,
         "errors": errors,
     }
