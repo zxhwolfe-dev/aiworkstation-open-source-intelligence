@@ -74,18 +74,19 @@ def _rate_limited_registry(
     registry: ToolRegistry,
     limiter: HostedRateLimiter,
 ) -> ToolRegistry:
-    """Wrap the nine public Radar provider methods with per-OAuth-subject limits.
-
-    Hosted production always uses the expanded ``FullToolRegistry``. Keeping the
-    wrapper here makes it impossible for the public hosted entrypoint to start
-    with an authenticated MCP surface while accidentally bypassing application
-    rate limits on the ordinary data tools.
-    """
+    """Wrap the nine public Radar provider methods with per-OAuth-subject limits."""
 
     provider = getattr(registry, "_provider", None)
     if provider is None:
         raise ValueError("hosted MCP registry does not expose a provider")
     return FullToolRegistry(HostedRateLimitedProvider(provider, limiter))
+
+
+def _active_paid_entitlement(entitlement: Mapping[str, Any]) -> bool:
+    return (
+        str(entitlement.get("plan") or "").strip().lower() in {"pro", "enterprise"}
+        and str(entitlement.get("status") or "").strip().lower() == "active"
+    )
 
 
 def build_hosted_mcp_server(
@@ -143,6 +144,24 @@ def build_hosted_mcp_server(
         except HostedBackendError as exc:
             if exc.code == "UPGRADE_REQUIRED" or exc.status == 402:
                 entitlement = exc.details.get("entitlement") if isinstance(exc.details.get("entitlement"), Mapping) else {}
+                if _active_paid_entitlement(entitlement):
+                    return _result(
+                        data={
+                            "status": "quota_exhausted",
+                            "entitlement": dict(entitlement),
+                            "checkout": {},
+                        },
+                        unknowns=[
+                            "The active subscription has used its current Premium AI allowance. Credits reset according to the current billing period."
+                        ],
+                        risks=[
+                            {
+                                "code": "MONTHLY_PREMIUM_QUOTA_EXHAUSTED",
+                                "message": "No Premium AI credits remain in the active billing period; a second recurring subscription is not created.",
+                                "severity": "low",
+                            }
+                        ],
+                    )
                 try:
                     checkout = await asyncio.to_thread(backend_client.create_checkout, subject)
                 except HostedBackendError:
