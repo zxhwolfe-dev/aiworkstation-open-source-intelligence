@@ -13,6 +13,7 @@ from aiworkstation_osi.codex_acceptance import (
     SERVER_NAME,
     build_codex_command,
     evaluate_ledger,
+    retry_acceptance_prompt,
 )
 from aiworkstation_osi.contracts import TOOL_NAMES
 from aiworkstation_osi.telemetry import emit_tool_event
@@ -47,6 +48,14 @@ class CodexAcceptanceTests(unittest.TestCase):
         self.assertIn("AIWORKSTATION_RADAR_BASE_URL", rendered)
         for tool in TOOL_NAMES:
             self.assertIn(tool, rendered)
+
+    def test_retry_prompt_targets_only_missing_tools(self) -> None:
+        prompt = retry_acceptance_prompt(["find_alternatives"])
+        self.assertIn("find_alternatives", prompt)
+        self.assertIn("at least one successful tool result", prompt)
+        for tool in TOOL_NAMES:
+            if tool != "find_alternatives":
+                self.assertNotIn(f". {tool}:", prompt)
 
     def test_ledger_requires_success_from_all_six_tools(self) -> None:
         events = [
