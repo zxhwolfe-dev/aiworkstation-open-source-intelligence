@@ -1,6 +1,9 @@
 services:
   osi-mcp-hosted:
-    build: .
+    build:
+      context: .
+      args:
+        OSI_IMAGE_COMMIT: ${OSI_RELEASE_COMMIT:?required}
     command: ["osi-mcp-hosted"]
     restart: unless-stopped
     init: true
@@ -18,9 +21,9 @@ services:
       OSI_HTTP_TIMEOUT_SECONDS: "30"
       OSI_HYDRATE_LIMIT: "5"
 
-      # Non-secret exact Git SHA for deployment/evidence binding. The hosted
-      # server publishes it only through MCP serverInfo.version so remote
-      # validation can prove the deployed image matches the release candidate.
+      # Non-secret exact Git SHA for deployment/evidence binding. The same SHA
+      # is also baked into the image as OSI_IMAGE_COMMIT at build time. Hosted
+      # startup fails unless both identities match.
       OSI_RELEASE_COMMIT: ${OSI_RELEASE_COMMIT:?required}
 
       OSI_MCP_HTTP_HOST: 0.0.0.0
