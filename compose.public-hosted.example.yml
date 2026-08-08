@@ -1,0 +1,52 @@
+services:
+  osi-mcp-hosted:
+    build: .
+    command: ["osi-mcp-hosted"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    ports:
+      - "127.0.0.1:8001:8000"
+    environment:
+      OSI_PROVIDER: http
+      AIWORKSTATION_RADAR_BASE_URL: https://aiworkstation.cn
+      OSI_HTTP_TIMEOUT_SECONDS: "30"
+      OSI_HYDRATE_LIMIT: "5"
+
+      OSI_MCP_HTTP_HOST: 0.0.0.0
+      OSI_MCP_HTTP_PORT: "8000"
+      OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network
+      OSI_MCP_HTTP_ALLOWED_HOSTS: mcp.aiworkstation.cn,mcp.aiworkstation.cn:*
+      OSI_MCP_HTTP_BODY_LIMIT_BYTES: "262144"
+
+      OSI_OAUTH_ISSUER_URL: ${OSI_OAUTH_ISSUER_URL:?required}
+      OSI_OAUTH_INTROSPECTION_URL: ${OSI_OAUTH_INTROSPECTION_URL:?required}
+      OSI_OAUTH_CLIENT_ID: ${OSI_OAUTH_CLIENT_ID:?required}
+      OSI_OAUTH_CLIENT_SECRET: ${OSI_OAUTH_CLIENT_SECRET:?required}
+      OSI_OAUTH_RESOURCE_URL: https://mcp.aiworkstation.cn/mcp
+      OSI_OAUTH_REQUIRED_SCOPES: osi:use
+      OSI_OAUTH_INTROSPECTION_AUTH: ${OSI_OAUTH_INTROSPECTION_AUTH:-basic}
+
+      OSI_BACKEND_BASE_URL: https://aiworkstation.cn
+      OSI_BACKEND_SERVICE_TOKEN: ${OSI_BACKEND_SERVICE_TOKEN:?required}
+
+      OSI_RATE_LIMIT_PER_MINUTE: "60"
+      OSI_RATE_LIMIT_PER_HOUR: "300"
+      OSI_PREMIUM_RATE_LIMIT_PER_MINUTE: "5"
+      OSI_RATE_LIMIT_MAX_SUBJECTS: "10000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; s=socket.create_connection((\"127.0.0.1\",8000),3); s.close()'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
