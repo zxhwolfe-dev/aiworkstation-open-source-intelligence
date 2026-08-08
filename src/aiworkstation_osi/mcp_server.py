@@ -91,11 +91,12 @@ def build_mcp_server(
     *,
     token_verifier: TokenVerifier | None = None,
     auth: AuthSettings | None = None,
+    instructions: str = SERVER_INSTRUCTIONS,
 ) -> MCPServer:
     active_registry = registry or create_registry_from_env()
     server = MCPServer(
         "AI Workstation Open Source Intelligence",
-        instructions=SERVER_INSTRUCTIONS,
+        instructions=str(instructions or SERVER_INSTRUCTIONS),
         token_verifier=token_verifier,
         auth=auth,
     )
