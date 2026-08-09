@@ -1,195 +1,137 @@
 # Public Launch Decisions
 
-This document separates the free Hosted MCP milestone from future member/Premium commercialization.
+This document records current product decisions for the **one-Skill, data-only** AI Open Source Intelligence release and separates them from future commercialization ideas.
 
-## Resolved product decisions
+## Resolved current-product decisions
 
-### Public repository license
+### Public repository
 
-The public distribution repository uses Apache-2.0. Private AI Workstation databases, unpublished Radar data, private backend systems, credentials, payment accounts and trademarks are not made public merely because this client/distribution repository is open source.
+The public distribution repository uses Apache-2.0. Private AI Workstation databases, unpublished Radar data, infrastructure, credentials and trademarks are not made public merely because this repository is open source.
 
-### Default Hosted product shape
+### Product surface
 
-The first public Hosted surface is:
+Current product:
 
-- three Skills;
-- one public HTTPS Hosted MCP connection;
-- nine standard live read-only Radar tools;
-- no required login;
+- one active Skill: `ai-open-source-intelligence`;
+- one public HTTPS Hosted MCP endpoint;
+- nine standard read-only Radar tools;
+- no login requirement;
+- no OAuth Hosted mode;
 - no WorkOS dependency;
-- no automated payment dependency;
-- no Premium tool in default public mode.
+- no Premium/server-model tool;
+- no checkout/credits/payment dependency.
 
 ```text
 OSI_HOSTED_ACCESS_MODE=public
 ```
 
-### Data/model cost boundary
+is the only valid Hosted access mode. `oauth` must fail closed.
 
-Nine standard tools use public Radar data/retrieval and do not consume publisher-model AI quota.
+### Model-cost boundary
 
-A Premium publisher-model capability remains optional/future and must not be enabled as a real paid product until its entitlement and usage semantics are unified with AI Workstation membership.
+The Host model (ChatGPT/Codex/etc.) performs reasoning and synthesis.
 
-### Membership architecture
-
-AI Workstation membership is the intended source of truth across website and Skills/MCP entry points.
-
-Do not create a second final OSI membership/credit system.
-
-Current manual payment through existing WeChat/email/offline processes can continue. Automated payment is an optional future adapter.
-
-### Identity architecture
-
-The anonymous nine-tool Hosted service needs no user identity.
-
-Before member-only/Premium capabilities are enabled, design a secure client-to-AI-Workstation-member linking flow. Standards-based OAuth is one possible transport. WorkOS is one optional OAuth provider, not a product dependency.
-
-Reusable invite/activation codes must never be used directly as MCP bearer credentials or normal tool arguments.
-
-### Rate-limit architecture
-
-Default public deployment uses TLS plus gateway per-IP request and connection limits. The MCP upstream remains loopback-only.
-
-The retained OAuth compatibility mode additionally has per-authenticated-subject application limits.
-
-Horizontal scaling must revisit shared quota/rate-limit consistency before making global user-level guarantees.
-
-### Payment architecture
-
-Paddle or another provider may be introduced later as an automation adapter:
+AI Workstation provides public Radar data/evidence only. Requirement-based selector calls remain:
 
 ```text
-verified payment event
-  -> existing AI Workstation membership activation/renewal/update
+use_model=false
 ```
 
-The payment provider is not the membership source of truth.
+The current nine MCP tools do not consume AI Workstation website model-token quotas and must not fabricate token charges merely to imitate website accounting.
 
-The retained legacy OAuth/Premium compatibility code can represent trial/credit behavior, but that is not final commercial policy.
+### Publisher links
 
-## Real configuration still required for free Hosted Private Alpha
-
-### 1. Public MCP hostname
-
-Canonical URL:
+Every MCP result includes canonical official resources under:
 
 ```text
-https://mcp.aiworkstation.cn/mcp
+data.official_resources
 ```
 
-Configure and verify:
+They point to AI Workstation, AI Open Source Radar and the public repository. They are navigation/publisher metadata, not verified research facts or ranking signals.
 
-- public DNS;
-- valid TLS;
-- Nginx routing;
-- loopback-only port 8001 upstream;
-- exact Host policy;
-- gateway request/connection limits;
-- rollback owner/procedure.
+### Anonymous abuse controls
 
-### 2. Candidate-bound deployment
-
-The exact Hosted candidate SHA must be identical across:
-
-- local candidate checkout;
-- Docker build `OSI_IMAGE_COMMIT`;
-- runtime `OSI_RELEASE_COMMIT`;
-- remote MCP `serverInfo.version`.
-
-Do not deploy a floating branch as formal evidence.
-
-### 3. Public gateway abuse controls
-
-The Nginx public Hosted contract must expose:
+Current gateway policy:
 
 ```text
-X-OSI-Hosted-Gateway-Policy: tls-ip-rate-limited
+short window: 60 requests/minute/IP, burst 30
+sustained:    10 requests/minute/IP, burst 300
+connections:  10/IP
+body size:    256 KB
 ```
 
-on `/mcp` responses and configure bounded IP request/connection controls.
+The MCP upstream remains host-loopback only at `127.0.0.1:8001`.
 
-Port 8001 must not be Internet-addressable.
+The dedicated hostname proxies only `/mcp`; unrelated paths are closed, OAuth metadata routes are absent, and Authorization is not forwarded in the current data-only release.
 
-### 4. Hosted-service privacy/retention/legal
+### Membership is not part of the current nine-tool path
 
-Before broad public promotion, review final service-specific:
+AI Workstation's existing website membership and 100k/1m model-token quota system remain separate from the nine current MCP data tools.
 
-- Privacy Policy;
-- Terms of Service;
-- support/security contact;
-- abuse controls;
-- operational logging/retention;
-- deletion/correction process if user-linked data is later introduced;
-- processors/hosting regions where relevant.
+If a later version adds explicit member-only server inference, existing AI Workstation membership should be the entitlement source of truth. Do not create a second OSI subscription/credit database.
 
-The anonymous nine-tool phase has materially less identity/billing data than the earlier OAuth/Paddle proposal, but final hosted-service statements still need review.
+A reusable invite/activation code must never become an MCP bearer credential or ordinary tool argument.
 
-### 5. Platform connection registration
+## Public launch gates still required
 
-After the endpoint is stable:
+Hosted Private Alpha readiness alone does not mean broad public launch.
 
-1. register the actual hosted MCP connection;
-2. obtain the real technical/connection identity;
-3. test a fresh installation;
-4. submit/publish through the relevant platform process when ready.
+Before broad promotion/platform publication, complete:
 
-Never commit placeholder technical IDs.
+1. final service-specific Privacy/Terms/support/retention review;
+2. real-user anonymous traffic observation and abuse-threshold tuning;
+3. production error/latency/429 monitoring;
+4. actual platform MCP connection registration;
+5. fresh-install validation of the combined one-Skill + Hosted MCP experience;
+6. platform/directory submission and review where applicable;
+7. staged rollout and rollback ownership.
 
-## Hosted Private Alpha evidence sequence
+## Candidate-bound evidence sequence
 
-Because this redesign creates a new candidate SHA, earlier `0249303e...` evidence remains valid historical evidence for that OAuth-oriented tree but cannot certify the new Hosted candidate.
+Every source change creates a new candidate SHA. Earlier evidence cannot certify a later tree.
 
-For the **exact new candidate**:
+For each production candidate:
 
-1. obtain fresh Python 3.10/3.12 CI evidence;
-2. obtain fresh EN/ZH live-validation evidence;
-3. run fresh nine-standard-tool Codex acceptance and verify its ledger;
-4. have a named human review the sanitized live artifact;
-5. deploy the same candidate behind the canonical HTTPS/IP-rate-limited gateway;
-6. run:
+1. fresh Python 3.10/3.12 CI;
+2. fresh EN/ZH live-contract evidence;
+3. Radar browse validation as required by the release process;
+4. fresh Codex nine-tool acceptance;
+5. named human artifact review;
+6. exact candidate deployment behind HTTPS gateway;
+7. `hosted-public` remote smoke with no auth;
+8. exact remote deployment identity;
+9. exactly nine read-only tools and no Premium tool;
+10. real standard-tool search invocation;
+11. final public Hosted readiness.
 
-```bash
-osi-remote-smoke \
-  --profile hosted-public \
-  --auth-mode none \
-  --url https://mcp.aiworkstation.cn/mcp
-```
+No OAuth/WorkOS/payment step is part of this sequence.
 
-7. require exact deployment identity;
-8. discover exactly nine standard read-only tools and no Premium tool;
-9. invoke one real standard read-only search;
-10. feed candidate-bound artifacts into `osi-hosted-evidence-readiness --expected-access-mode public`;
-11. require `hosted_private_alpha_ready=true`.
+## Future server-model/member capability
 
-No WorkOS login or payment event is required for this milestone.
+A future member-linked server-model feature may be considered later, but it is not an inactive switch waiting to be enabled.
 
-## Future member/Premium gates
+It must ship as a new product version and have its own review/evidence chain. At minimum it would need:
 
-Before enabling real member-only publisher-model capability:
+- secure caller-to-existing-member linking;
+- explicit disclosure of AI Workstation server inference;
+- existing AI Workstation model usage/quota accounting;
+- active/expired/disabled membership enforcement;
+- transactional usage behavior where needed;
+- privacy/retention/legal updates;
+- cost, latency and abuse testing.
 
-1. design secure MCP-client-to-AI-Workstation-member linking;
-2. prove active/expired/disabled membership behavior;
-3. define one unified website + MCP AI usage/quota policy;
-4. implement transactional usage reserve/commit/refund behavior;
-5. update privacy/terms/support for linked member data;
-6. run cost/latency/abuse tests;
-7. decide whether automated payment is justified.
+Payment automation, if later useful, should update existing AI Workstation membership rather than become the entitlement source of truth.
 
-If OAuth is selected for the member bridge, then additionally verify the normal OAuth requirements, including exact Resource Indicator/audience. The existing compatibility configuration still keeps `OSI_OAUTH_REQUIRED_SCOPES` optional/provider-dependent; do not invent a mandatory provider-specific scope.
+## Not blockers for the current data-only public release
 
-If WorkOS is selected, its Resource Indicator must be the exact MCP URL. If another provider is selected, apply the equivalent standard resource/audience boundary.
+These are intentionally out of scope:
 
-If Paddle or another payment provider is selected, complete merchant/product, webhook, replay, out-of-order, renewal, cancellation and refund testing before automated real-money launch.
-
-## Things that should not block early free Hosted validation
-
-- WorkOS account setup;
-- Paddle merchant setup;
+- WorkOS setup;
+- Paddle setup;
 - automated checkout;
-- Premium monthly credit economics;
-- enterprise team workspace;
-- multi-region deployment;
-- saved project collections;
+- Premium monthly credits;
+- OAuth Resource Indicator configuration;
+- enterprise workspaces;
 - write-capable MCP tools;
-- multi-replica shared limiter;
-- elaborate billing dashboards.
+- multi-region deployment;
+- complex billing dashboards.
