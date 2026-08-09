@@ -92,6 +92,7 @@ jobs:
               "BUNDLE-MANIFEST.json",
               ".codex-plugin/plugin.json",
               ".agents/plugins/marketplace.json",
+              "product-skills/ai-open-source-intelligence/SKILL.md",
               "skills/open-source-project-research/SKILL.md",
               "skills/open-source-project-comparison/SKILL.md",
               "skills/open-source-stack-planner/SKILL.md",
@@ -125,7 +126,7 @@ jobs:
           osi-hosted-evidence-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
 
-      - name: Validate public Hosted configuration without OAuth secrets
+      - name: Validate public Hosted data-only configuration
         if: matrix.python-version == '3.12'
         env:
           OSI_PROVIDER: http
@@ -153,11 +154,15 @@ jobs:
               raise SystemExit(f"unexpected public Hosted surface: {payload}")
           if payload.get("premium_enabled") is not False:
               raise SystemExit("public Hosted mode must not enable Premium")
+          if payload.get("server_model_enabled") is not False:
+              raise SystemExit("public Hosted mode must not enable AI Workstation server models")
+          if payload.get("oauth_enabled") is not False:
+              raise SystemExit("public Hosted mode must not enable OAuth")
           if "oauth_issuer" in payload or "backend_origin" in payload:
               raise SystemExit("public Hosted mode unexpectedly loaded OAuth/backend configuration")
           PY
 
-      - name: Validate optional OAuth Hosted configuration
+      - name: Reject OAuth or Premium Hosted runtime switch
         if: matrix.python-version == '3.12'
         env:
           OSI_PROVIDER: http
@@ -170,28 +175,14 @@ jobs:
           OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network
           OSI_MCP_HTTP_ALLOWED_HOSTS: mcp.example.com,mcp.example.com:*
           OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES: "262144"
-          OSI_OAUTH_ISSUER_URL: https://auth.example.com
-          OSI_OAUTH_INTROSPECTION_URL: https://auth.example.com/oauth2/introspection
-          OSI_OAUTH_CLIENT_ID: test-client
-          OSI_OAUTH_CLIENT_SECRET: test-secret
-          OSI_OAUTH_RESOURCE_URL: https://mcp.example.com/mcp
-          OSI_OAUTH_REQUIRED_SCOPES: ""
-          OSI_OAUTH_INTROSPECTION_AUTH: body
-          OSI_BACKEND_BASE_URL: https://aiworkstation.cn
-          OSI_BACKEND_SERVICE_TOKEN: test-service-token
         run: |
           set -euo pipefail
-          osi-mcp-hosted --check-config >tmp/hosted-oauth-config.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          payload = json.loads(Path("tmp/hosted-oauth-config.json").read_text(encoding="utf-8"))
-          if payload.get("mode") != "hosted-oauth" or payload.get("tool_count") != 10:
-              raise SystemExit(f"unexpected OAuth Hosted surface: {payload}")
-          if payload.get("premium_enabled") is not True:
-              raise SystemExit("OAuth Hosted mode did not preserve Premium")
-          PY
+          if osi-mcp-hosted --check-config >tmp/hosted-oauth-rejected.json; then
+            echo "OAuth Hosted mode unexpectedly succeeded" >&2
+            cat tmp/hosted-oauth-rejected.json >&2
+            exit 1
+          fi
+          grep -qi 'disabled' tmp/hosted-oauth-rejected.json
 
       - name: End-to-end Streamable HTTP MCP round trip
         if: matrix.python-version == '3.12'
@@ -242,25 +233,17 @@ jobs:
           docker compose -f compose.hosted.example.yml config >/dev/null
 
           export OSI_RELEASE_COMMIT="${GITHUB_SHA}"
-          export OSI_HOSTED_ACCESS_MODE=public
 
           docker compose -f compose.public-hosted.example.yml config >/dev/null
           docker compose -f compose.hosted.example.yml build osi-mcp
           docker compose -f compose.public-hosted.example.yml build osi-mcp-hosted
 
-          # The generic image still starts in safe loopback/mock mode when no
-          # deployment environment is supplied.
           docker run --rm aiworkstation-osi-mcp:local \
             osi-mcp-http --check-config >/dev/null
 
-          # Exercise the local/private hosted-alpha environment without opening
-          # a listening service or publishing ports.
           docker compose -f compose.hosted.example.yml run --rm --no-deps \
             osi-mcp osi-mcp-http --check-config >/dev/null
 
-          # Exercise the actual public Hosted image. Its build arg bakes
-          # GITHUB_SHA into OSI_IMAGE_COMMIT, while Compose injects the same SHA
-          # as OSI_RELEASE_COMMIT. Public mode must not need OAuth/backend secrets.
           docker compose -f compose.public-hosted.example.yml run --rm --no-deps \
             osi-mcp-hosted osi-mcp-hosted --check-config >tmp/public-hosted-container-config.json
           python - <<'PY'
@@ -275,6 +258,8 @@ jobs:
               raise SystemExit("Public Hosted container does not match the candidate SHA")
           if payload.get("mode") != "hosted-public" or payload.get("tool_count") != 9:
               raise SystemExit("Public Hosted container did not use the anonymous nine-tool surface")
+          if payload.get("server_model_enabled") is not False:
+              raise SystemExit("Public Hosted container unexpectedly enabled server-model execution")
           PY
 
   evidence:
