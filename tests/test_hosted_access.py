@@ -11,9 +11,11 @@ class HostedAccessTests(unittest.TestCase):
         with patch.dict("os.environ", {}, clear=True):
             self.assertEqual(load_hosted_access_mode(), "public")
 
-    def test_oauth_remains_explicitly_available(self) -> None:
+    def test_oauth_mode_is_rejected_fail_closed(self) -> None:
         with patch.dict("os.environ", {"OSI_HOSTED_ACCESS_MODE": "oauth"}, clear=True):
-            self.assertEqual(load_hosted_access_mode(), "oauth")
+            with self.assertRaises(ValueError) as context:
+                load_hosted_access_mode()
+        self.assertIn("server-model/OAuth Hosted modes are disabled", str(context.exception))
 
     def test_unknown_mode_fails_closed(self) -> None:
         with patch.dict("os.environ", {"OSI_HOSTED_ACCESS_MODE": "member-ish"}, clear=True):

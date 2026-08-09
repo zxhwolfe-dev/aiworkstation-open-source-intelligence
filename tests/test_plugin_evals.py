@@ -22,17 +22,13 @@ class PluginEvaluationCorpusTests(unittest.TestCase):
         case_ids = [case["id"] for case in self.payload["cases"]]
         self.assertEqual(len(case_ids), len(set(case_ids)))
 
-    def test_corpus_is_bilingual_and_covers_all_skills(self) -> None:
+    def test_corpus_is_bilingual_and_targets_only_unified_skill(self) -> None:
         locale_counts = Counter(case["locale"] for case in self.payload["cases"])
         self.assertGreaterEqual(locale_counts["en"], 4)
         self.assertGreaterEqual(locale_counts["zh"], 4)
         self.assertEqual(
             {case["skill"] for case in self.payload["cases"]},
-            {
-                "open-source-project-research",
-                "open-source-project-comparison",
-                "open-source-stack-planner",
-            },
+            {"ai-open-source-intelligence"},
         )
 
     def test_every_case_has_expects_forbids_and_declared_tools(self) -> None:
@@ -40,6 +36,7 @@ class PluginEvaluationCorpusTests(unittest.TestCase):
         for case in self.payload["cases"]:
             with self.subTest(case=case["id"]):
                 self.assertIn(case["locale"], {"zh", "en"})
+                self.assertEqual(case["skill"], "ai-open-source-intelligence")
                 self.assertTrue(case["prompt"].strip())
                 self.assertGreaterEqual(len(case["expects"]), 3)
                 self.assertGreaterEqual(len(case["forbids"]), 3)
@@ -57,6 +54,21 @@ class PluginEvaluationCorpusTests(unittest.TestCase):
         self.assertIn("实时证据", rendered)
         self.assertIn("model memory", rendered)
         self.assertIn("凭印象", rendered)
+        self.assertIn("server-side model", rendered)
+        self.assertIn("服务器模型", rendered)
+
+    def test_corpus_never_permits_premium_or_server_model_fallback(self) -> None:
+        forbids = " ".join(
+            text.lower()
+            for case in self.payload["cases"]
+            for text in case["forbids"]
+        )
+        self.assertIn("deep_research_ai_projects", forbids)
+        self.assertTrue(
+            "server-side model" in forbids
+            or "publisher model" in forbids
+            or "网站大模型" in forbids
+        )
 
 
 if __name__ == "__main__":

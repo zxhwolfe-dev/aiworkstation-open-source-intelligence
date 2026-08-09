@@ -18,9 +18,9 @@ TOOL_NAMES: Final[tuple[str, ...]] = (
     "browse_radar_skills",
 )
 
-HOSTED_TOOL_NAMES: Final[tuple[str, ...]] = TOOL_NAMES + (
-    "deep_research_ai_projects",
-)
+# Hosted public product deliberately exposes the same nine data/evidence tools.
+# No Premium/server-model tool is part of the current product surface.
+HOSTED_TOOL_NAMES: Final[tuple[str, ...]] = TOOL_NAMES
 
 Locale = Literal["zh", "en"]
 SourceMode = Literal["required", "preferred", "off"]
@@ -60,7 +60,7 @@ class VerifiedFact:
 
 @dataclass(frozen=True, slots=True)
 class Recommendation:
-    """A model or rules-engine conclusion, not a source fact."""
+    """A host-model or rules-engine conclusion, not a source fact."""
 
     summary: str
     rationale: tuple[str, ...] = ()

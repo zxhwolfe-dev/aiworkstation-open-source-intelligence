@@ -75,22 +75,30 @@ def _read_public_file(path: Path, root: Path) -> tuple[str, bytes]:
     return relative, data
 
 
-def _plugin_metadata(root: Path) -> tuple[str, str]:
+def _plugin_metadata(root: Path) -> tuple[str, str, Path]:
     path = root / ".codex-plugin" / "plugin.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("plugin.json must contain an object")
     name = str(payload.get("name") or "").strip()
     version = str(payload.get("version") or "").strip()
+    skills_path = str(payload.get("skills") or "").strip()
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name):
         raise ValueError("plugin name must be stable kebab-case")
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
         raise ValueError("plugin version must use semantic versioning")
-    return name, version
+    if not skills_path.startswith("./"):
+        raise ValueError("plugin skills path must be repository-relative")
+    skills_root = (root / skills_path[2:]).resolve()
+    try:
+        skills_root.relative_to(root.resolve())
+    except ValueError as exc:
+        raise ValueError("plugin skills path escapes repository root") from exc
+    return name, version, skills_root
 
 
 def collect_bundle_files(root: Path) -> list[tuple[str, bytes]]:
-    """Collect the reviewed Skills-only distribution surface."""
+    """Collect the reviewed single-Skill distribution surface."""
 
     resolved_root = root.resolve()
     collected: dict[str, bytes] = {}
@@ -98,26 +106,31 @@ def collect_bundle_files(root: Path) -> list[tuple[str, bytes]]:
         path, data = _read_public_file(resolved_root / relative, resolved_root)
         collected[path] = data
 
-    skills_root = resolved_root / "skills"
+    _name, _version, skills_root = _plugin_metadata(resolved_root)
     if not skills_root.is_dir() or skills_root.is_symlink():
-        raise ValueError("skills directory is missing or unsafe")
+        raise ValueError("active plugin skills directory is missing or unsafe")
     skill_files = sorted(path for path in skills_root.rglob("*") if path.is_file())
     if not skill_files:
-        raise ValueError("no Skill files were found")
+        raise ValueError("no active Skill files were found")
     for file_path in skill_files:
         relative, data = _read_public_file(file_path, resolved_root)
         if Path(relative).suffix.lower() not in {".md", ".json", ".txt"}:
             raise ValueError(f"unsupported Skill bundle file type: {relative}")
         collected[relative] = data
 
-    expected_skills = {
-        "skills/open-source-project-research/SKILL.md",
-        "skills/open-source-project-comparison/SKILL.md",
-        "skills/open-source-stack-planner/SKILL.md",
+    expected_skills = {"product-skills/ai-open-source-intelligence/SKILL.md"}
+    active_skill_docs = {
+        path
+        for path in collected
+        if path.startswith("product-skills/") and path.endswith("/SKILL.md")
     }
-    missing = sorted(expected_skills - set(collected))
-    if missing:
-        raise ValueError(f"required Skills are missing: {', '.join(missing)}")
+    if active_skill_docs != expected_skills:
+        raise ValueError(
+            "public bundle must contain exactly the unified active Skill; found: "
+            + ", ".join(sorted(active_skill_docs))
+        )
+    if any(path.startswith("skills/") for path in collected):
+        raise ValueError("legacy split Skill paths must not be present in the public bundle")
     return sorted(collected.items())
 
 
@@ -133,7 +146,7 @@ def build_alpha_bundle(root: Path, output_dir: Path) -> dict[str, Any]:
     """Build a reproducible Skills-only ZIP and external checksum file."""
 
     resolved_root = root.resolve()
-    name, version = _plugin_metadata(resolved_root)
+    name, version, _skills_root = _plugin_metadata(resolved_root)
     files = collect_bundle_files(resolved_root)
     manifest = {
         "schema_version": BUNDLE_SCHEMA_VERSION,

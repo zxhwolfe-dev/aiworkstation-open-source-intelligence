@@ -1,31 +1,12 @@
 {
-  "schema_version": "osi.hosted-tool-manifest.v2",
-  "status": "hosted-private-alpha",
+  "schema_version": "osi.hosted-tool-manifest.v1",
+  "status": "hosted-public-data-only",
   "base_manifest": "schemas/tool-manifest.json",
-  "default_access_mode": "public",
-  "access_modes": {
-    "public": {
-      "authentication_required": false,
-      "tool_count": 9,
-      "premium_enabled": false,
-      "abuse_control": "TLS gateway with per-IP request and connection limits"
-    },
-    "oauth": {
-      "authentication_required": true,
-      "scheme": "OAuth 2.1 resource server",
-      "required_scopes": [],
-      "tool_count": 10,
-      "premium_enabled": true,
-      "status": "compatibility/future-member mode"
-    }
+  "authentication": {
+    "required": false,
+    "scheme": "none"
   },
-  "membership_policy": {
-    "source_of_truth": "AI Workstation membership",
-    "separate_osi_subscription_system": false,
-    "automated_payment_required_for_private_alpha": false,
-    "invite_or_activation_code_may_be_mcp_bearer_token": false,
-    "invite_or_activation_code_may_be_tool_argument": false
-  },
+  "server_model_execution": false,
   "base_tools": [
     "search_ai_projects",
     "get_project_facts",
@@ -37,50 +18,11 @@
     "browse_radar_projects",
     "browse_radar_skills"
   ],
-  "hosted_only_tools": [
-    {
-      "name": "deep_research_ai_projects",
-      "enabled_in_modes": ["oauth"],
-      "commercial_status": "not enabled in default public Hosted mode",
-      "description": "Compatibility-mode publisher-model deep research over rules-first public Radar results. Future commercial entitlement must be unified with AI Workstation membership before paid launch.",
-      "annotations": {
-        "read_only": false,
-        "destructive": false,
-        "idempotent": false,
-        "open_world": true
-      },
-      "current_compatibility_behavior": {
-        "ordinary_data_tools_consume_ai_credits": false,
-        "first_successful_premium_task_free": true,
-        "credit_cost": 1,
-        "failed_model_requests_refund_reservation": true,
-        "upgrade_may_return_checkout_url": true
-      },
-      "input_schema": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["query"],
-        "properties": {
-          "query": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 4000
-          },
-          "focus": {
-            "enum": ["research", "comparison", "stack", "market_scan"],
-            "default": "research"
-          },
-          "filters": {
-            "type": "object",
-            "maxProperties": 50,
-            "description": "Optional public Radar selector constraints. Internal publication fields are never accepted as model context."
-          },
-          "locale": {
-            "enum": ["zh", "en"],
-            "default": "en"
-          }
-        }
-      }
-    }
-  ]
+  "hosted_only_tools": [],
+  "official_resources": {
+    "publisher": "AI Workstation",
+    "website": "https://aiworkstation.cn/",
+    "radar": "https://aiworkstation.cn/githubai/",
+    "open_source_project": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence"
+  }
 }

@@ -63,12 +63,12 @@ jobs:
           if report.get("code_ready") is not True:
               raise SystemExit(f"code readiness failed: {report.get('code_blockers')}")
           if report.get("external_alpha_ready") is not False:
-              raise SystemExit("ordinary CI must not attest live external-alpha gates")
+              raise SystemExit("ordinary CI must not attest external-alpha evidence")
           if report.get("hosted_private_alpha_ready") is not False:
-              raise SystemExit("ordinary CI must not attest hosted private-alpha gates")
+              raise SystemExit("ordinary CI must not attest hosted-private-alpha evidence")
           PY
 
-      - name: Build deterministic Skills-only alpha bundle
+      - name: Build deterministic one-Skill alpha bundle
         run: |
           set -euo pipefail
           osi-build-alpha --root . --output-dir tmp/alpha-bundle
@@ -88,21 +88,27 @@ jobs:
               archive = Path.cwd() / archive
           with zipfile.ZipFile(archive) as bundle:
               names = set(bundle.namelist())
+
           required = {
               "BUNDLE-MANIFEST.json",
               ".codex-plugin/plugin.json",
               ".agents/plugins/marketplace.json",
-              "skills/open-source-project-research/SKILL.md",
-              "skills/open-source-project-comparison/SKILL.md",
-              "skills/open-source-stack-planner/SKILL.md",
+              "product-skills/ai-open-source-intelligence/SKILL.md",
               "SECURITY.md",
               "PRIVACY.md",
               "SUPPORT.md",
           }
           missing = sorted(required - names)
-          forbidden = sorted(name for name in names if name.startswith("src/") or name == "pyproject.toml")
-          if missing or forbidden:
-              raise SystemExit(f"invalid alpha archive: missing={missing} forbidden={forbidden}")
+          legacy_skills = sorted(name for name in names if name.startswith("skills/"))
+          forbidden = sorted(
+              name for name in names
+              if name.startswith("src/") or name == "pyproject.toml"
+          )
+          if missing or legacy_skills or forbidden:
+              raise SystemExit(
+                  f"invalid alpha archive: missing={missing} "
+                  f"legacy_skills={legacy_skills} forbidden={forbidden}"
+              )
           PY
 
       - name: Smoke test local commands
@@ -125,7 +131,7 @@ jobs:
           osi-hosted-evidence-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
 
-      - name: Validate public Hosted configuration without OAuth secrets
+      - name: Validate public Hosted data-only configuration
         if: matrix.python-version == '3.12'
         env:
           OSI_PROVIDER: http
@@ -147,17 +153,18 @@ jobs:
           from pathlib import Path
 
           payload = json.loads(Path("tmp/hosted-public-config.json").read_text(encoding="utf-8"))
-          if payload.get("release_commit") != os.environ["GITHUB_SHA"]:
-              raise SystemExit("Hosted public check-config did not preserve the exact candidate SHA")
-          if payload.get("mode") != "hosted-public" or payload.get("tool_count") != 9:
-              raise SystemExit(f"unexpected public Hosted surface: {payload}")
-          if payload.get("premium_enabled") is not False:
-              raise SystemExit("public Hosted mode must not enable Premium")
-          if "oauth_issuer" in payload or "backend_origin" in payload:
-              raise SystemExit("public Hosted mode unexpectedly loaded OAuth/backend configuration")
+          assert payload["release_commit"] == os.environ["GITHUB_SHA"]
+          assert payload["mode"] == "hosted-public"
+          assert payload["access_mode"] == "public"
+          assert payload["tool_count"] == 9
+          assert payload["premium_enabled"] is False
+          assert payload["server_model_enabled"] is False
+          assert payload["oauth_enabled"] is False
+          assert "oauth_issuer" not in payload
+          assert "backend_origin" not in payload
           PY
 
-      - name: Validate optional OAuth Hosted configuration
+      - name: Reject OAuth or Premium Hosted runtime switch
         if: matrix.python-version == '3.12'
         env:
           OSI_PROVIDER: http
@@ -170,28 +177,14 @@ jobs:
           OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network
           OSI_MCP_HTTP_ALLOWED_HOSTS: mcp.example.com,mcp.example.com:*
           OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES: "262144"
-          OSI_OAUTH_ISSUER_URL: https://auth.example.com
-          OSI_OAUTH_INTROSPECTION_URL: https://auth.example.com/oauth2/introspection
-          OSI_OAUTH_CLIENT_ID: test-client
-          OSI_OAUTH_CLIENT_SECRET: test-secret
-          OSI_OAUTH_RESOURCE_URL: https://mcp.example.com/mcp
-          OSI_OAUTH_REQUIRED_SCOPES: ""
-          OSI_OAUTH_INTROSPECTION_AUTH: body
-          OSI_BACKEND_BASE_URL: https://aiworkstation.cn
-          OSI_BACKEND_SERVICE_TOKEN: test-service-token
         run: |
           set -euo pipefail
-          osi-mcp-hosted --check-config >tmp/hosted-oauth-config.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          payload = json.loads(Path("tmp/hosted-oauth-config.json").read_text(encoding="utf-8"))
-          if payload.get("mode") != "hosted-oauth" or payload.get("tool_count") != 10:
-              raise SystemExit(f"unexpected OAuth Hosted surface: {payload}")
-          if payload.get("premium_enabled") is not True:
-              raise SystemExit("OAuth Hosted mode did not preserve Premium")
-          PY
+          if osi-mcp-hosted --check-config >tmp/hosted-oauth-rejected.json; then
+            echo "OAuth Hosted mode unexpectedly succeeded" >&2
+            cat tmp/hosted-oauth-rejected.json >&2
+            exit 1
+          fi
+          grep -qi 'disabled' tmp/hosted-oauth-rejected.json
 
       - name: End-to-end Streamable HTTP MCP round trip
         if: matrix.python-version == '3.12'
@@ -204,7 +197,6 @@ jobs:
           mkdir -p tmp
           osi-mcp-http >tmp/mcp-http.log 2>&1 &
           server_pid=$!
-
           cleanup() {
             kill "$server_pid" 2>/dev/null || true
             wait "$server_pid" 2>/dev/null || true
@@ -222,7 +214,7 @@ jobs:
                       break
               except OSError:
                   if time.monotonic() >= deadline:
-                      raise SystemExit("Streamable HTTP MCP server did not become ready within 15 seconds")
+                      raise SystemExit("Streamable HTTP MCP server did not become ready")
                   time.sleep(0.2)
           PY
 
@@ -235,34 +227,27 @@ jobs:
             exit 1
           fi
 
-      - name: Validate container packaging and hosted config
+      - name: Validate container packaging and Hosted config
         if: matrix.python-version == '3.12'
         run: |
           set -euo pipefail
           docker compose -f compose.hosted.example.yml config >/dev/null
 
           export OSI_RELEASE_COMMIT="${GITHUB_SHA}"
-          export OSI_HOSTED_ACCESS_MODE=public
-
           docker compose -f compose.public-hosted.example.yml config >/dev/null
           docker compose -f compose.hosted.example.yml build osi-mcp
           docker compose -f compose.public-hosted.example.yml build osi-mcp-hosted
 
-          # The generic image still starts in safe loopback/mock mode when no
-          # deployment environment is supplied.
           docker run --rm aiworkstation-osi-mcp:local \
             osi-mcp-http --check-config >/dev/null
 
-          # Exercise the local/private hosted-alpha environment without opening
-          # a listening service or publishing ports.
           docker compose -f compose.hosted.example.yml run --rm --no-deps \
             osi-mcp osi-mcp-http --check-config >/dev/null
 
-          # Exercise the actual public Hosted image. Its build arg bakes
-          # GITHUB_SHA into OSI_IMAGE_COMMIT, while Compose injects the same SHA
-          # as OSI_RELEASE_COMMIT. Public mode must not need OAuth/backend secrets.
           docker compose -f compose.public-hosted.example.yml run --rm --no-deps \
-            osi-mcp-hosted osi-mcp-hosted --check-config >tmp/public-hosted-container-config.json
+            osi-mcp-hosted osi-mcp-hosted --check-config \
+            >tmp/public-hosted-container-config.json
+
           python - <<'PY'
           import json
           import os
@@ -271,10 +256,11 @@ jobs:
           payload = json.loads(
               Path("tmp/public-hosted-container-config.json").read_text(encoding="utf-8")
           )
-          if payload.get("release_commit") != os.environ["GITHUB_SHA"]:
-              raise SystemExit("Public Hosted container does not match the candidate SHA")
-          if payload.get("mode") != "hosted-public" or payload.get("tool_count") != 9:
-              raise SystemExit("Public Hosted container did not use the anonymous nine-tool surface")
+          assert payload["release_commit"] == os.environ["GITHUB_SHA"]
+          assert payload["mode"] == "hosted-public"
+          assert payload["tool_count"] == 9
+          assert payload["server_model_enabled"] is False
+          assert payload["oauth_enabled"] is False
           PY
 
   evidence:

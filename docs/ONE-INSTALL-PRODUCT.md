@@ -2,35 +2,43 @@
 
 ## Product goal
 
-AI Open Source Intelligence should feel like one useful capability, not a pile of infrastructure choices.
-
-The first Hosted experience is intentionally frictionless:
+AI Open Source Intelligence should feel like **one capability**, not a menu of Skills or infrastructure choices.
 
 ```text
-Install / connect product
-      |
-ChatGPT / Codex / compatible MCP host
-      |
-3 Skills + public Hosted MCP
-      |
-9 anonymous read-only Radar tools
-      |
-AI Open Source Radar
+Install / connect once
+        |
+ChatGPT / Codex / compatible host
+        |
+1 unified Skill
+        |
+9 internal read-only MCP tools
+        |
+AI Open Source Radar public data
 ```
 
-The user should not need to clone the repository, configure Python, copy API keys, create a WorkOS account, or understand the implementation split between Skill instructions and MCP tools.
+The user should not need to know which MCP tool is being called or choose between research/comparison/stack-planning Skills.
 
-## Skills
+## One unified Skill
 
-The three Skills define the decision process:
+The only active product Skill is:
 
-- `open-source-project-research`
-- `open-source-project-comparison`
-- `open-source-stack-planner`
+```text
+ai-open-source-intelligence
+```
 
-They preserve hard/preferred/negative requirements, evidence boundaries, unknowns and risk disclosures.
+It internally routes:
 
-## Nine standard Radar tools
+- Radar browsing;
+- project discovery from requirements;
+- project fact verification;
+- license evidence;
+- project comparison;
+- alternatives;
+- candidate stack planning.
+
+It preserves hard/preferred/negative requirements, evidence boundaries, unknowns and risks across all of those task types.
+
+## Nine internal Radar tools
 
 1. `search_ai_projects`
 2. `get_project_facts`
@@ -42,167 +50,144 @@ They preserve hard/preferred/negative requirements, evidence boundaries, unknown
 8. `browse_radar_projects`
 9. `browse_radar_skills`
 
-These are the default public Hosted surface. They are read-only and use public Radar data/retrieval. They do not invoke a publisher-funded model on every call.
+These are implementation capabilities for the host model, not nine user-facing products.
 
-## Public Hosted access boundary
+## Model boundary
 
-Default:
+The current product uses a **single reasoning model boundary**:
+
+```text
+ChatGPT/Codex host model
+        |
+        | reasoning + synthesis
+        v
+9 deterministic/read-only Radar tools
+        |
+        | data/evidence
+        v
+AI Workstation public Radar
+```
+
+The AI Workstation server must not execute a second model on this path.
+
+Requirement-based selection keeps:
+
+```text
+use_model=false
+```
+
+The Hosted contract has no Premium model tool and no runtime switch that can enable one.
+
+## Hosted access boundary
+
+Current mode:
 
 ```text
 OSI_HOSTED_ACCESS_MODE=public
 ```
 
-Public mode has no user identity requirement. Abuse protection belongs at the HTTPS gateway and includes bounded per-IP request and connection controls.
+Only this mode is supported. Attempts to select OAuth fail closed.
 
-The application still keeps strict deployment identity:
+The release still keeps strict candidate provenance:
 
 ```text
 candidate Git SHA
-  = Docker image SHA identity
+  = Docker image identity
   = runtime release SHA
   = remote MCP serverInfo.version SHA
 ```
 
-The public mode therefore removes login friction without making release provenance anonymous or unverifiable.
+## Official publisher resources
 
-## Optional Premium server-model tool
-
-OAuth compatibility mode retains:
+Each MCP result includes canonical navigation/publisher metadata under:
 
 ```text
-deep_research_ai_projects
+data.official_resources
 ```
 
-Flow:
+The links point to:
 
-```text
-explicit user request for deeper analysis
-    |
-rules-first Radar retrieval
-    |
-bounded public Radar context
-    |
-AI Workstation publisher model
-    |
-model analysis returned separately from verified facts
-```
+- AI Workstation;
+- AI Open Source Radar;
+- the public open-source repository.
 
-This tool is absent from the default public Hosted mode.
+The unified Skill may surface these links once at the end of a user-facing answer. They stay separate from verified facts and do not affect rankings or recommendations.
 
 ## Cost boundary
 
 ```text
-Nine standard tools
-    -> public Radar data/retrieval
-    -> no publisher-model token cost
+9 standard tools
+  -> public Radar data/retrieval
+  -> no AI Workstation model-token charge
 
-Normal Skill reasoning
-    -> ChatGPT/Codex host model
-    -> host/user-side inference
-
-Future member-only deep research
-    -> AI Workstation publisher model
-    -> unified AI Workstation membership/quota policy
+Skill reasoning
+  -> ChatGPT/Codex host model
+  -> host/user-side inference
 ```
 
-The final paid product should not introduce a confusing second OSI credit balance merely because MCP is a different entry point.
+The website's guest/member AI-token quotas therefore do not apply to the nine current MCP data tools.
 
-## Membership boundary
+## Anonymous abuse boundary
 
-AI Workstation membership is the intended source of truth.
+Because the current tools do not consume AI Workstation model tokens, abuse control is request/connection based rather than token based.
+
+Current gateway contract:
 
 ```text
-                    AI Workstation membership
-                              |
-                  +-----------+-----------+
-                  |                       |
-              website                 Skills/MCP
-                  |                       |
-                  +-----------+-----------+
-                              |
-                    unified AI usage policy
+short window: 60 requests/minute/IP, burst 30
+sustained:    10 requests/minute/IP, burst 300
+connections:  10/IP
+body size:    256 KB
 ```
 
-Manual WeChat/email/offline payment and current membership activation may continue while scale is small.
+The container remains host-loopback only:
 
-A future payment provider is an automation adapter to that same membership, not a second entitlement database.
+```text
+127.0.0.1:8001 -> container:8000
+```
 
-## Identity boundary for future member-only tools
+## Membership and future server-model features
 
-Public tools need no identity.
+AI Workstation's existing membership remains the intended future entitlement source, but it is **not involved in the current nine-tool Hosted path**.
 
-Before member-only tools are enabled, an MCP client must have a secure way to prove which AI Workstation member it is linked to. That identity bridge can be OAuth or another reviewed approach, but the identity provider must remain separate from the membership truth source.
+If a later version introduces explicit member-only server inference:
 
-Never use:
+- it must be a new reviewed product version;
+- it must safely link the caller to existing AI Workstation membership;
+- it must use the existing model-usage/quota accounting rather than create a second OSI credit system;
+- it must make the server-model call explicit to the user;
+- it must receive a fresh candidate/evidence/deployment chain.
 
-- a reusable invite/activation code directly as an MCP bearer token;
-- raw bearer tokens as membership database keys;
-- client-supplied usernames as trusted membership identity;
-- payment customer IDs as public MCP identities.
+It cannot be activated by setting an environment variable in the current data-only release.
 
-WorkOS is one optional OAuth provider, not a requirement.
-
-## Rate limits
-
-Public mode:
-
-- Nginx per-IP request limit;
-- Nginx per-IP connection limit;
-- bounded request body;
-- loopback-only MCP upstream;
-- normal application/provider bounds remain intact.
-
-Optional OAuth mode additionally retains per-authenticated-subject limits.
-
-## Deployment components
-
-### Public Hosted Private Alpha
+## Deployment shape
 
 ```text
 MCP host
    |
    | HTTPS
    v
-Nginx TLS + IP abuse controls
+Nginx TLS + short/sustained IP abuse controls
    |
-   | loopback
+   | loopback only
    v
-Hosted MCP public mode
+Hosted MCP
    |
-   +---- public Radar API (9 standard tools)
+   +---- 9 public Radar data/evidence tools
 ```
 
-### Future member/Premium mode
-
-```text
-MCP host
-   |
-secure member identity/linking
-   |
-Hosted MCP member-capable mode
-   |
-   +---- public Radar API
-   |
-   +---- narrow private AI Workstation membership/Premium contract
-              |
-              +---- existing membership source of truth
-              +---- unified quota/usage accounting
-              +---- publisher model
-```
-
-Payment automation, if any, updates the existing membership system separately.
+There is no current private membership/Premium backend leg in this diagram.
 
 ## Current release gate
 
-For Hosted Private Alpha, real external validation must prove:
+External/Hosted validation must prove:
 
+- exactly one active Skill in the Plugin package;
 - exact candidate/deployment identity;
 - public HTTPS endpoint;
 - gateway abuse-control policy;
 - exactly nine read-only standard tools;
+- AI Workstation server-model execution disabled;
+- OAuth/Premium runtime switch rejected;
 - a successful real Radar search;
 - fresh candidate CI/live/Codex/human evidence.
-
-OAuth, WorkOS and automated payment are not required for this free private-alpha milestone.
-
-Before any paid/member-only launch, secure member linking and unified AI Workstation quota accounting become separate mandatory gates.

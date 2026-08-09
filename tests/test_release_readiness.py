@@ -46,7 +46,7 @@ class ReleaseReadinessTests(unittest.TestCase):
 
         self.assertTrue(report["code_ready"])
         self.assertFalse(report["external_alpha_ready"])
-        self.assertTrue(report["operator_attestations"]["artifact_reviewed"])
+        self.assertTrue(report["attestations"]["artifact_reviewed"])
         blockers = " ".join(report["operational_blockers"])
         self.assertIn("en production contract capture", blockers)
         self.assertIn("zh production contract capture", blockers)
@@ -102,18 +102,22 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assertFalse(required["ok"])
         self.assertIn("README.md", required["details"]["missing"])
         self.assertIn("Dockerfile", required["details"]["missing"])
+        self.assertIn(
+            "product-skills/ai-open-source-intelligence/SKILL.md",
+            required["details"]["missing"],
+        )
 
-    def test_public_launch_remains_blocked_even_after_skills_release_prep(self) -> None:
+    def test_public_launch_remains_blocked_after_data_only_hosted_alpha(self) -> None:
         report = evaluate_release_readiness(self.ROOT)
 
         self.assertFalse(report["public_launch_ready"])
-        blockers = " ".join(report["public_launch_blockers"])
-        self.assertNotIn("software license has not been selected", blockers)
+        blockers = " ".join(report["public_launch_blockers"]).lower()
         self.assertIn("hosted privacy/terms", blockers)
-        self.assertIn("oauth", blockers.lower())
-        self.assertIn("rate limiting", blockers)
+        self.assertIn("anonymous-usage monitoring", blockers)
         self.assertIn("platform review", blockers)
         self.assertIn("directory", blockers)
+        self.assertNotIn("oauth", blockers)
+        self.assertNotIn("native per-user oauth", blockers)
 
 
 if __name__ == "__main__":

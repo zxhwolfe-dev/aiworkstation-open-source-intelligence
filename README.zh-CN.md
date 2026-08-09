@@ -1,67 +1,54 @@
 # AI Open Source Intelligence
 
-**面向开源 AI 项目的证据化研究、Radar 浏览、项目对比、许可证核验与技术选型工具。**
+**一个 Skill，9 个实时只读 Radar 工具；做开源 AI 研究、对比和选型，不再额外调用一遍 AI Workstation 服务器大模型。**
 
-[English](README.md) · [快速开始](docs/QUICKSTART.md) · [FAQ](docs/FAQ.md) · [AI 开源项目雷达](https://aiworkstation.cn/githubai/)
+[English](README.md) · [AI Workstation](https://aiworkstation.cn/) · [AI 开源项目雷达](https://aiworkstation.cn/githubai/) · [快速开始](docs/QUICKSTART.md)
 
-> 3 个 Skills · 9 个标准只读 MCP 工具 · 中英文工作流 · Apache-2.0
+AI Open Source Intelligence 是 **AI Open Source Radar / AI 开源项目雷达** 的 Skills + MCP 产品层。
 
-AI Open Source Intelligence 是 AI Workstation 面向开源 AI 生态构建的 Skills/MCP 产品层。它帮助开发者、技术负责人和 AI 创业者发现、核验、比较开源项目，并始终把 **已验证事实、分析建议、未知信息和风险** 分开。
-
-## 默认产品体验
-
-第一阶段 Hosted 产品保持简单：
+## 产品形态
 
 ```text
-安装 / 连接一次
-      |
-      v
-3 个 Skills + 公网 Hosted MCP
-      |
-      v
-9 个实时只读 Radar 工具
-      |
-      v
-AI Workstation 公共 Radar 数据
+ChatGPT / Codex / 兼容 Host 中的用户
+                 |
+                 v
+           1 个统一 Skill
+                 |
+                 v
+          9 个只读 MCP 工具
+                 |
+                 v
+       AI Workstation 公共 Radar 数据
 ```
 
-这 9 个标准工具**不要求 WorkOS、不要求其他 OAuth 服务、不要求付款、不要求 Premium 后端，也不另建一套 OSI 会员体系**。
+用户不需要在“项目研究 / 项目对比 / 技术栈规划”三个 Skill 之间做选择。统一 Skill 会自己判断任务并调用合适的工具。
 
-未来会员/Premium 能力将接入现有 **AI Workstation 会员体系**，而不是重新建立一套互相独立的 Pro/credits 用户系统。
+自然语言理解、推理和最终整理都由**用户正在使用的 Host 模型**完成；AI Workstation 在这条产品路径上只提供数据和证据。
 
-## 它能做什么？
-
-- **找项目**：根据 Docker、自托管、Web UI、隐私、预算等条件筛选开源 AI 项目；
-- **查项目**：核验指定项目的当前公开事实；
-- **查许可证**：只有直接公开证据才能提升为已核验 License；
-- **做对比**：在明确使用场景下比较 2–5 个项目；
-- **找替代**：在不偷偷放宽硬条件的前提下寻找替代方案；
-- **配技术栈**：组合候选开源 AI 技术栈并暴露兼容性未知项；
-- **浏览 Radar**：浏览榜单、合集、分类、场景、项目目录和 Skills 库。
-
-## 证据边界
-
-每个标准工具结果都会区分：
+## 只有一个正式 Skill
 
 ```text
-data
-verified_facts
-recommendations
-unknowns
-risks
+ai-open-source-intelligence
 ```
 
-`data` 里出现一个字段并不自动代表它已经成为“已验证事实”。许可证结果是技术证据，不是法律意见；没有直接证据时必须保持 unknown。
+它统一处理：
 
-## 三个 Skills
+- 浏览日/周/月榜、合集、分类、场景和 Radar Skills；
+- 根据部署、隐私、集成、预算、License 等要求找项目；
+- 核验指定项目事实和 License 证据；
+- 对比 2–5 个项目；
+- 在不放宽硬条件的情况下找替代；
+- 规划候选开源 AI 技术栈，并明确兼容性未知项。
 
-- `open-source-project-research`
-- `open-source-project-comparison`
-- `open-source-stack-planner`
+唯一正式 Skill 来自：
 
-Skills 负责可复用的安全研究流程，Hosted MCP 负责提供当前 Radar 数据。
+```text
+product-skills/ai-open-source-intelligence/SKILL.md
+```
 
-## 9 个标准只读 MCP 工具
+之前拆开的“项目研究 / 项目对比 / 技术栈规划”三个 Skill 文件已从当前产品和分发包中彻底移除。
+
+## 9 个标准 MCP 工具
 
 ```text
 search_ai_projects
@@ -75,9 +62,99 @@ browse_radar_projects
 browse_radar_skills
 ```
 
-它们都不会修改 GitHub、AI Workstation 或第三方项目，也不会安装/执行第三方仓库代码。
+全部只读，不执行、不安装第三方仓库代码。
 
-## 本地开发模式
+## 明确禁止走 AI Workstation 服务器大模型
+
+这是当前版本的硬边界。
+
+Hosted MCP 不提供 Premium 模型工具、不提供支付/credits 工具，也不存在通过环境变量重新打开 OAuth/Premium 的隐藏开关。
+
+需求型项目搜索调用公开 Radar selector 时固定：
+
+```text
+use_model=false
+```
+
+因此正常链路是：
+
+```text
+ChatGPT / Codex 的模型
+        -> 理解问题、选择工具
+        -> AI Workstation 返回公共 Radar 数据/证据
+        -> ChatGPT / Codex 整理最终回答
+```
+
+而不是：
+
+```text
+用户模型 -> AI Workstation 再调一次模型 -> 双重模型成本
+```
+
+以后如果要做会员服务器模型能力，必须作为新版本重新设计、评审和验收，不能靠现在的环境变量偷偷打开。
+
+## 证据边界
+
+所有工具结果继续严格区分：
+
+1. **verified facts**：有当前公开证据支持的事实；
+2. **recommendations**：Host 模型/规则分析；
+3. **unknowns**：无法确认或尚未验证的信息；
+4. **risks**：License、维护、部署、安全和集成风险。
+
+`data` 里出现一个字段不代表它已经是“已验证事实”。License 证据更严格，并且只是技术证据，不是法律意见。
+
+## 返回内容中的官方入口
+
+每个 MCP 工具结果都会在：
+
+```text
+data.official_resources
+```
+
+中附带固定、不带追踪参数的官方入口：
+
+- AI Workstation：https://aiworkstation.cn/
+- AI 开源项目雷达：https://aiworkstation.cn/githubai/
+- 开源项目：https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence
+
+统一 Skill 可以在正常用户回答结尾最多展示一次“官方资源”。这些链接与 verified facts 分离，不会混入研究结论。
+
+## Hosted MCP
+
+正式地址：
+
+```text
+https://mcp.aiworkstation.cn/mcp
+```
+
+当前模式固定为：
+
+```text
+匿名
+只读
+仅数据/证据
+9 个工具
+无 OAuth
+无 WorkOS 依赖
+无 Premium/服务器模型
+```
+
+容器只监听宿主机 `127.0.0.1:8001`，外面由 Nginx/TLS 代理。
+
+### 匿名防刷
+
+公网网关使用两层 IP 请求限流 + 并发限制：
+
+- 短时：`60 次/分钟`，burst `30`；
+- 持续：`10 次/分钟`，burst `300`；
+- 每 IP 并发连接：`10`；
+- MCP body 最大：`256 KB`；
+- 专用 MCP 域名其他路径直接 `404`。
+
+这里按“请求次数”限制，而不是按网站 10 万/100 万 Token 限制，因为这 9 个数据工具不消耗 AI Workstation 模型 Token。
+
+## 本地开发
 
 ```bash
 python -m venv .venv
@@ -85,13 +162,13 @@ source .venv/bin/activate
 python -m pip install -e ".[mcp]"
 ```
 
-离线 mock：
+离线：
 
 ```bash
 OSI_PROVIDER=mock osi-mcp
 ```
 
-连接线上公共 Radar 数据：
+线上公共 Radar：
 
 ```bash
 OSI_PROVIDER=http \
@@ -99,131 +176,23 @@ AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn \
 osi-mcp
 ```
 
-## Hosted 模式
-
-生产入口：
-
-```bash
-osi-mcp-hosted --check-config
-```
-
-### `public` — 默认模式
-
-```text
-OSI_HOSTED_ACCESS_MODE=public
-```
-
-特点：
-
-- 恰好 9 个标准只读工具；
-- 匿名使用，不要求登录；
-- 不加载 WorkOS/OAuth 配置；
-- 不加载 Premium/会员后端；
-- 不暴露 Premium 工具；
-- 继续保留 Git candidate → Docker image → runtime → `serverInfo.version` 的精确 SHA 身份链；
-- 公网必须经过 HTTPS + Nginx 单 IP 请求/并发连接防刷边界；
-- Hosted 容器只绑定主机 `127.0.0.1:8001`。
-
-### `oauth` — 可选兼容/未来会员模式
+当前版本设置：
 
 ```text
 OSI_HOSTED_ACCESS_MODE=oauth
 ```
 
-现有标准 OAuth Resource Server 能力继续保留，并兼容当前 `deep_research_ai_projects` Premium 合同。WorkOS 只是其中一个可替换 OAuth 提供商，不再是免费 Hosted MCP 的依赖。
+会直接 fail-closed。
 
-## 会员与收费
+## 安全规则
 
-这个项目**不再设计第二套独立 OSI 会员体系**。
-
-未来目标是：
-
-```text
-                    AI Workstation 会员
-                            |
-                +-----------+-----------+
-                |                       |
-           网站使用入口             Skills / MCP
-                |                       |
-                +-----------+-----------+
-                            |
-                    统一 AI 用量策略
-```
-
-现阶段 AI Workstation 现有人工收费流程可以继续：用户通过微信、邮箱或线下联系完成付款，再由现有会员/邀请码体系开通权益。
-
-未来如果使用 Paddle 或其他支付平台，它只应作为“自动收银台/自动开通适配器”，把付款结果写回同一 AI Workstation 会员体系，而不是创建第二套 OSI 订阅数据库。
-
-邀请码/激活码**绝不能直接作为 MCP Bearer Token、Authorization 凭据或普通 Tool 参数**。未来会员绑定必须通过经过安全设计的一方网页或标准身份流程完成。
-
-详见 [`docs/MEMBERSHIP-AND-MONETIZATION.md`](docs/MEMBERSHIP-AND-MONETIZATION.md)。
-
-## Premium 深研
-
-代码仍保留 OAuth 兼容模式下的：
-
-```text
-deep_research_ai_projects
-```
-
-但它**不会出现在默认 `public` Hosted 模式中**。在真正付费上线前，其权益与用量语义必须改为接入 AI Workstation 现有会员/额度体系，而不能把现有“独立 credits”当作最终商业方案。
-
-## Hosted 验收
-
-默认公网 Hosted 的正式 smoke：
-
-```bash
-osi-remote-smoke \
-  --root . \
-  --url https://mcp.aiworkstation.cn/mcp \
-  --profile hosted-public \
-  --auth-mode none \
-  --output tmp/hosted-remote.json
-```
-
-它验证：
-
-- 本地候选 SHA 与 Docker/远端部署 SHA 完全一致；
-- HTTPS 网关存在；
-- Nginx IP 请求/连接防刷策略已配置；
-- 恰好 9 个只读工具；
-- 真实公网 `search_ai_projects` 调用成功；
-- MCP 协议版本已协商并记录。
-
-OAuth 模式仍可单独使用 `--profile hosted-oauth` 验证。
-
-## 当前状态
-
-**Hosted candidate 开发阶段，尚未宣称广泛公开上线。**
-
-当前路线明确拆成两步：
-
-1. 先上线匿名、只读、无需 WorkOS/支付的 9 工具 Hosted MCP；
-2. 等真实使用需求验证后，再设计 MCP 客户端与 AI Workstation 会员的安全绑定，并在此基础上开启会员/Premium 能力。
-
-自动支付不是 Hosted Private Alpha 的门槛。
-
-## 开发
-
-```bash
-python -m compileall -q src tests
-python -m unittest discover -s tests -v
-osi-validate-plugin --root .
-```
-
-CI 覆盖 Python 3.10 和 3.12。
-
-## 文档
-
-- [`docs/hosted-private-alpha.md`](docs/hosted-private-alpha.md)
-- [`docs/MEMBERSHIP-AND-MONETIZATION.md`](docs/MEMBERSHIP-AND-MONETIZATION.md)
-- [`docs/HOSTED-OAUTH.md`](docs/HOSTED-OAUTH.md)
-- [`docs/ONE-INSTALL-PRODUCT.md`](docs/ONE-INSTALL-PRODUCT.md)
-- [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
-- [`docs/FAQ.md`](docs/FAQ.md)
-- [`SECURITY.md`](SECURITY.md)
-- [`PRIVACY.md`](PRIVACY.md)
+- 不执行第三方仓库代码；
+- 不从“没有 License”推断“可以商用”；
+- 不为了给出结果偷偷放宽硬条件；
+- 没有证据或受控测试时不声称跨项目兼容；
+- live evidence 不可用时不拿模型记忆冒充实时事实；
+- 当前标准 Skill/MCP 路径永远不调用 AI Workstation 服务器大模型。
 
 ## License
 
-本公开仓库采用 [Apache License 2.0](LICENSE)。Apache-2.0 只覆盖这个公开仓库，不自动覆盖 AI Workstation 私有数据库、未公开数据、私有后台、托管基础设施或商标。
+公开仓库采用 Apache-2.0。它不自动授权 AI Workstation 私有数据库、未公开数据、服务器凭据、基础设施或商标。

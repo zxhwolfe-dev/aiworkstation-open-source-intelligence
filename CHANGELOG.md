@@ -1,167 +1,37 @@
 # Changelog
 
-All notable pre-release changes are recorded here. Dates refer to repository
-changes, not public availability.
+All notable pre-release changes are recorded here. Dates refer to repository changes, not public availability.
 
-## [Unreleased]
-
-### Added
-
-- Apache-2.0 public repository license and public `TERMS.md`.
-- Product-first English README plus complete Simplified Chinese README.
-- Public Quickstart, FAQ, model/data-flow explanation, Roadmap, contribution
-  guide and Code of Conduct.
-- Structured GitHub issue templates for bugs, evidence problems,
-  public-contract regressions, project coverage and feature requests.
-- OpenAI Skills-only plugin submission pack with listing copy, starter prompts,
-  five positive test cases and three negative/boundary cases.
-- Guarded GitHub release workflow for deterministic Skills bundle releases.
-- PyPI Trusted Publishing workflow preparation and expanded package metadata.
-- GHCR versioned container publishing workflow.
-- Guarded stateless JSON Streamable HTTP MCP server with loopback-safe defaults,
-  explicit non-loopback acknowledgement, MCP Host/origin allowlists, request
-  body caps and allow-listed live Radar origins.
-- Non-root Docker image, minimal build context and localhost-only hardened
-  Compose example for private hosted-alpha deployment.
-- `osi-remote-smoke` for real remote MCP tool discovery, read-only annotation
-  validation and optional bilingual structured search calls.
-- A real CI Streamable-HTTP round trip that starts the local server, connects
-  with an MCP client, discovers the six tools and invokes one read-only search.
-- Privacy-minimized structured tool telemetry written to stderr. It records tool
-  name, outcome, duration, public error code and safe aggregate counts; query
-  text, constraints, project IDs and raw request IDs are not accepted by the
-  telemetry event API.
-- Four-level `osi-readiness` v2 report distinguishing code, Skills-only external
-  alpha, hosted private alpha and broad public-launch readiness.
-- Hosted MCP deployment runbook, public-launch decision register and alpha
-  support policy.
-- Bilingual live-contract validation workflow with allow-listed origins,
-  sanitized captures, offline validation, hardened-provider replay and safe
-  artifact upload.
-- Deterministic Skills-only alpha ZIP builder with embedded file manifest,
-  external SHA-256 checksum and credential-like-content checks.
-- Manual alpha packaging workflow that runs release gates and inspects the
-  archive before upload.
-- External alpha tester guide, structured feedback templates and release
-  checklist.
+## [0.2.0] - 2026-08-09
 
 ### Changed
 
-- Public plugin metadata now includes Apache-2.0, public privacy/terms/support
-  URLs and five starter prompts.
-- `osi-validate-plugin` validates the selected license, repository license file,
-  public HTTPS website/support/privacy/terms URLs and distinguishes local Skills
-  readiness from public-submission metadata readiness.
-- Skills-only distribution bundles now include license, terms, bilingual
-  onboarding, FAQ and roadmap documents.
-- `osi-readiness` no longer reports the resolved software-license decision as a
-  public-launch blocker; hosted service identity/authentication, quotas, abuse
-  controls, service-specific legal/retention policy and platform review remain
-  separate blockers.
-- Live contract validation can run automatically for relevant `main` changes in
-  addition to manual dispatch and emits candidate-bound evidence artifacts.
-- Verified project facts now distinguish validated repository/public metadata
-  from analysis/editorial projection fields. Summary, deployment classification,
-  categories and use cases remain visible in `data.project` but are not promoted
-  to `verified_facts` merely because they appear in the public detail JSON.
-- Verified licenses now require a direct public `License` transparency source
-  with a public excerpt. A license label without direct evidence is downgraded to
-  an explicit unknown and `LICENSE_UNVERIFIED` risk.
-- `get_project_facts` exposes `field_evidence_status` so clients can distinguish
-  `verified_public_metadata`, `verified_direct_evidence`,
-  `public_projection_only` and `unknown` values.
-- Live probes require an observed license to report `evidence_status=verified`
-  and a positive direct evidence count; otherwise the license must remain an
-  explicit unknown.
-- CI validates the guarded HTTP configuration, builds the container on Python
-  3.12, verifies the Compose configuration, runs Python compile checks and
-  smoke-tests the expanded CLI surface.
-- Live contract replay derives locale and project identity from the captured
-  manifest instead of accepting duplicate identity flags.
-- Skills-only alpha bundles include `SECURITY.md`, `PRIVACY.md`, `SUPPORT.md`,
-  `LICENSE`, `TERMS.md` and bilingual onboarding while continuing to exclude
-  runtime source and MCP code.
-- Release-readiness gates require explicit protected-gateway/private-network and
-  remote-MCP evidence before declaring hosted private-alpha readiness.
-- README, schemas and M1 documentation describe the actual fact/evidence,
-  Skills-only, stdio and guarded hosted distribution boundaries.
+- Replaced three overlapping user-facing Skills with one unified `ai-open-source-intelligence` Skill that internally routes browsing, research, fact checking, comparison, alternatives and stack planning.
+- Moved the active Skill root to `product-skills/` and removed the old split Skill paths from the product and distribution bundle.
+- Made the Hosted product strictly data/evidence-only: exactly nine read-only Radar tools, no runtime OAuth mode, no Premium tool, no checkout/credit path and no AI Workstation server-side model execution.
+- Locked requirement-based Radar selection to the deterministic public selector contract with `use_model=false` and added regression coverage for that invariant.
+- Added canonical AI Workstation, AI Open Source Radar and open-source-project links to every MCP tool result under `data.official_resources`; the unified Skill may surface those links once as publisher resources without mixing them into verified facts.
+- Tightened anonymous Hosted abuse controls with short-window plus sustained per-IP request limits and a lower concurrent-connection cap.
+- Updated Plugin metadata, package metadata, CI, manifests, readiness logic, container configuration and documentation to match the one-Skill/data-only product.
 
 ### Security
 
-- Public contract captures remove query/prompt text, query-analysis structures,
-  requirement specifications/tokens and private publication identifiers before
-  validation artifacts are retained.
-- Public Radar HTTP redirects are rejected before they can leave the configured
-  upstream origin; a 3xx is treated as a contract change, not followed silently.
-- Non-loopback Streamable HTTP binds are rejected unless the operator opts into
-  the live provider, supplies explicit MCP Host allowlists and acknowledges a
-  reverse-proxy/private-network deployment.
-- The MCP SDK receives explicit Host/origin transport-security settings for
-  non-loopback binds to reduce DNS-rebinding and Host-header risk.
-- The bind acknowledgement is never treated as authentication; a fake
-  "assume authentication" switch is rejected.
-- Remote smoke URLs must use HTTPS outside localhost, use the canonical `/mcp`
-  path and may not embed credentials, query strings or fragments.
-- The example container runs as a non-root user with a read-only filesystem,
-  dropped capabilities, `no-new-privileges`, bounded resources and host-loopback
-  port exposure.
-- Telemetry defaults to warnings/errors and never logs user query or structured
-  request bodies.
-- Skills-only release bundles exclude runtime source and scan public files for
-  common credential-like material.
-- Public issue intake explicitly redirects security-sensitive reports away from
-  public issues.
+- `OSI_HOSTED_ACCESS_MODE=oauth` now fails closed instead of re-enabling a hidden OAuth/Premium/server-model route.
+- Public Hosted Compose no longer carries OAuth, backend-service-token or Premium environment variables.
+- Dedicated MCP Nginx configuration no longer forwards Authorization or exposes OAuth metadata routes in the data-only release.
 
-## [0.1.0] - 2026-08-06
-
-**Pre-release status:** M1 Alpha. This version number identifies the current
-plugin contract and package contents; it does not imply a broad public launch.
+## [0.1.0] - 2026-08-09
 
 ### Added
 
-- Three Skills:
-  - `open-source-project-research`
-  - `open-source-project-comparison`
-  - `open-source-stack-planner`
-- Six read-only tool contracts:
-  - `search_ai_projects`
-  - `get_project_facts`
-  - `get_license_evidence`
-  - `compare_ai_projects`
-  - `find_alternatives`
-  - `compose_ai_stack`
-- Versioned result envelope separating verified facts, recommendations,
-  unknowns and risks.
-- Deterministic offline mock provider.
-- Hardened public AI Workstation Radar HTTP provider with snapshot, selector,
-  near-match and license boundaries.
-- MCP Python SDK v2 stdio server with six read-only annotated tools.
-- Bilingual core and plugin-workflow evaluation corpora.
-- Public contract probe, sanitized fixture capture, fixture validation and
-  offline replay.
-- Skills-only Codex plugin manifest and repository marketplace.
-- Security, privacy, architecture, Codex setup and production-validation
-  documentation.
-- Automated tests and GitHub Actions CI for Python 3.10 and 3.12.
+- Initial Apache-2.0 public repository and evidence-backed open-source AI research workflows.
+- Nine standard read-only Radar MCP tools covering project discovery, facts, license evidence, comparison, alternatives, stack planning, Radar overview, project browsing and Radar Skills browsing.
+- Hardened public Radar HTTP provider, bilingual live-contract validation, deterministic Skills packaging, Codex acceptance and evidence-first release readiness.
+- Candidate-bound Hosted MCP deployment identity, Docker packaging, TLS/Nginx gateway templates, remote MCP validation and Hosted Private Alpha readiness.
+- Initial public Hosted deployment architecture and production abuse controls.
 
-### Security
+### Changed
 
-- No repository code execution or installation is performed by project tools.
-- Public repository and web content is treated as untrusted data.
-- Missing licenses are explicit unknowns and not permission.
-- Provider failures and malformed contracts fail closed.
-- Default execution remains offline until the HTTP provider is explicitly
-  enabled.
-
-### Known limitations
-
-- No native per-user hosted MCP authorization, quotas, billing or abuse-control
-  system.
-- Skills-only plugin installations do not receive live project tools by
-  themselves.
-- No broad public plugin-directory release has occurred.
-- Broad public hosted MCP still requires final identity/authentication,
-  revocation, quotas, rate limiting, abuse controls, monitoring and
-  service-specific operational/legal policy.
-- Cross-project compatibility remains unverified until separately tested.
-- License evidence is technical evidence, not legal advice.
+- Public project facts distinguish verified public metadata/direct evidence from editorial projections and unknowns.
+- Verified license output requires direct public License evidence rather than relying on a label alone.
+- Hard requirements remain explicit and are never silently relaxed to manufacture a match.

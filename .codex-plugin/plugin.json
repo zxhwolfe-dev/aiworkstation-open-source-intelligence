@@ -1,13 +1,13 @@
 {
   "name": "aiworkstation-open-source-intelligence",
-  "version": "0.1.0",
-  "description": "Evidence-backed research, comparison, license verification, and stack planning for open-source AI projects; the final hosted product combines these Skills with AI Workstation Radar MCP tools.",
+  "version": "0.2.0",
+  "description": "One unified evidence-backed Skill plus live AI Workstation Radar MCP tools for discovering, verifying, comparing and selecting open-source AI projects and planning candidate AI stacks.",
   "license": "Apache-2.0",
   "author": {
     "name": "AI Workstation",
     "url": "https://aiworkstation.cn"
   },
-  "homepage": "https://useaistation.com/githubai/",
+  "homepage": "https://aiworkstation.cn/githubai/",
   "repository": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence",
   "keywords": [
     "open-source-ai",
@@ -18,11 +18,11 @@
     "agents",
     "mcp"
   ],
-  "skills": "./skills/",
+  "skills": "./product-skills/",
   "interface": {
     "displayName": "AI Open Source Intelligence",
-    "shortDescription": "Evidence-backed open-source AI research and selection",
-    "longDescription": "Research and evaluate open-source AI projects using evidence-backed workflows. Find projects from deployment and technical requirements, browse Radar rankings, collections, categories and Skills, verify project/license evidence, compare alternatives, and design candidate AI stacks while keeping verified facts, recommendations, unknowns, and risks explicitly separated. The final hosted product uses the separately registered AI Workstation Radar MCP connection; the package does not invent a connection ID before platform registration.",
+    "shortDescription": "One Skill for evidence-backed open-source AI research and selection",
+    "longDescription": "Use one unified Skill to browse AI Open Source Radar, find projects from requirements, verify project and license evidence, compare alternatives, and plan candidate open-source AI stacks. The host model performs the reasoning; the public AI Workstation MCP path supplies read-only Radar data and must not invoke AI Workstation server-side models.",
     "developerName": "AI Workstation",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,7 +30,7 @@
       "Research",
       "Compare"
     ],
-    "websiteURL": "https://useaistation.com/githubai/",
+    "websiteURL": "https://aiworkstation.cn/githubai/",
     "supportURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/SUPPORT.md",
     "privacyPolicyURL": "https://useaistation.com/githubai/privacy/",
     "termsOfServiceURL": "https://useaistation.com/githubai/terms/",

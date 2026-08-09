@@ -13,7 +13,7 @@ from aiworkstation_osi.alpha_bundle import BUNDLE_SCHEMA_VERSION, build_alpha_bu
 class AlphaBundleTests(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[1]
 
-    def test_bundle_contains_only_reviewed_skills_distribution_surface(self) -> None:
+    def test_bundle_contains_one_reviewed_skill_distribution_surface(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             report = build_alpha_bundle(self.ROOT, Path(temp_dir))
             archive = Path(report["archive"])
@@ -37,10 +37,9 @@ class AlphaBundleTests(unittest.TestCase):
             self.assertIn("SUPPORT.md", names)
             self.assertIn("docs/QUICKSTART.md", names)
             self.assertIn("docs/FAQ.md", names)
-            self.assertIn("skills/open-source-project-research/SKILL.md", names)
-            self.assertIn("skills/open-source-project-comparison/SKILL.md", names)
-            self.assertIn("skills/open-source-stack-planner/SKILL.md", names)
+            self.assertIn("product-skills/ai-open-source-intelligence/SKILL.md", names)
             self.assertIn("docs/alpha-tester-guide.md", names)
+            self.assertFalse(any(name.startswith("skills/") for name in names))
             self.assertNotIn("src/aiworkstation_osi/mcp_server.py", names)
             self.assertNotIn("pyproject.toml", names)
             self.assertEqual(manifest["distribution_mode"], "skills-only")

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aiworkstation-open-source-intelligence"
-version = "0.1.0"
-description = "Evidence-backed Skills, CLI, and MCP tools for open-source AI research and technology selection."
+version = "0.2.0"
+description = "One unified Skill plus read-only MCP tools for evidence-backed open-source AI research and technology selection."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
