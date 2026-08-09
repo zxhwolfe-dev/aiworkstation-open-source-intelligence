@@ -40,13 +40,13 @@ It handles:
 - finding alternatives while preserving hard requirements;
 - planning candidate open-source AI stacks and exposing unverified compatibility.
 
-The active Skill is packaged from:
+The only product Skill is packaged from:
 
 ```text
 product-skills/ai-open-source-intelligence/SKILL.md
 ```
 
-Historical `skills/*/SKILL.md` paths are repository compatibility markers only. They are outside the plugin's active Skill root and are not installable product Skills.
+The previous split research/comparison/stack Skill files are removed from the current product and distribution bundle.
 
 ## Nine standard MCP tools
 
