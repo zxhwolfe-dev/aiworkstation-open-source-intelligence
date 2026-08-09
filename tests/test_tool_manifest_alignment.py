@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from aiworkstation_osi.app import create_default_registry
-from aiworkstation_osi.contracts import TOOL_NAMES
+from aiworkstation_osi.contracts import HOSTED_TOOL_NAMES, TOOL_NAMES
 
 
 class ToolManifestAlignmentTests(unittest.TestCase):
@@ -37,27 +37,20 @@ class ToolManifestAlignmentTests(unittest.TestCase):
             self.assertEqual(properties["offset"]["minimum"], 0)
             self.assertEqual(properties["offset"]["maximum"], 10000)
 
-    def test_hosted_manifest_matches_public_default_and_optional_oauth_surface(self) -> None:
+    def test_hosted_manifest_is_exactly_nine_tool_data_only_surface(self) -> None:
         hosted = json.loads(
             (self.ROOT / "schemas" / "hosted-tool-manifest.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(hosted["default_access_mode"], "public")
-        public = hosted["access_modes"]["public"]
-        oauth = hosted["access_modes"]["oauth"]
-        self.assertIs(public["authentication_required"], False)
-        self.assertEqual(public["tool_count"], 9)
-        self.assertIs(public["premium_enabled"], False)
-        self.assertIs(oauth["authentication_required"], True)
-        self.assertEqual(oauth["required_scopes"], [])
-        self.assertEqual(oauth["tool_count"], 10)
+        self.assertEqual(hosted["status"], "hosted-public-data-only")
+        self.assertIs(hosted["authentication"]["required"], False)
+        self.assertEqual(hosted["authentication"]["scheme"], "none")
+        self.assertIs(hosted["server_model_execution"], False)
         self.assertEqual(hosted["base_tools"], list(TOOL_NAMES))
-        hosted_names = [str(row["name"]) for row in hosted["hosted_only_tools"]]
-        self.assertEqual(hosted_names, ["deep_research_ai_projects"])
-        self.assertEqual(hosted["hosted_only_tools"][0]["enabled_in_modes"], ["oauth"])
-        membership = hosted["membership_policy"]
-        self.assertEqual(membership["source_of_truth"], "AI Workstation membership")
-        self.assertIs(membership["separate_osi_subscription_system"], False)
-        self.assertIs(membership["invite_or_activation_code_may_be_mcp_bearer_token"], False)
+        self.assertEqual(list(HOSTED_TOOL_NAMES), list(TOOL_NAMES))
+        self.assertEqual(hosted["hosted_only_tools"], [])
+        resources = hosted["official_resources"]
+        self.assertEqual(resources["website"], "https://aiworkstation.cn/")
+        self.assertEqual(resources["radar"], "https://aiworkstation.cn/githubai/")
 
 
 if __name__ == "__main__":
