@@ -60,9 +60,7 @@ REQUIRED_REPOSITORY_PATHS = (
     "docs/external-alpha-checklist.md",
     "docs/hosted-mcp.md",
     "docs/public-launch-decisions.md",
-    "skills/open-source-project-research/SKILL.md",
-    "skills/open-source-project-comparison/SKILL.md",
-    "skills/open-source-stack-planner/SKILL.md",
+    "product-skills/ai-open-source-intelligence/SKILL.md",
     "schemas/tool-manifest.json",
     "schemas/tool-result.schema.json",
     "evals/cases.json",
@@ -227,7 +225,7 @@ def evaluate_release_readiness(
         _check(
             "required-repository-paths",
             not missing_paths,
-            "Required source, workflow, Skill, schema, deployment and release documents exist.",
+            "Required source, workflow, unified Skill, schema, deployment and release documents exist.",
             missing=missing_paths,
         )
     )
@@ -248,14 +246,14 @@ def evaluate_release_readiness(
         _check(
             "plugin-package",
             plugin_ready,
-            "Skills-only plugin package passes the offline validator.",
+            "Single-Skill plugin package passes the offline validator.",
             errors=plugin_report.get("errors") or [],
             warnings=plugin_report.get("warnings") or [],
             public_submission_ready=bool(plugin_report.get("public_submission_ready")),
         )
     )
     if not plugin_ready:
-        code_blockers.append("Skills-only plugin package validation failed")
+        code_blockers.append("single-Skill plugin package validation failed")
     warnings.extend(str(value) for value in plugin_report.get("warnings") or [])
 
     try:
@@ -307,7 +305,7 @@ def evaluate_release_readiness(
         _check(
             "deterministic-alpha-bundle",
             bundle_ok,
-            "Two Skills-only alpha builds from the same tree are byte-identical and safely scoped.",
+            "Two single-Skill alpha builds from the same tree are byte-identical and safely scoped.",
             **bundle_details,
         )
     )
@@ -334,7 +332,7 @@ def evaluate_release_readiness(
     for key, label in (
         ("ci_python310_passed", "GitHub Actions succeeded on Python 3.10"),
         ("ci_python312_passed", "GitHub Actions succeeded on Python 3.12"),
-        ("codex_tested", "The package and six-tool MCP workflow were tested from Codex"),
+        ("codex_tested", "The package and nine-tool MCP workflow were tested from Codex"),
         ("artifact_reviewed", "A human reviewed the sanitized live-validation artifacts"),
     ):
         ok = bool(attestations[key])
@@ -377,7 +375,7 @@ def evaluate_release_readiness(
         _check(
             "attestation-remote-mcp-tested",
             remote_test_ok,
-            "The deployed Streamable HTTP endpoint passed the remote six-tool smoke test.",
+            "The deployed Streamable HTTP endpoint passed the remote nine-tool smoke test.",
             operator_attested=remote_test_ok,
         )
     )
@@ -389,13 +387,13 @@ def evaluate_release_readiness(
         _check(
             "attestation-hosted-gateway-protected",
             gateway_ok,
-            "The hosted endpoint is behind an authenticated TLS gateway or trusted private network.",
+            "The hosted endpoint is behind the required TLS/rate-limited gateway or trusted private network.",
             operator_attested=gateway_ok,
         )
     )
     if not gateway_ok:
         hosted_alpha_blockers.append(
-            "hosted MCP gateway authentication/private-network protection is not attested"
+            "hosted MCP gateway TLS/rate-limit/private-network protection is not attested"
         )
 
     if not external_alpha_ready:
@@ -406,8 +404,7 @@ def evaluate_release_readiness(
     public_launch_ready = False
     public_launch_blockers = [
         "service-specific hosted privacy/terms and operational retention policy are not final",
-        "native per-user OAuth/identity and revocation are not delivered",
-        "production quotas, rate limiting and abuse controls are not fully delivered",
+        "production anonymous-usage monitoring and abuse thresholds still need real-user validation",
         "canonical public MCP connection has not completed platform review",
         "public directory submission review/publish has not occurred",
     ]
@@ -424,17 +421,14 @@ def evaluate_release_readiness(
             "checks": len(checks),
             "passed": sum(1 for check in checks if check["ok"]),
             "failed": sum(1 for check in checks if not check["ok"]),
-            "code_blockers": len(code_blockers),
-            "operational_blockers": len(operational_blockers),
-            "hosted_alpha_blockers": len(hosted_alpha_blockers),
         },
         "checks": checks,
-        "operator_attestations": attestations,
-        "code_blockers": list(dict.fromkeys(code_blockers)),
-        "operational_blockers": list(dict.fromkeys(operational_blockers)),
-        "hosted_alpha_blockers": list(dict.fromkeys(hosted_alpha_blockers)),
+        "code_blockers": code_blockers,
+        "operational_blockers": operational_blockers,
+        "hosted_alpha_blockers": hosted_alpha_blockers,
         "public_launch_blockers": public_launch_blockers,
-        "warnings": list(dict.fromkeys(warnings)),
+        "warnings": warnings,
+        "attestations": attestations,
     }
 
 
@@ -453,23 +447,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--remote-mcp-url", default="")
     parser.add_argument("--hosted-gateway-protected", action="store_true")
     parser.add_argument("--output", type=Path)
-    parser.add_argument(
-        "--require-external-alpha",
-        action="store_true",
-        help="Exit non-zero unless all live and operator-attested Skills-only alpha gates pass.",
-    )
-    parser.add_argument(
-        "--require-hosted-alpha",
-        action="store_true",
-        help="Exit non-zero unless Skills-only gates plus hosted endpoint and gateway gates pass.",
-    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.require_external_alpha and args.require_hosted_alpha:
-        raise SystemExit("choose only one of --require-external-alpha or --require-hosted-alpha")
     report = evaluate_release_readiness(
         args.root,
         contracts_en=args.contracts_en,
@@ -486,16 +468,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(rendered, encoding="utf-8")
+        output = args.output.expanduser().resolve()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(rendered, encoding="utf-8")
     print(rendered, end="")
-    if args.require_hosted_alpha:
-        ready = report["hosted_private_alpha_ready"]
-    elif args.require_external_alpha:
-        ready = report["external_alpha_ready"]
-    else:
-        ready = report["code_ready"]
-    return 0 if ready else 1
+    return 0 if report.get("code_ready") is True else 1
 
 
 if __name__ == "__main__":
