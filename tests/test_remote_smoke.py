@@ -55,14 +55,21 @@ class RemoteSmokeEndpointTests(unittest.TestCase):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 _validate_endpoint(url, allow_http_localhost=True)
 
-    def test_hosted_profile_expects_standard_tools_plus_premium(self) -> None:
+    def test_public_hosted_profile_is_exactly_the_standard_nine_tools(self) -> None:
         standard = _expected_tool_names("standard")
-        hosted = _expected_tool_names("hosted")
-        self.assertEqual(len(hosted), len(standard) + 1)
-        self.assertEqual(hosted[-1], HOSTED_PREMIUM_TOOL)
-        self.assertNotIn(HOSTED_PREMIUM_TOOL, standard)
+        public_hosted = _expected_tool_names("hosted-public")
+        self.assertEqual(public_hosted, standard)
+        self.assertNotIn(HOSTED_PREMIUM_TOOL, public_hosted)
 
-    def test_premium_annotation_contract_is_distinct_from_standard_tools(self) -> None:
+    def test_oauth_hosted_profiles_expect_standard_tools_plus_premium(self) -> None:
+        standard = _expected_tool_names("standard")
+        for profile in ("hosted", "hosted-oauth"):
+            with self.subTest(profile=profile):
+                hosted = _expected_tool_names(profile)
+                self.assertEqual(len(hosted), len(standard) + 1)
+                self.assertEqual(hosted[-1], HOSTED_PREMIUM_TOOL)
+
+    def test_premium_annotation_contract_is_only_valid_for_oauth_hosted(self) -> None:
         premium = SimpleNamespace(
             name=HOSTED_PREMIUM_TOOL,
             annotations=SimpleNamespace(
@@ -82,7 +89,9 @@ class RemoteSmokeEndpointTests(unittest.TestCase):
             ),
         )
         self.assertTrue(_tool_annotations_ok(premium, "hosted"))
-        self.assertTrue(_tool_annotations_ok(standard, "hosted"))
+        self.assertTrue(_tool_annotations_ok(premium, "hosted-oauth"))
+        self.assertTrue(_tool_annotations_ok(standard, "hosted-public"))
+        self.assertFalse(_tool_annotations_ok(premium, "hosted-public"))
         self.assertFalse(_tool_annotations_ok(premium, "standard"))
 
 
