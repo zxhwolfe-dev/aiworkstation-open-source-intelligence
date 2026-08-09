@@ -1,11 +1,30 @@
 {
-  "schema_version": "osi.hosted-tool-manifest.v1",
-  "status": "hosted-public-preparation",
+  "schema_version": "osi.hosted-tool-manifest.v2",
+  "status": "hosted-private-alpha",
   "base_manifest": "schemas/tool-manifest.json",
-  "authentication": {
-    "required": true,
-    "scheme": "OAuth 2.1 resource server",
-    "required_scopes": []
+  "default_access_mode": "public",
+  "access_modes": {
+    "public": {
+      "authentication_required": false,
+      "tool_count": 9,
+      "premium_enabled": false,
+      "abuse_control": "TLS gateway with per-IP request and connection limits"
+    },
+    "oauth": {
+      "authentication_required": true,
+      "scheme": "OAuth 2.1 resource server",
+      "required_scopes": [],
+      "tool_count": 10,
+      "premium_enabled": true,
+      "status": "compatibility/future-member mode"
+    }
+  },
+  "membership_policy": {
+    "source_of_truth": "AI Workstation membership",
+    "separate_osi_subscription_system": false,
+    "automated_payment_required_for_private_alpha": false,
+    "invite_or_activation_code_may_be_mcp_bearer_token": false,
+    "invite_or_activation_code_may_be_tool_argument": false
   },
   "base_tools": [
     "search_ai_projects",
@@ -21,14 +40,16 @@
   "hosted_only_tools": [
     {
       "name": "deep_research_ai_projects",
-      "description": "Run publisher-model deep research over rules-first public Radar results. The first successful premium task is free; later tasks require AI credits.",
+      "enabled_in_modes": ["oauth"],
+      "commercial_status": "not enabled in default public Hosted mode",
+      "description": "Compatibility-mode publisher-model deep research over rules-first public Radar results. Future commercial entitlement must be unified with AI Workstation membership before paid launch.",
       "annotations": {
         "read_only": false,
         "destructive": false,
         "idempotent": false,
         "open_world": true
       },
-      "billing_behavior": {
+      "current_compatibility_behavior": {
         "ordinary_data_tools_consume_ai_credits": false,
         "first_successful_premium_task_free": true,
         "credit_cost": 1,
