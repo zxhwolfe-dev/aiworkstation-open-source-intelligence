@@ -1,45 +1,43 @@
-# Skills, Hosted MCP, Online Data, and Model Usage
+# Skill, Hosted MCP, Online Data, and Model Usage
 
-This document explains where reasoning happens, where live data comes from, and which component pays for model inference in the final one-install product.
+This document defines the current product boundary for model usage.
 
-## Final architecture
+## Current architecture
 
 ```text
 User
   |
-ChatGPT / Codex / compatible MCP host model
+  v
+ChatGPT / Codex / compatible host model
   |
-  +--> 3 Skills: reusable workflow and decision rules
+  | natural-language reasoning and synthesis
+  v
+1 unified Skill: ai-open-source-intelligence
   |
-  +--> Hosted MCP
-          |
-          +--> 9 standard live Radar tools
-          |       -> public AI Workstation Radar data/retrieval
-          |       -> no publisher-model credit
-          |
-          +--> deep_research_ai_projects
-                  -> rules-first public Radar selection
-                  -> AI Workstation publisher model
-                  -> free trial / AI credit entitlement
+  | structured tool calls
+  v
+Hosted MCP — 9 read-only data/evidence tools
+  |
+  | public Radar HTTP contracts only
+  v
+AI Workstation / AI Open Source Radar
 ```
 
-The final user experience is one installation plus one OAuth sign-in. The implementation remains layered so data, reasoning, identity and billing are independently controllable.
+There is **no AI Workstation server-side model call** in the current standard Skill/MCP product path.
 
-## Skills
+## One Skill
 
-The three Skills contain research procedure, safety boundaries, output structure, and verification logic.
+The single Skill contains the workflow, safety boundaries, decision logic and output guidance for:
 
-Skills answer **how to work**. They do not contain database credentials and should not rely on hidden network scripts as the production data connector.
+- Radar browsing;
+- requirement-based discovery;
+- project fact verification;
+- license evidence;
+- project comparison;
+- alternatives;
+- candidate stack planning.
 
-When live tools are unavailable, a Skill can still:
-
-- interpret requirements;
-- preserve hard/preferred/not-required constraint polarity;
-- create a search or verification plan;
-- provide a blank decision matrix or role-level architecture;
-- expose what current facts remain unavailable.
-
-The final public product is nevertheless designed to install Skills together with the hosted MCP connection so users do not normally experience this degraded mode.
+The user does not choose separate research/comparison/stack Skills.
 
 ## Nine standard live Radar tools
 
@@ -55,130 +53,124 @@ browse_radar_projects
 browse_radar_skills
 ```
 
-These tools expose the useful machine-operable majority of AI Open Source Radar:
+All nine are read-only data/evidence tools.
 
-- natural-language project discovery;
-- project/evidence/license verification;
-- comparison, alternatives and stack planning;
-- all discoverable ranking/collection/category/scenario dimensions;
-- filtered/paginated project browsing;
-- Skills-library browsing/search/detail.
+## Where reasoning happens
 
-They do not mirror every private website endpoint, user-account route or visual-only UI feature.
+The host model — ChatGPT, Codex, or another compatible MCP host — performs:
 
-## Ordinary model usage
+- understanding the request;
+- choosing the tool sequence;
+- turning user intent into structured inputs;
+- interpreting returned evidence;
+- comparison/architecture reasoning;
+- final answer generation.
 
-### Host model
+That inference belongs to the host/user environment.
 
-ChatGPT, Codex, or another MCP host model:
+## What AI Workstation does
 
-- understands the user's natural-language request;
-- chooses a Skill and tool-call sequence;
-- converts user intent into structured tool inputs;
-- interprets returned data/evidence;
-- writes the final conversational answer.
+The AI Workstation side:
 
-This inference belongs to the host/user environment.
+- serves current public Radar overview/project/Skills data;
+- serves project/detail/license/evidence contracts;
+- performs deterministic filtering, ranking and selector logic;
+- returns structured data to the MCP host;
+- does not run a second publisher/server model for this product path.
 
-### AI Workstation standard data path
+Requirement-based selector requests explicitly send:
 
-The standard Radar layer:
-
-- resolves validated public releases;
-- reads precomputed ranking/collection/filter structures;
-- runs deterministic selector/filter/retrieval logic;
-- returns project/detail/license/snapshot/evidence contracts;
-- does **not** consume AI Workstation Premium AI credits.
-
-The evidence-critical selector path continues to use rules-first retrieval with backend model assistance disabled for ordinary MCP search.
-
-## Publisher-model premium usage
-
-The only initial hosted tool that deliberately invokes the AI Workstation model is:
-
-```text
-deep_research_ai_projects
+```json
+{
+  "use_model": false
+}
 ```
 
-It is explicit because server inference has a real publisher cost and changes entitlement state.
+A regression test records the outbound selector request and fails if this field is not exactly `false`.
 
-Flow:
+## Fail-closed server-model policy
 
-```text
-query
- -> rules-first Radar selector (model disabled)
- -> bounded public context whitelist
- -> reserve free trial / paid credit
- -> publisher model
-     success -> keep reservation consumed
-     failure -> refund reservation
- -> analysis returned as recommendation
-```
-
-The model prompt may contain the user's premium research task plus bounded public Radar result context. It must not contain:
-
-- OAuth bearer tokens;
-- raw OAuth subject;
-- backend service credentials;
-- Paddle customer/subscription IDs;
-- private selector continuation tokens;
-- internal publication/source hashes;
-- confidential project data not supplied as public Radar context.
-
-## Why not enable the publisher model for every search?
-
-Using a second model for every ordinary request would create hidden publisher cost while duplicating reasoning already performed by ChatGPT/Codex.
-
-The scalable split is:
+The current Hosted runtime supports only:
 
 ```text
-Normal request
-  host model + deterministic Radar data
-
-Premium request
-  host model + deterministic Radar data + explicit publisher model
+OSI_HOSTED_ACCESS_MODE=public
 ```
 
-This lets standard browsing remain fast and inexpensive while premium deep synthesis has a measurable unit of value.
-
-## Entitlement and billing
+Attempts to set:
 
 ```text
-OAuth (issuer, subject)
-   -> opaque entitlement ID
-   -> free trial / plan / AI credits
+OSI_HOSTED_ACCESS_MODE=oauth
 ```
 
-Initial policy:
+fail closed.
 
-- first successful Premium AI research task is free;
-- failed model calls refund the reservation;
-- later Premium AI tasks consume credits;
-- standard nine tools never consume AI credits;
-- active paid users with exhausted credits should not be sold a duplicate recurring subscription.
-
-See [`BILLING-AND-ENTITLEMENTS.md`](BILLING-AND-ENTITLEMENTS.md).
-
-## Rate-limit boundary
-
-Authenticated Hosted MCP calls are rate-limited by the opaque OAuth identity, not by raw access token, IP address or a client-supplied username.
-
-Current configurable launch defaults:
+The current Hosted contract has:
 
 ```text
-standard: 60/minute, 300/hour
-premium:   5/minute
+tool_count=9
+premium_enabled=false
+server_model_enabled=false
+oauth_enabled=false
 ```
 
-Premium access is also constrained by entitlement/credit state.
+The public Compose definition contains no OAuth credentials, private backend token or Premium-model configuration.
 
-## Future premium capabilities
+There is no `deep_research_ai_projects` tool in the current Hosted tool contract.
 
-If user data proves demand, additional premium tools can reuse the same entitlement boundary, for example:
+## Why this boundary exists
 
-- long-form project due-diligence reports;
-- change-over-time research briefs;
-- larger multi-project procurement studies;
-- enterprise stack architecture reports.
+Calling an AI Workstation model for an ordinary Skill/MCP request would:
 
-Do not turn every new data endpoint into a paid model call. Premium should correspond to material server-side synthesis value, not simple retrieval.
+- duplicate reasoning already performed by the host model;
+- create hidden publisher inference cost;
+- complicate free/paid accounting;
+- create an unnecessary privacy/model-data boundary;
+- make simple data retrieval slower and harder to scale.
+
+The current scalable path is therefore:
+
+```text
+host model + deterministic/public Radar data
+```
+
+not:
+
+```text
+host model + AI Workstation server model
+```
+
+## Official resources
+
+Every MCP tool result adds canonical publisher resources under:
+
+```text
+data.official_resources
+```
+
+These contain AI Workstation, AI Open Source Radar and the public repository URLs. They are publisher/navigation metadata, not verified research facts.
+
+## Anonymous abuse controls
+
+Because the nine tools do not consume AI Workstation model tokens, the Hosted gateway uses request/connection limits rather than the website's token quota:
+
+```text
+short window: 60 requests/minute/IP, burst 30
+sustained:    10 requests/minute/IP, burst 300
+connections:  10/IP
+body size:    256 KB
+```
+
+The website's guest/member AI-token quotas apply to website model features, not to these nine data-only MCP tools.
+
+## Future paid/server-model capabilities
+
+A future member-linked server-model capability is not forbidden forever, but it is deliberately **not present in this release**.
+
+If introduced later, it must:
+
+1. ship as a new reviewed product version;
+2. have a fresh release/evidence chain;
+3. use the existing AI Workstation membership source of truth;
+4. explicitly disclose that AI Workstation server inference is being used;
+5. account for model usage through the existing AI quota/usage system;
+6. never be re-enabled through a hidden environment switch in the current data-only release.
