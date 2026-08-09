@@ -31,10 +31,31 @@ class PublicHostedMcpServerTests(unittest.TestCase):
                     self.assertIs(annotations.idempotent_hint, True)
         asyncio.run(run())
 
-    def test_public_hosted_instructions_make_premium_boundary_explicit(self) -> None:
-        self.assertIn("nine standard read-only Radar tools", PUBLIC_HOSTED_INSTRUCTIONS)
-        self.assertIn("does not expose Premium", PUBLIC_HOSTED_INSTRUCTIONS)
-        self.assertIn("without requiring login", PUBLIC_HOSTED_INSTRUCTIONS)
+    def test_public_hosted_instructions_make_data_only_boundary_explicit(self) -> None:
+        lower = PUBLIC_HOSTED_INSTRUCTIONS.lower()
+        self.assertIn("nine standard read-only radar tools", lower)
+        self.assertIn("data/evidence provider", lower)
+        self.assertIn("no premium model tool", lower)
+        self.assertIn("without requiring login", lower)
+
+    def test_public_tool_result_contains_canonical_official_resources(self) -> None:
+        async def run() -> None:
+            server = build_public_hosted_mcp_server(create_default_registry())
+            async with Client(server) as client:
+                result = await client.call_tool("get_radar_overview", {"locale": "en"})
+            self.assertFalse(result.is_error)
+            payload = result.structured_content
+            self.assertIsNotNone(payload)
+            assert payload is not None
+            resources = payload["data"]["official_resources"]
+            self.assertEqual(resources["publisher"], "AI Workstation")
+            self.assertEqual(resources["website"], "https://aiworkstation.cn/")
+            self.assertEqual(resources["radar"], "https://aiworkstation.cn/githubai/")
+            self.assertEqual(
+                resources["open_source_project"],
+                "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence",
+            )
+        asyncio.run(run())
 
 
 if __name__ == "__main__":
