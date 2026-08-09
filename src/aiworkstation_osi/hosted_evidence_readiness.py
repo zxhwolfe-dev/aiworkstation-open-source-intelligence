@@ -1,10 +1,8 @@
-"""Evidence-first Hosted Private Alpha readiness.
+"""Evidence-first Hosted Private Alpha readiness for the public data-only MCP.
 
 The wrapper extends the External Alpha evidence chain with a candidate-bound
-remote MCP smoke report. Public mode proves a TLS/IP-rate-limited anonymous
-nine-tool boundary. OAuth mode preserves the stricter authorization-server
-boundary and Premium discovery checks. Manual booleans cannot replace either
-remote evidence path.
+anonymous nine-tool remote MCP smoke report. Manual booleans cannot replace the
+remote deployment/gateway evidence.
 """
 
 from __future__ import annotations
@@ -15,9 +13,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .evidence_readiness import _git_head, evaluate_evidence_readiness
-from .hosted_access import HOSTED_ACCESS_MODES, HOSTED_ACCESS_OAUTH, HOSTED_ACCESS_PUBLIC
+from .hosted_access import HOSTED_ACCESS_MODES, HOSTED_ACCESS_PUBLIC
 from .hosted_public_remote_evidence import validate_public_hosted_remote_evidence
-from .hosted_remote_evidence import validate_hosted_remote_evidence
 
 
 def _mark_machine_check(
@@ -53,26 +50,26 @@ def evaluate_hosted_evidence_readiness(
     expected_access_mode: str = HOSTED_ACCESS_PUBLIC,
     expected_oauth_issuer: str = "",
 ) -> dict[str, Any]:
+    """Evaluate the only supported Hosted release mode: public/data-only.
+
+    ``expected_oauth_issuer`` remains accepted as a no-op compatibility argument
+    for older operator scripts, but OAuth cannot be selected as an access mode.
+    """
+
+    del expected_oauth_issuer
     repository_root = root.expanduser().resolve()
     candidate_commit = _git_head(repository_root)
     access_mode = str(expected_access_mode or "").strip().lower()
-    if access_mode not in HOSTED_ACCESS_MODES:
-        raise ValueError("expected_access_mode must be public or oauth")
+    if access_mode != HOSTED_ACCESS_PUBLIC:
+        raise ValueError("expected_access_mode must be public; OAuth Hosted mode is disabled")
 
-    if access_mode == HOSTED_ACCESS_PUBLIC:
-        hosted = validate_public_hosted_remote_evidence(
+    hosted = dict(
+        validate_public_hosted_remote_evidence(
             hosted_remote_evidence,
             candidate_commit=candidate_commit,
             expected_endpoint=expected_hosted_mcp_url,
         )
-    else:
-        hosted = validate_hosted_remote_evidence(
-            hosted_remote_evidence,
-            candidate_commit=candidate_commit,
-            expected_endpoint=expected_hosted_mcp_url,
-            expected_issuer=expected_oauth_issuer,
-        )
-    hosted = dict(hosted)
+    )
     hosted["expected_access_mode"] = access_mode
 
     report = evaluate_evidence_readiness(
@@ -97,29 +94,19 @@ def evaluate_hosted_evidence_readiness(
     report["hosted_access_mode"] = access_mode
     report["hosted_remote_evidence"] = hosted
 
-    remote_success = (
-        "The deployed anonymous Hosted MCP passed candidate-bound nine-tool remote evidence validation."
-        if access_mode == HOSTED_ACCESS_PUBLIC
-        else "The deployed OAuth-protected Hosted MCP passed candidate-bound remote evidence validation."
-    )
-    gateway_success = (
-        "The HTTPS gateway IP-rate-limit policy is verified by public Hosted remote evidence."
-        if access_mode == HOSTED_ACCESS_PUBLIC
-        else "The OAuth 401 challenge and RFC 9728 protected-resource boundary are verified by remote evidence."
-    )
     _mark_machine_check(
         report,
         "attestation-remote-mcp-tested",
         evidence=hosted,
-        success_message=remote_success,
-        failure_message="Valid candidate-bound Hosted MCP remote evidence is required.",
+        success_message="The deployed anonymous Hosted MCP passed candidate-bound nine-tool remote evidence validation.",
+        failure_message="Valid candidate-bound public Hosted MCP remote evidence is required.",
     )
     _mark_machine_check(
         report,
         "attestation-hosted-gateway-protected",
         evidence=hosted,
-        success_message=gateway_success,
-        failure_message="Remote evidence must prove the configured Hosted gateway boundary.",
+        success_message="The HTTPS gateway IP-rate-limit policy is verified by public Hosted remote evidence.",
+        failure_message="Remote evidence must prove the public Hosted TLS/rate-limit gateway boundary.",
     )
     for check in report.get("checks") or []:
         if not isinstance(check, dict) or check.get("id") != "hosted-mcp-endpoint":
@@ -149,7 +136,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=HOSTED_ACCESS_MODES,
         default=HOSTED_ACCESS_PUBLIC,
     )
-    parser.add_argument("--expected-oauth-issuer", default="")
+    parser.add_argument(
+        "--expected-oauth-issuer",
+        default="",
+        help="Deprecated compatibility argument; OAuth Hosted mode is disabled.",
+    )
     parser.add_argument("--output", type=Path)
     return parser
 
