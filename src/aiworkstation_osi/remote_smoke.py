@@ -1,11 +1,15 @@
 """Validate deployed Streamable HTTP MCP endpoints from a real MCP client.
 
-The default ``standard`` profile preserves the nine-tool public Radar smoke.
-The ``hosted`` profile verifies the OAuth boundary, authenticates through either
-an interactive OAuth flow or an environment-only bearer token, proves the
-remote deployment commit, discovers the nine standard tools plus the Premium
-tool, and invokes one standard read-only search. Tokens are never written to
-the report.
+Profiles:
+
+- ``standard``: nine-tool development/public Radar smoke.
+- ``hosted-public``: formal anonymous Hosted smoke; proves the exact deployment,
+  gateway IP-abuse-control policy, nine read-only tools, and one real search.
+- ``hosted-oauth``: formal OAuth Hosted smoke; proves the OAuth boundary,
+  exact deployment, nine standard tools plus Premium, and one real search.
+- ``hosted``: backward-compatible alias for ``hosted-oauth``.
+
+Tokens are never written to reports.
 """
 
 from __future__ import annotations
@@ -23,6 +27,10 @@ from urllib.parse import parse_qs, urlparse
 
 from .contracts import TOOL_NAMES, utc_now_iso
 from .endpoint_policy import validate_mcp_endpoint
+from .hosted_public_remote_evidence import (
+    PUBLIC_HOSTED_REMOTE_SCHEMA,
+    inspect_public_gateway,
+)
 from .hosted_remote_evidence import (
     HOSTED_PREMIUM_TOOL,
     HOSTED_REMOTE_SCHEMA,
@@ -31,10 +39,17 @@ from .hosted_remote_evidence import (
 )
 from .release_identity import release_commit_from_server_version
 
-# Backward-compatible private alias used by existing tests/release tooling. The
-# policy itself lives in a dependency-free module so importing it does not
-# require the optional MCP runtime.
 _validate_endpoint = validate_mcp_endpoint
+OAUTH_HOSTED_PROFILES = {"hosted", "hosted-oauth"}
+HOSTED_PROFILES = OAUTH_HOSTED_PROFILES | {"hosted-public"}
+
+
+def _is_oauth_hosted(profile: str) -> bool:
+    return profile in OAUTH_HOSTED_PROFILES
+
+
+def _is_hosted(profile: str) -> bool:
+    return profile in HOSTED_PROFILES
 
 
 def _git_head(root: Path) -> str:
@@ -65,7 +80,7 @@ def _annotation_summary(tool: Any) -> dict[str, Any]:
 
 
 def _expected_tool_names(profile: str) -> tuple[str, ...]:
-    return expected_hosted_tools() if profile == "hosted" else tuple(TOOL_NAMES)
+    return expected_hosted_tools() if _is_oauth_hosted(profile) else tuple(TOOL_NAMES)
 
 
 def _tool_annotations_ok(tool: Any, profile: str) -> bool:
@@ -73,7 +88,7 @@ def _tool_annotations_ok(tool: Any, profile: str) -> bool:
     if annotations is None:
         return False
     name = str(getattr(tool, "name", "") or "")
-    if profile == "hosted" and name == HOSTED_PREMIUM_TOOL:
+    if _is_oauth_hosted(profile) and name == HOSTED_PREMIUM_TOOL:
         return (
             getattr(annotations, "read_only_hint", None) is False
             and getattr(annotations, "destructive_hint", None) is False
@@ -120,9 +135,6 @@ def _interactive_oauth_provider(url: str) -> Any:
         print(authorization_url, flush=True)
 
     async def callback_handler() -> Any:
-        # The callback URL contains a short-lived authorization code. Hide the
-        # pasted value from terminal echo even though it is never written to
-        # evidence or persistent OAuth storage.
         redirected = await asyncio.to_thread(
             getpass.getpass,
             "Paste the final callback URL from the browser address bar (hidden): ",
@@ -196,24 +208,37 @@ async def smoke_remote_endpoint(
     expected_oauth_issuer: str = "",
     candidate_commit: str = "",
 ) -> dict[str, Any]:
-    """Run a privacy-safe standard or OAuth-hosted remote MCP smoke."""
+    """Run a privacy-safe standard, public-Hosted, or OAuth-Hosted smoke."""
 
-    if profile not in {"standard", "hosted"}:
-        raise ValueError("profile must be standard or hosted")
-    if profile == "hosted" and auth_mode == "none":
-        raise ValueError("hosted profile requires oauth or bearer-env authentication")
-    if profile == "hosted" and not str(expected_oauth_issuer or "").strip():
-        raise ValueError("hosted profile requires the expected OAuth issuer")
+    if profile not in ({"standard"} | HOSTED_PROFILES):
+        raise ValueError("profile must be standard, hosted-public, hosted-oauth, or hosted")
+    if profile == "hosted-public" and auth_mode != "none":
+        raise ValueError("hosted-public profile requires auth mode none")
+    if _is_oauth_hosted(profile) and auth_mode == "none":
+        raise ValueError("OAuth Hosted profile requires oauth or bearer-env authentication")
+    if _is_oauth_hosted(profile) and not str(expected_oauth_issuer or "").strip():
+        raise ValueError("OAuth Hosted profile requires the expected OAuth issuer")
 
     oauth_boundary: dict[str, Any] = {}
-    if profile == "hosted":
+    gateway_boundary: dict[str, Any] = {}
+    if _is_oauth_hosted(profile):
         oauth_boundary = await asyncio.to_thread(
             inspect_oauth_boundary,
             url,
             expected_issuer=expected_oauth_issuer,
         )
         if not oauth_boundary.get("ok"):
-            raise ValueError("hosted OAuth boundary validation failed: " + "; ".join(oauth_boundary.get("errors") or []))
+            raise ValueError(
+                "Hosted OAuth boundary validation failed: "
+                + "; ".join(oauth_boundary.get("errors") or [])
+            )
+    elif profile == "hosted-public":
+        gateway_boundary = await asyncio.to_thread(inspect_public_gateway, url)
+        if not gateway_boundary.get("ok"):
+            raise ValueError(
+                "Public Hosted gateway validation failed: "
+                + "; ".join(gateway_boundary.get("errors") or [])
+            )
 
     checks: list[dict[str, Any]] = []
     expected_names = _expected_tool_names(profile)
@@ -221,7 +246,7 @@ async def smoke_remote_endpoint(
         server_info = getattr(client, "server_info", None)
         server_version = str(getattr(server_info, "version", "") or "")
         deployment_commit = release_commit_from_server_version(server_version)
-        if profile == "hosted":
+        if _is_hosted(profile):
             deployment_match = bool(candidate_commit) and deployment_commit == str(candidate_commit).strip().lower()
             checks.append(
                 {
@@ -239,15 +264,17 @@ async def smoke_remote_endpoint(
         tools = list(listed.tools)
         names = [tool.name for tool in tools]
         exact_tools = set(names) == set(expected_names) and len(names) == len(expected_names)
+        if profile == "hosted-public":
+            tool_message = "Public Hosted endpoint exposes exactly nine standard read-only Radar tools."
+        elif _is_oauth_hosted(profile):
+            tool_message = "OAuth Hosted endpoint exposes exactly nine standard Radar tools plus Premium."
+        else:
+            tool_message = "Endpoint exposes exactly the nine declared standard read-only tools."
         checks.append(
             {
                 "id": "tool-set",
                 "ok": exact_tools,
-                "message": (
-                    "Hosted endpoint exposes exactly nine standard Radar tools plus Premium."
-                    if profile == "hosted"
-                    else "Endpoint exposes exactly the nine declared standard read-only tools."
-                ),
+                "message": tool_message,
                 "details": {"tools": names},
             }
         )
@@ -308,14 +335,24 @@ async def smoke_remote_endpoint(
                 {
                     "id": "search-invocation",
                     "ok": result_ok,
-                    "message": "A real authenticated remote standard-tool call returns the unified structured result contract.",
+                    "message": "A real remote standard-tool call returns the unified structured result contract.",
                     "details": search_summary,
                 }
             )
 
-        boundary_ok = profile != "hosted" or oauth_boundary.get("ok") is True
+        if _is_oauth_hosted(profile):
+            boundary_ok = oauth_boundary.get("ok") is True
+        elif profile == "hosted-public":
+            boundary_ok = gateway_boundary.get("ok") is True
+        else:
+            boundary_ok = True
+        schema_version = (
+            PUBLIC_HOSTED_REMOTE_SCHEMA if profile == "hosted-public" else HOSTED_REMOTE_SCHEMA
+        )
+        boundary_bonus = 1 if _is_hosted(profile) and boundary_ok else 0
+        boundary_failure = 1 if _is_hosted(profile) and not boundary_ok else 0
         return {
-            "schema_version": HOSTED_REMOTE_SCHEMA,
+            "schema_version": schema_version,
             "generated_at": utc_now_iso(),
             "commit": str(candidate_commit or "").strip().lower(),
             "profile": profile,
@@ -326,11 +363,12 @@ async def smoke_remote_endpoint(
             "deployment_commit": deployment_commit,
             "auth": {"mode": auth_mode},
             "oauth_boundary": oauth_boundary,
+            "gateway_boundary": gateway_boundary,
             "tools": names,
             "ok": boundary_ok and all(check["ok"] for check in checks),
             "summary": {
-                "passed": sum(1 for check in checks if check["ok"]) + (1 if boundary_ok and profile == "hosted" else 0),
-                "failed": sum(1 for check in checks if not check["ok"]) + (1 if profile == "hosted" and not boundary_ok else 0),
+                "passed": sum(1 for check in checks if check["ok"]) + boundary_bonus,
+                "failed": sum(1 for check in checks if not check["ok"]) + boundary_failure,
             },
             "checks": checks,
             "search": search_summary,
@@ -341,7 +379,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="osi-remote-smoke")
     parser.add_argument("--url", default="http://127.0.0.1:8000/mcp")
     parser.add_argument("--locale", choices=("zh", "en"), default="en")
-    parser.add_argument("--profile", choices=("standard", "hosted"), default="standard")
+    parser.add_argument(
+        "--profile",
+        choices=("standard", "hosted-public", "hosted-oauth", "hosted"),
+        default="standard",
+    )
     parser.add_argument("--auth-mode", choices=("none", "bearer-env", "oauth"), default="none")
     parser.add_argument(
         "--bearer-token-env",
@@ -353,7 +395,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--invoke-search",
         action="store_true",
-        help="Perform one read-only search after tool discovery. Hosted profile always performs this check.",
+        help="Perform one read-only search after tool discovery. Hosted profiles always perform this check.",
     )
     parser.add_argument("--output")
     return parser
@@ -364,8 +406,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         url = validate_mcp_endpoint(args.url, allow_http_localhost=args.profile == "standard")
         candidate_commit = _git_head(args.root)
-        if args.profile == "hosted" and not candidate_commit:
-            raise ValueError("hosted evidence requires a Git candidate commit")
+        if _is_hosted(args.profile) and not candidate_commit:
+            raise ValueError("Hosted evidence requires a Git candidate commit")
         bearer_token = ""
         if args.auth_mode == "bearer-env":
             bearer_token = str(os.getenv(args.bearer_token_env) or "")
@@ -374,7 +416,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = asyncio.run(
             smoke_remote_endpoint(
                 url,
-                invoke_search=bool(args.invoke_search or args.profile == "hosted"),
+                invoke_search=bool(args.invoke_search or _is_hosted(args.profile)),
                 locale=args.locale,
                 profile=args.profile,
                 auth_mode=args.auth_mode,

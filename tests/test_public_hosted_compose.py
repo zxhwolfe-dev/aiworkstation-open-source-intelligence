@@ -23,7 +23,8 @@ class PublicHostedComposeTests(unittest.TestCase):
         self.assertIn("tmpfs:", self.content)
         self.assertIn("resources:", self.content)
 
-    def test_oauth_and_backend_secrets_are_required_from_environment(self) -> None:
+    def test_public_mode_is_default_and_oauth_secrets_are_optional(self) -> None:
+        self.assertIn("OSI_HOSTED_ACCESS_MODE: ${OSI_HOSTED_ACCESS_MODE:-public}", self.content)
         for name in (
             "OSI_OAUTH_ISSUER_URL",
             "OSI_OAUTH_INTROSPECTION_URL",
@@ -31,7 +32,8 @@ class PublicHostedComposeTests(unittest.TestCase):
             "OSI_OAUTH_CLIENT_SECRET",
             "OSI_BACKEND_SERVICE_TOKEN",
         ):
-            self.assertIn(f"${{{name}:?required}}", self.content)
+            self.assertIn(f"${{{name}:-}}", self.content)
+            self.assertNotIn(f"${{{name}:?required}}", self.content)
         self.assertNotIn("PADDLE_API_KEY", self.content)
         self.assertNotIn("PADDLE_WEBHOOK_SECRET", self.content)
 
@@ -43,14 +45,16 @@ class PublicHostedComposeTests(unittest.TestCase):
         self.assertIn('OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES: "262144"', self.content)
         self.assertNotIn("OSI_MCP_HTTP_BODY_LIMIT_BYTES", self.content)
 
-    def test_workos_scope_gate_is_optional_by_default(self) -> None:
+    def test_workos_specific_scope_is_not_reintroduced(self) -> None:
         self.assertIn("OSI_OAUTH_REQUIRED_SCOPES: ${OSI_OAUTH_REQUIRED_SCOPES:-}", self.content)
         self.assertNotIn("OSI_OAUTH_REQUIRED_SCOPES: osi:use", self.content)
+        self.assertIn("WorkOS is", self.content)
 
-    def test_user_and_premium_rate_limits_are_explicit(self) -> None:
+    def test_oauth_mode_subject_limits_remain_available(self) -> None:
         self.assertIn('OSI_RATE_LIMIT_PER_MINUTE: "60"', self.content)
         self.assertIn('OSI_RATE_LIMIT_PER_HOUR: "300"', self.content)
         self.assertIn('OSI_PREMIUM_RATE_LIMIT_PER_MINUTE: "5"', self.content)
+        self.assertIn("Nginx IP/connection limits", self.content)
 
 
 if __name__ == "__main__":

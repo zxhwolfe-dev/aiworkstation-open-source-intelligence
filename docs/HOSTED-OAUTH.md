@@ -1,87 +1,83 @@
-# Hosted MCP OAuth
+# Hosted MCP OAuth Compatibility Mode
 
-## Goal
+## Scope
 
-The hosted product uses standard MCP OAuth resource-server semantics. Users authenticate through an MCP host and WorkOS AuthKit/Connect; they never copy AI Workstation backend credentials into ChatGPT, Codex, or another host.
+OAuth is **optional** for AI Workstation Open Source Intelligence Hosted MCP.
 
-The initial production authorization provider is **WorkOS AuthKit/Connect**. The implementation remains provider-neutral at the verifier boundary so a standards-compatible RFC 7662 provider can be substituted later.
+The default Hosted Private Alpha uses:
 
-## Architecture
+```text
+OSI_HOSTED_ACCESS_MODE=public
+```
+
+and exposes exactly nine anonymous read-only Radar tools. It does not need WorkOS, another identity provider, a billing backend, or Premium credentials.
+
+This document describes the retained compatibility/future-member mode:
+
+```text
+OSI_HOSTED_ACCESS_MODE=oauth
+```
+
+The verifier remains provider-neutral at the RFC 7662 boundary. WorkOS AuthKit/Connect is one compatible provider, not a product dependency.
+
+## OAuth architecture
 
 ```text
 MCP host
   |
-  | OAuth 2.1 authorization
+  | OAuth authorization
   v
-WorkOS AuthKit / Connect
+standards-compatible authorization server
   |
-  | access token whose aud is the exact MCP Resource Indicator
+  | access token whose aud/resource is the exact MCP Resource Indicator
   v
 https://mcp.aiworkstation.cn/mcp
   |
   | RFC 7662 token introspection
   v
-WorkOS AuthKit / Connect
+authorization server
 ```
 
-The MCP server validates:
+OAuth mode validates:
 
-- token introspection reports `active=true`;
+- introspection reports `active=true`;
 - `token_type` is an access-token form, never a refresh token;
-- issuer equals the configured AuthKit issuer;
+- issuer equals the configured authorization-server issuer;
 - token has a subject and client ID;
 - expiration has not passed;
 - `aud`/resource includes the exact public MCP resource URL;
-- optional required scopes are present only when a provider contract explicitly supplies them.
+- optional required scopes are present only when the provider contract explicitly supplies them.
 
-## WorkOS contract
+## WorkOS compatibility contract
 
-WorkOS MCP authorization uses **Resource Indicators** as the primary access boundary. Configure the exact MCP endpoint in WorkOS Connect:
+If WorkOS is selected as the authorization provider, configure this exact Resource Indicator:
 
 ```text
 https://mcp.aiworkstation.cn/mcp
 ```
 
-MCP clients send that value as the OAuth `resource` parameter and WorkOS issues an access token whose `aud` matches the requested resource. Do not launch with no Resource Indicator configured: WorkOS otherwise uses its environment-default audience and can ignore the requested `resource`, which is not the boundary this service expects.
-
-WorkOS AuthKit authorization-server metadata currently advertises the standard scopes `email`, `offline_access`, `openid`, and `profile`. The hosted service therefore **does not invent or require a WorkOS-specific `osi:use` scope**. `OSI_OAUTH_REQUIRED_SCOPES` defaults to empty. A future/generic RFC 7662 provider may configure explicit scopes if its introspection contract returns them reliably.
-
-WorkOS token introspection authenticates the resource-server application by putting `client_id` and `client_secret` in the form body. The implementation also sends:
+For the existing WorkOS adapter:
 
 ```text
-token_type_hint=access_token
+OSI_OAUTH_REQUIRED_SCOPES=
+OSI_OAUTH_INTROSPECTION_AUTH=body
 ```
 
-The introspection response must identify an active access token. Refresh-token and unknown token types fail closed.
+Do not invent a mandatory `osi:use` scope. WorkOS introspection authenticates the resource-server application with `client_id` and `client_secret` in the form body and the implementation sends `token_type_hint=access_token`.
 
-Official references:
+WorkOS CIMD/DCR configuration is relevant only when OAuth mode is intentionally enabled.
 
-- https://workos.com/docs/authkit/mcp
-- https://workos.com/docs/reference/workos-connect/introspection
-- https://workos.com/changelog/resource-indicators-for-mcp-auth
-
-## MCP client registration compatibility
-
-In WorkOS Dashboard → **Connect → Configuration**:
-
-1. enable **Client ID Metadata Document (CIMD)** for modern MCP clients;
-2. enable **Dynamic Client Registration (DCR)** when compatibility with clients/validators that still dynamically register is required;
-3. add the exact MCP endpoint as a Resource Indicator.
-
-CIMD is the current MCP direction; DCR remains useful during Hosted Private Alpha and for older clients. Do not assume every target host supports the same registration mode—verify the real host before public launch.
-
-## Environment
-
-The WorkOS hosted candidate expects:
+## OAuth-mode environment
 
 ```text
 OSI_PROVIDER=http
 AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn
 OSI_RELEASE_COMMIT=<exact-40-character-hosted-candidate-sha>
+OSI_HOSTED_ACCESS_MODE=oauth
 
-OSI_OAUTH_ISSUER_URL=https://<authkit-domain>
-OSI_OAUTH_INTROSPECTION_URL=https://<authkit-domain>/oauth2/introspection
-OSI_OAUTH_CLIENT_ID=<workos-connect-resource-server-client-id>
+OSI_OAUTH_ISSUER_URL=https://<authorization-server>
+OSI_OAUTH_INTROSPECTION_URL=https://<authorization-server>/oauth2/introspection
+OSI_OAUTH_CLIENT_ID=<resource-server-client-id>
 OSI_OAUTH_CLIENT_SECRET=<server-only-secret>
 OSI_OAUTH_RESOURCE_URL=https://mcp.aiworkstation.cn/mcp
 OSI_OAUTH_REQUIRED_SCOPES=
@@ -92,174 +88,80 @@ OSI_BACKEND_BASE_URL=https://aiworkstation.cn
 OSI_BACKEND_SERVICE_TOKEN=<server-only-backend-service-secret>
 ```
 
-`OSI_RELEASE_COMMIT` is non-secret but mandatory for the Hosted runtime. Set it to the exact Git SHA of the deployed candidate, not the branch name, tag name, shortened SHA, or a manually chosen label. The server exposes that SHA only through MCP `serverInfo.version` as:
+`OSI_RELEASE_COMMIT` remains mandatory for both public and OAuth Hosted modes and must be the exact deployed Git SHA. Docker builds bind the same candidate through `OSI_IMAGE_COMMIT`.
 
-```text
-0.1.0+git.<40-character-sha>
-```
-
-`osi-remote-smoke --profile hosted` compares the **remote server-reported deployment commit** with the local candidate checkout. A new checkout testing an old deployed image therefore fails the Hosted evidence gate instead of accidentally certifying stale code.
-
-`OSI_OAUTH_REQUIRED_SCOPES` may be set for a different authorization provider whose contract guarantees those scopes. It should remain empty for the initial WorkOS configuration unless WorkOS explicitly adds and returns the chosen custom scope.
-
-Existing public-bind protections remain mandatory:
-
-- live HTTP Radar provider;
-- reverse-proxy/private-network acknowledgement;
-- exact allowed Host values;
-- explicit browser origins only when browser CORS is actually enabled;
-- TLS termination at the public gateway;
-- Hosted MCP process/container bound to loopback behind the gateway rather than directly to the Internet.
-
-Validate configuration without opening a socket:
+Validate without opening a socket:
 
 ```bash
 osi-mcp-hosted --check-config
 ```
 
-The command intentionally prints only non-secret configuration, including the candidate `release_commit`, and never prints OAuth/backend secrets.
+OAuth mode reports `mode=hosted-oauth`; public mode reports `mode=hosted-public` and does not load the OAuth/backend secrets above.
 
 ## Protected Resource Metadata
 
-The MCP server must return `401 Unauthorized` for an unauthenticated MCP request and advertise RFC 9728 Protected Resource Metadata through `WWW-Authenticate`.
-
-The deployment proxy permits both discovery forms used by current MCP clients/spec revisions:
+OAuth mode must return a Bearer `401` challenge for an unauthenticated MCP request and advertise RFC 9728 Protected Resource Metadata. The Nginx template narrowly permits both discovery forms:
 
 ```text
 https://mcp.aiworkstation.cn/.well-known/oauth-protected-resource
 https://mcp.aiworkstation.cn/.well-known/oauth-protected-resource/mcp
 ```
 
-The metadata must identify:
+Metadata must bind the exact MCP resource and advertise the configured authorization server.
 
-```json
-{
-  "resource": "https://mcp.aiworkstation.cn/mcp",
-  "authorization_servers": ["https://<authkit-domain>"],
-  "bearer_methods_supported": ["header"]
-}
-```
+Public mode does not require OAuth metadata to be successful.
 
-`osi-remote-smoke --profile hosted` checks this boundary before it performs an authenticated MCP tool discovery.
+## Formal OAuth smoke
 
-## Hosted Private Alpha OAuth smoke
-
-The preferred validator exercises the real OAuth flow without persisting tokens:
+Use the explicit OAuth profile:
 
 ```bash
 osi-remote-smoke \
   --root . \
   --url https://mcp.aiworkstation.cn/mcp \
-  --profile hosted \
+  --profile hosted-oauth \
   --auth-mode oauth \
-  --expected-oauth-issuer https://<authkit-domain> \
+  --expected-oauth-issuer https://<authorization-server> \
   --locale en \
-  --output tmp/hosted-remote.json
+  --output tmp/hosted-oauth-remote.json
 ```
 
-The validator:
+The backward-compatible `--profile hosted` alias still represents OAuth Hosted mode.
 
-1. proves an unauthenticated request receives a Bearer `401` challenge;
-2. fetches and validates protected-resource metadata;
-3. runs a real OAuth MCP client flow using ephemeral in-memory token storage;
-4. reads the remote MCP `serverInfo.version` and proves the deployed `OSI_RELEASE_COMMIT` equals the local candidate SHA;
-5. discovers exactly nine standard Radar tools plus `deep_research_ai_projects`;
-6. checks the standard/Premium side-effect annotations;
-7. invokes one standard read-only `search_ai_projects` call;
-8. writes a sanitized candidate-bound report containing no token.
+OAuth evidence proves:
 
-For controlled diagnostics where an access token was obtained separately, use an environment-only token rather than a command-line argument:
+1. the 401/Bearer/RFC 9728 authorization boundary;
+2. a real OAuth client flow with in-memory token storage;
+3. exact remote `serverInfo.version` deployment identity;
+4. exactly nine standard tools plus `deep_research_ai_projects`;
+5. expected annotations;
+6. one successful standard read-only search;
+7. no token is written to evidence.
 
-```bash
-read -rsp "Temporary WorkOS access token: " OSI_HOSTED_MCP_BEARER_TOKEN
-export OSI_HOSTED_MCP_BEARER_TOKEN
-
-after_test() { unset OSI_HOSTED_MCP_BEARER_TOKEN; }
-
-osi-remote-smoke \
-  --root . \
-  --url https://mcp.aiworkstation.cn/mcp \
-  --profile hosted \
-  --auth-mode bearer-env \
-  --expected-oauth-issuer https://<authkit-domain> \
-  --output tmp/hosted-remote-diagnostic.json
-
-after_test
-```
-
-`bearer-env` is diagnostic-only. It can verify transport/token/resource behavior but **cannot** satisfy `osi-hosted-evidence-readiness`, because it does not prove that the MCP client completed the advertised OAuth authorization flow.
-
-Never put a bearer token in GitHub Actions logs, shell arguments, evidence JSON, screenshots, issues, or pull-request comments.
+A bearer token supplied through `OSI_HOSTED_MCP_BEARER_TOKEN` remains diagnostic-only and cannot replace the real OAuth flow for OAuth-mode readiness.
 
 ## Identity privacy
 
-The raw OAuth subject is not used as the AI Workstation billing key.
-
-The verified token produces:
+The verified OAuth subject is converted to an opaque key:
 
 ```text
 sha256(issuer + "\n" + subject) -> oidc_<opaque-id>
 ```
 
-That stable opaque ID is used for:
+Raw tokens, raw subjects, OAuth client secrets, private backend tokens, and payment-provider identifiers must not be returned in public tool results or evidence.
 
-- one-time premium trial;
-- plan/AI-credit entitlement;
-- application rate limits;
-- private backend service calls.
+## AI Workstation membership direction
 
-The following must never be returned in public tool results or release evidence:
+OAuth provider identity must not become a second subscription database.
 
-- raw bearer/access/refresh tokens;
-- raw OAuth subject;
-- authorization-server client secret;
-- AI Workstation backend service token;
-- Paddle customer/subscription IDs.
+Future paid/member access should map the authenticated client identity to the existing AI Workstation membership source of truth and existing quota policy. WorkOS, if used at all, should act only as an identity bridge.
 
-## Service-to-service backend authentication
+Do not use invite codes directly as MCP bearer tokens or tool arguments.
 
-The hosted MCP does not trust an entitlement subject by itself. Premium backend calls include both:
-
-- a server-only service credential;
-- the opaque authenticated user subject.
-
-This prevents callers from directly choosing another user's entitlement identity.
+Automated Paddle billing is not a prerequisite for Hosted Private Alpha and remains optional while AI Workstation uses manual WeChat/email payment and member/invite activation.
 
 ## Rate limiting
 
-The hosted candidate applies user-identity limits after OAuth verification. Current defaults:
+OAuth mode retains per-subject application limits. Public mode instead relies on the explicit Nginx IP/request/connection boundary in `deploy/nginx/mcp.aiworkstation.cn.conf.example`.
 
-```text
-standard tools: 60/minute, 300/hour
-premium tool:    5/minute
-```
-
-Configuration:
-
-```text
-OSI_RATE_LIMIT_PER_MINUTE
-OSI_RATE_LIMIT_PER_HOUR
-OSI_PREMIUM_RATE_LIMIT_PER_MINUTE
-OSI_RATE_LIMIT_MAX_SUBJECTS
-```
-
-The implementation is intentionally bounded and in-process for the initial single-process Hosted Private Alpha deployment. A multi-replica deployment must move shared quotas to a shared store such as Redis or another transactional rate-limit backend before claiming globally consistent user quotas.
-
-## Before public launch
-
-Verify with the actual target MCP host, not only the project validator:
-
-- authorization-server discovery;
-- protected-resource metadata discovery;
-- CIMD/DCR compatibility;
-- fresh-user login and consent;
-- exact token resource/audience;
-- refresh/reconnect behavior where the host requests offline access;
-- revocation and disabled-user behavior;
-- wrong-resource rejection;
-- any provider-specific required-scope rejection;
-- target-platform connection and reinstall behavior.
-
-## Fail-closed rules
-
-Hosted MCP must not start as an unauthenticated fallback when OAuth configuration is missing. Missing/invalid `OSI_RELEASE_COMMIT`, invalid issuer, token type, audience/resource, expiration, configured required scope, or introspection response returns failure rather than downgrading the release/authentication boundary.
+A multi-replica OAuth deployment must move shared user quotas to a shared transactional rate-limit store before claiming globally consistent quotas.

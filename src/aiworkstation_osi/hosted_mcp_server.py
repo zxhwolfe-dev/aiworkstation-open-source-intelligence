@@ -1,4 +1,4 @@
-"""OAuth-protected hosted MCP for the one-install AI Open Source Intelligence product."""
+"""Hosted MCP builders for public read-only and OAuth/Premium modes."""
 
 from __future__ import annotations
 
@@ -26,12 +26,18 @@ from .hosted_rate_limited_provider import HostedRateLimitedProvider
 from .mcp_server import SERVER_INSTRUCTIONS, build_mcp_server
 from .tools import ToolRegistry
 
+PUBLIC_HOSTED_INSTRUCTIONS = SERVER_INSTRUCTIONS + (
+    " This public Hosted mode exposes exactly the nine standard read-only Radar tools without requiring login. "
+    "It does not expose Premium model execution, subscriptions, credits, checkout, or member-only capabilities. "
+    "Public edge/gateway abuse controls apply independently of the tool contracts."
+)
+
 HOSTED_INSTRUCTIONS = SERVER_INSTRUCTIONS.replace(
     "This server is read-only.",
     "The nine Radar data/research tools are read-only. The Premium deep-research tool is non-destructive but can consume a one-time free trial or AI credit after a usable result.",
     1,
 ) + (
-    " The hosted server also provides deep_research_ai_projects. That premium tool uses the AI Workstation publisher model, "
+    " The OAuth Hosted mode also provides deep_research_ai_projects. That premium tool uses the AI Workstation publisher model, "
     "consumes the user's one-time free premium trial or AI credits only after a usable result, and may return an upgrade checkout URL. "
     "Use the nine read-only Radar tools for ordinary browsing/research; call premium deep research only when the user explicitly asks for deeper analysis."
 )
@@ -93,6 +99,17 @@ def _active_paid_entitlement(entitlement: Mapping[str, Any]) -> bool:
     )
 
 
+def build_public_hosted_mcp_server(
+    registry: ToolRegistry | None = None,
+) -> MCPServer:
+    """Build the anonymous Hosted surface with exactly nine read-only Radar tools."""
+
+    return build_mcp_server(
+        registry or create_registry_from_env(),
+        instructions=PUBLIC_HOSTED_INSTRUCTIONS,
+    )
+
+
 def build_hosted_mcp_server(
     registry: ToolRegistry | None = None,
     *,
@@ -133,8 +150,6 @@ def build_hosted_mcp_server(
         if not task or len(task) > 4000:
             raise ValueError("INVALID_INPUT: query must contain between 1 and 4000 characters")
         subject = current_entitlement_subject()
-        # Premium calls count against both the ordinary user envelope and the
-        # tighter premium burst limit before any publisher-funded model work.
         limiter.check_subject(subject, premium=True)
         try:
             payload = await asyncio.to_thread(

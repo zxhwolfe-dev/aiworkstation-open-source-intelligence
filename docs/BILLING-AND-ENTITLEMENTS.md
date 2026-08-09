@@ -1,190 +1,136 @@
 # Billing and entitlements
 
-## Product rule
+## Current product rule
 
-AI Open Source Intelligence does not charge for ordinary Radar browsing by secretly invoking a second server model.
+AI Open Source Intelligence does not own a second independent subscriber system.
+
+The default Hosted MCP is free and anonymous:
 
 ```text
 9 standard Radar tools
-  -> no AI credit
-
-1 hosted premium tool
-  -> first successful task free
-  -> then AI credits
+  -> public read-only data/retrieval
+  -> no publisher-model token cost
+  -> no WorkOS requirement
+  -> no payment requirement
+  -> no OSI credit balance
 ```
 
-The billing unit is a successful premium research task, not raw model tokens.
+AI Workstation membership is the intended future source of truth for paid/member-only capabilities across both the website and Skills/MCP entry points.
 
-## Entitlement model
+See [`MEMBERSHIP-AND-MONETIZATION.md`](MEMBERSHIP-AND-MONETIZATION.md).
 
-The private AI Workstation backend keeps a provider-neutral entitlement keyed by the opaque OAuth identity.
+## Existing payment flow is valid
 
-Public-safe fields include:
+Automated billing is not required for Hosted Private Alpha or for selling AI Workstation membership.
+
+The existing operational model can continue:
 
 ```text
-plan: free | pro | enterprise
-status: free | active | past_due | canceled | disabled
-ai_credits: integer
-trial_available: boolean
-current_period_end: timestamp|null
-upgrade_url: HTTPS URL
+manual payment / WeChat / email / offline contact
+  -> operator activates or provides AI Workstation membership
+  -> existing member role / validity / quota becomes the entitlement
 ```
 
-Payment-provider customer IDs and subscription IDs are private backend fields and are never returned in MCP tool results.
+This is a legitimate first-stage commercial workflow. Automation should be introduced only when payment volume or international demand justifies the extra complexity.
 
-## Free trial
+## Unified entitlement direction
 
-The one-time trial is server-side and atomic.
+Future Premium/member checks should read a narrow private AI Workstation membership contract rather than maintain an OSI-specific `free/pro/credits` truth source.
+
+Conceptually:
 
 ```text
-new authenticated subject
-  -> trial_available=true
-
-first premium request
-  -> reserve trial
-  -> call publisher model
-       | success -> trial remains consumed
-       | failure -> reservation refunded
+MCP client identity
+  -> securely linked AI Workstation member
+  -> member active/expired/disabled state
+  -> member role/tier
+  -> existing AI usage/quota policy
+  -> allow or reject member-only operation
 ```
 
-A model timeout or provider failure therefore does not consume the user's free attempt.
+The public repository should not receive direct database credentials for the main AI Workstation member database.
 
-## Paid credits
+## Unified quota direction
 
-After the trial:
+Do not present users with two unrelated balances such as:
 
 ```text
-active Pro/Enterprise + enough credits
-  -> reserve credit(s)
-  -> call publisher model
-       | success -> reservation remains consumed
-       | failure -> exact reserved credits refunded
+AI Workstation: 820,000 tokens remaining
+OSI: 37 Premium credits remaining
 ```
 
-`past_due`, `canceled` and `disabled` subscriptions cannot spend existing credits until their status is restored according to product policy.
+when one membership already owns the AI usage policy.
 
-## Initial plan shape
+The preferred future UX is one AI Workstation membership and one understandable AI usage policy. Member-only publisher-model work should be accounted through that policy once reservation/refund semantics are implemented safely.
 
-The code intentionally keeps price outside source control. The initial hosted candidate uses a configurable monthly Pro allowance:
+Standard Radar browsing remains outside publisher-model token quota because it does not invoke the publisher-funded model.
+
+## Identity is not billing
+
+A client identity provider is only a way to establish which user/member is calling the service.
+
+WorkOS, another OAuth provider, or a future first-party authorization service must not become a second membership source of truth.
+
+A reusable AI Workstation invite/activation code must never be used directly as:
+
+- an MCP bearer credential;
+- an Authorization header value;
+- a normal tool argument;
+- a model-visible membership secret;
+- a telemetry/evidence value.
+
+Member proof/linking should happen on a reviewed first-party web surface or equivalent secure standards-based flow. The resulting MCP credential must be purpose-specific and revocable.
+
+## Optional Paddle automation
+
+Paddle is no longer a prerequisite or the assumed first-launch payment architecture.
+
+If automated billing is added later, its role should be:
 
 ```text
-GITHUB_AI_PRO_MONTHLY_CREDITS=50
+Paddle / other payment provider
+  -> cryptographically verified payment event
+  -> AI Workstation membership activation/renewal/update
+  -> same website + Skills/MCP entitlement
 ```
 
-Recommended launch structure to validate before fixing final pricing:
+The payment provider is an adapter/automation layer, not the membership database.
 
-- Free: all standard Radar tools within rate limits + one successful Premium AI task;
-- Pro: standard tools + monthly AI Research Credits;
-- Enterprise: negotiated quotas/identity/support later.
+A future adapter still requires the normal payment-safety properties:
 
-Do not sell a second Pro subscription when an active Pro user simply exhausts monthly AI credits. If customer demand justifies it, add a separate one-time credit top-up product.
+- server-created checkout;
+- signed webhook verification over the raw body;
+- replay/idempotency protection;
+- out-of-order event handling;
+- exact product/price validation;
+- reconciliation metadata kept private;
+- cancellation/refund/customer-service behavior documented.
 
-## Payment adapter boundary
+These are future Public Launch/commercial gates, not anonymous Hosted Private Alpha gates.
 
-Billing logic depends on the entitlement contract, not on Paddle classes. Paddle is the first adapter and can later coexist with another provider.
+## Existing OAuth/Premium compatibility code
+
+The repository currently retains an explicit OAuth Hosted compatibility mode and `deep_research_ai_projects` contract. Its legacy trial/AI-credit behavior is retained so completed engineering work is not destroyed, but it is **not the final commercial policy** and is not enabled by default.
 
 ```text
-Payment provider
-  -> verified event adapter
-  -> provider-neutral entitlement
-  -> Hosted MCP
+OSI_HOSTED_ACCESS_MODE=oauth
 ```
 
-This allows a future domestic Alipay/WeChat or another international provider without rewriting MCP tools.
+Before that mode is used for real paid service, replace/bridge its entitlement semantics with the unified AI Workstation membership/quota contract and complete dedicated migration tests.
 
-## Paddle checkout
+Do not sell or advertise the retained `50 monthly credits` behavior as final product policy merely because old compatibility code can represent it.
 
-The initial adapter creates a server-side recurring Pro transaction containing opaque custom data:
+## Production commercial gates
 
-```text
-mcp_subject=<opaque entitlement ID>
-osi_product=ai_open_source_intelligence
-plan=pro
-```
+Before enabling any real member-only publisher-model capability:
 
-No OAuth bearer token, raw OAuth subject or service secret is put into checkout custom data.
+- design a secure MCP-client-to-AI-Workstation-member linking flow;
+- prove disabled/expired member revocation;
+- define how website and MCP model usage share the existing quota;
+- implement transactional reserve/commit/refund semantics for model usage;
+- prevent repeated invite/member-secret reuse as authentication;
+- publish member/Premium privacy, support and retention behavior;
+- test real cost/latency and choose sustainable limits;
+- only then decide whether automated billing is necessary.
 
-Checkout creation happens through the service-authenticated AI Workstation backend. The Hosted MCP returns only the public HTTPS checkout URL and product/credit metadata.
-
-## Webhook verification
-
-Webhook requests are public network endpoints but are not anonymously trusted.
-
-The Paddle adapter:
-
-1. reads the **raw** HTTP request body;
-2. parses Paddle's timestamp/signature header;
-3. checks timestamp tolerance;
-4. calculates HMAC-SHA256 over the required timestamp/body payload;
-5. uses constant-time comparison;
-6. parses JSON only after signature verification;
-7. maps only recognized product/price events to entitlements.
-
-Invalid signature/body details are not echoed to the caller.
-
-## What grants credits
-
-Credits are provisioned/reset only from a recognized successful paid-period event. A subscription lifecycle notification by itself does not grant AI credits.
-
-The adapter also checks that the completed transaction contains the configured Pro price.
-
-This prevents unrelated Paddle transactions from granting plugin entitlements merely because they carry arbitrary custom data.
-
-## Webhook replay protection
-
-Payment events are idempotent at the database layer:
-
-```text
-(provider, event_id) = unique
-```
-
-The event claim and entitlement mutation occur in the same transaction. Replayed webhook delivery therefore cannot reset spent monthly credits or double-grant a period.
-
-## Out-of-order events
-
-Subscription lifecycle notifications can arrive after newer business state. The backend stores the latest provider `occurred_at` per subscription.
-
-Rules:
-
-- stale status events are processed as no-ops;
-- an old `active` event cannot overwrite a newer `past_due` or `canceled` state;
-- a later successful paid period may restore `active`;
-- an older completed payment may still establish its paid-period allowance but cannot move subscription status backwards.
-
-## Upgrade behavior
-
-When Premium AI returns `UPGRADE_REQUIRED`:
-
-### Free/unsubscribed user
-
-The Hosted MCP may request a Pro checkout URL and surface it to the host/user.
-
-### Active paid user with zero credits
-
-Do **not** silently create another recurring subscription. Return the entitlement/period state and direct the user to the account/pricing surface. A future top-up offering must use a separate product/price and entitlement event type.
-
-## Privacy
-
-Billing records may contain payment-provider identifiers on the private server for reconciliation. Those identifiers are excluded from:
-
-- public Radar APIs;
-- MCP tool results;
-- model prompts;
-- OAuth entitlement IDs;
-- public validation artifacts.
-
-The publisher-model usage ledger uses a stable privacy-preserving identity fingerprint rather than the raw OAuth subject.
-
-## Production gates
-
-Before real-money launch:
-
-- create and verify the merchant account;
-- create the actual Pro product/recurring price;
-- configure checkout domain and return behavior;
-- configure webhook destination and secret;
-- run sandbox purchase, renewal, payment failure and cancel tests;
-- verify duplicate and out-of-order webhook handling with real provider events;
-- publish final pricing, refund, tax, privacy and terms information;
-- verify customer self-service/cancel path;
-- decide final monthly credit allowance from observed model cost and usage.
+If automated billing is later enabled, additionally complete sandbox purchase/renewal/failure/cancel/refund/replay/out-of-order tests before accepting real money through the automated path.

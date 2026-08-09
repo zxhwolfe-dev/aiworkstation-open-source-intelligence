@@ -37,16 +37,27 @@ class ToolManifestAlignmentTests(unittest.TestCase):
             self.assertEqual(properties["offset"]["minimum"], 0)
             self.assertEqual(properties["offset"]["maximum"], 10000)
 
-    def test_hosted_manifest_matches_workos_scope_default_and_tool_surface(self) -> None:
+    def test_hosted_manifest_matches_public_default_and_optional_oauth_surface(self) -> None:
         hosted = json.loads(
             (self.ROOT / "schemas" / "hosted-tool-manifest.json").read_text(encoding="utf-8")
         )
-        authentication = hosted["authentication"]
-        self.assertIs(authentication["required"], True)
-        self.assertEqual(authentication["required_scopes"], [])
+        self.assertEqual(hosted["default_access_mode"], "public")
+        public = hosted["access_modes"]["public"]
+        oauth = hosted["access_modes"]["oauth"]
+        self.assertIs(public["authentication_required"], False)
+        self.assertEqual(public["tool_count"], 9)
+        self.assertIs(public["premium_enabled"], False)
+        self.assertIs(oauth["authentication_required"], True)
+        self.assertEqual(oauth["required_scopes"], [])
+        self.assertEqual(oauth["tool_count"], 10)
         self.assertEqual(hosted["base_tools"], list(TOOL_NAMES))
         hosted_names = [str(row["name"]) for row in hosted["hosted_only_tools"]]
         self.assertEqual(hosted_names, ["deep_research_ai_projects"])
+        self.assertEqual(hosted["hosted_only_tools"][0]["enabled_in_modes"], ["oauth"])
+        membership = hosted["membership_policy"]
+        self.assertEqual(membership["source_of_truth"], "AI Workstation membership")
+        self.assertIs(membership["separate_osi_subscription_system"], False)
+        self.assertIs(membership["invite_or_activation_code_may_be_mcp_bearer_token"], False)
 
 
 if __name__ == "__main__":

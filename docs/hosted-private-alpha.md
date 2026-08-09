@@ -1,18 +1,22 @@
 # Hosted Private Alpha Runbook
 
-This runbook takes a reviewed source candidate from repository/External-Alpha quality gates to an **invited, OAuth-protected Hosted MCP** deployment. It deliberately stops before broad public launch, real-money billing acceptance, or platform submission.
+This runbook takes a reviewed source candidate from repository/External-Alpha quality gates to a real public Hosted MCP deployment while deliberately keeping the first Hosted surface **free, anonymous, and read-only**.
 
-Canonical Hosted MCP resource:
+Canonical endpoint:
 
 ```text
 https://mcp.aiworkstation.cn/mcp
 ```
 
-Initial authorization provider:
+Default access mode:
 
 ```text
-WorkOS AuthKit / Connect
+OSI_HOSTED_ACCESS_MODE=public
 ```
+
+Public mode exposes exactly the nine standard Radar tools. It does not load OAuth/WorkOS configuration, does not load a Premium/member backend, and does not expose `deep_research_ai_projects`.
+
+OAuth remains an optional compatibility/future-member mode, not a prerequisite for the free Hosted MCP.
 
 ## 0. Release invariant: one candidate, one evidence chain
 
@@ -25,9 +29,7 @@ All of these must refer to that exact Git SHA:
 - Codex acceptance report + ledger;
 - human review of that candidate's sanitized live artifact;
 - deployed Hosted MCP `serverInfo.version` identity;
-- Hosted remote OAuth/MCP evidence.
-
-Do not reuse `d338faf0...` External Alpha artifacts to certify a later Hosted commit. They remain valid for the frozen External Alpha build only.
+- Hosted remote MCP evidence.
 
 The deployment must receive the exact 40-character candidate SHA through:
 
@@ -35,7 +37,7 @@ The deployment must receive the exact 40-character candidate SHA through:
 OSI_RELEASE_COMMIT=<exact-hosted-candidate-sha>
 ```
 
-The Hosted MCP exposes this non-secret identity in `serverInfo.version` as `0.1.0+git.<sha>`. Remote evidence rejects a service whose deployed SHA does not match the validator checkout, closing the gap where new local code could otherwise test an old remote image.
+The same SHA is baked into the Docker image as `OSI_IMAGE_COMMIT`. Hosted startup fails when image/runtime identities differ. The MCP exposes the non-secret identity in `serverInfo.version` as `0.1.0+git.<sha>` and remote evidence requires `deployment_commit` to match the candidate.
 
 ## 1. Candidate code gates
 
@@ -48,7 +50,7 @@ For the Hosted candidate:
 5. run `osi-codex-acceptance` from a clean checkout of that exact SHA;
 6. review the sanitized live artifact and record the human reviewer.
 
-At this point `external_alpha_ready` should be true for the Hosted candidate itself before infrastructure evidence is added.
+`external_alpha_ready` must be true for the Hosted candidate before infrastructure evidence is added.
 
 ## 2. DNS
 
@@ -58,9 +60,9 @@ Create the DNS record for:
 mcp.aiworkstation.cn
 ```
 
-Point it at the public IPv4/IPv6 address of the gateway host. Do not expose the MCP container port directly in DNS/firewall rules.
+Point it at the intended HTTPS gateway. Do not expose the MCP container port directly in DNS or firewall rules.
 
-Verify from more than one resolver/network:
+Verify:
 
 ```bash
 getent ahosts mcp.aiworkstation.cn
@@ -73,8 +75,6 @@ dig +short A mcp.aiworkstation.cn
 dig +short AAAA mcp.aiworkstation.cn
 ```
 
-Proceed only when the answers resolve to the intended gateway.
-
 ## 3. TLS and Nginx gateway
 
 The repository provides:
@@ -83,14 +83,14 @@ The repository provides:
 deploy/nginx/mcp.aiworkstation.cn.conf.example
 ```
 
-Its intended topology is:
+Topology:
 
 ```text
 Internet
   |
-  | TCP 443 / HTTPS
+  | HTTPS 443
   v
-Nginx / TLS gateway
+Nginx TLS + IP abuse controls
   |
   | loopback only
   v
@@ -100,181 +100,116 @@ Nginx / TLS gateway
 Hosted MCP container :8000
 ```
 
-Required properties:
+Public-mode requirements:
 
-- TLS certificate valid for `mcp.aiworkstation.cn`;
+- valid TLS certificate for `mcp.aiworkstation.cn`;
 - HTTP redirects to HTTPS except ACME challenge handling;
-- MCP process is not Internet-addressable directly;
-- `/mcp` is proxied with request/response buffering disabled;
-- Authorization is forwarded;
-- RFC 9728 protected-resource metadata routes are exposed;
-- unrelated paths return 404;
-- body-size and upstream timeouts remain bounded.
+- container port `8001` is loopback-only;
+- `/mcp` is the only functional MCP application path;
+- request/response buffering stays disabled for MCP streaming;
+- per-IP request limiting and connection limiting are active;
+- request body is bounded;
+- successful and error responses from `/mcp` include:
 
-After certificate installation:
+```text
+X-OSI-Hosted-Gateway-Policy: tls-ip-rate-limited
+```
+
+- unrelated paths return 404.
+
+The OAuth protected-resource metadata locations remain narrowly proxied for the optional OAuth mode. In public mode they are not required to return successful OAuth metadata.
+
+Before reload:
 
 ```bash
 sudo nginx -t
-sudo systemctl reload nginx
 ```
 
-Verify certificate hostname and chain from an external machine before enabling invited testers.
+## 4. Public mode has no WorkOS requirement
 
-## 4. WorkOS AuthKit / Connect
+For Hosted Private Alpha, do **not** create a WorkOS dependency just to serve the nine free tools.
 
-Use a dedicated WorkOS environment/application for the Hosted service rather than sharing unrelated production credentials where avoidable.
-
-### Connect configuration
-
-In WorkOS Dashboard → Connect → Configuration:
-
-1. enable **Client ID Metadata Document (CIMD)**;
-2. enable **Dynamic Client Registration (DCR)** during private alpha if compatibility with clients that have not migrated to CIMD is required;
-3. add this exact Resource Indicator:
+The following are not required in public mode:
 
 ```text
-https://mcp.aiworkstation.cn/mcp
+OSI_OAUTH_ISSUER_URL
+OSI_OAUTH_INTROSPECTION_URL
+OSI_OAUTH_CLIENT_ID
+OSI_OAUTH_CLIENT_SECRET
+OSI_BACKEND_SERVICE_TOKEN
 ```
 
-Do not configure a slightly different origin, omit `/mcp`, or add a trailing alternate path. The MCP resource metadata, client `resource` request, WorkOS token `aud`, server verifier, deployment configuration, and final platform registration must all agree.
+They may be absent or empty.
 
-### Discover the WorkOS endpoints
+The product boundary is intentional:
 
-Do not hand-type authorization/token/introspection paths if the actual AuthKit environment can report them. Inspect:
-
-```bash
-curl -fsS https://<authkit-domain>/.well-known/oauth-authorization-server | jq
+```text
+public Hosted MCP
+  -> nine read-only Radar tools
+  -> no login
+  -> no Premium model execution
+  -> no subscription/credit/checkout state
 ```
 
-Record the actual values for:
+## 5. Server environment
 
-- `issuer`;
-- `authorization_endpoint`;
-- `token_endpoint`;
-- `introspection_endpoint`;
-- `registration_endpoint` when DCR is enabled;
-- `scopes_supported`.
-
-The current WorkOS MCP contract uses the exact Resource Indicator/audience as the primary authorization boundary. `OSI_OAUTH_REQUIRED_SCOPES` should remain empty for the initial WorkOS deployment unless the configured provider contract explicitly returns the chosen custom scope.
-
-WorkOS introspection authenticates the application with `client_id` and `client_secret` in the form body. The server sends `token_type_hint=access_token` and rejects refresh/unknown token types.
-
-## 5. Server-only environment
-
-Create the production secret environment outside source control. Do not put credential values in GitHub issues, PRs, logs, screenshots, or shell history.
-
-Required shape:
+Minimum production environment:
 
 ```text
 OSI_RELEASE_COMMIT=<exact-40-character-hosted-candidate-sha>
-OSI_OAUTH_ISSUER_URL=https://<authkit-domain>
-OSI_OAUTH_INTROSPECTION_URL=https://<authkit-domain>/oauth2/introspection
-OSI_OAUTH_CLIENT_ID=<workos-connect-application-client-id>
-OSI_OAUTH_CLIENT_SECRET=<server-only-secret>
-OSI_OAUTH_RESOURCE_URL=https://mcp.aiworkstation.cn/mcp
-OSI_OAUTH_REQUIRED_SCOPES=
-OSI_OAUTH_INTROSPECTION_AUTH=body
-OSI_BACKEND_SERVICE_TOKEN=<server-only-aiworkstation-service-token>
+OSI_HOSTED_ACCESS_MODE=public
 ```
 
-`OSI_RELEASE_COMMIT` is intentionally non-secret, but it must still be exact. Generate it from the candidate checkout rather than typing it from memory:
+The Compose definition already supplies the live Radar provider/origin and bounded HTTP settings.
+
+Generate the candidate value from the checkout rather than typing it from memory:
 
 ```bash
 printf 'OSI_RELEASE_COMMIT=%s\n' "$(git rev-parse HEAD)"
 ```
 
-Prefer a root-readable environment file or platform secret store. Set restrictive filesystem permissions if a file is used.
-
-Do not expose `OSI_BACKEND_SERVICE_TOKEN` or WorkOS client secret to browser/client-side code.
-
 ## 6. Preflight without opening the service
 
-Use the repository's public-hosted Compose definition and real environment:
+Render the Compose configuration and run the application self-check.
 
-```bash
-docker compose \
-  -f compose.public-hosted.example.yml \
-  --env-file /ABS/PRIVATE/PATH/osi-hosted.env \
-  config >/tmp/osi-hosted-compose.rendered.yml
+Expected `osi-mcp-hosted --check-config` fields include:
+
+```text
+mode=hosted-public
+access_mode=public
+tool_count=9
+premium_enabled=false
+gateway_abuse_control=required-ip-rate-limit
+release_commit=<exact candidate>
 ```
 
-Then validate application configuration from the candidate image/environment:
-
-```bash
-set -a
-. /ABS/PRIVATE/PATH/osi-hosted.env
-set +a
-
-osi-mcp-hosted --check-config
-```
-
-The output is intentionally non-secret. Confirm:
-
-- mode = `hosted-oauth`;
-- `release_commit` = exact `git rev-parse HEAD` of this candidate;
-- provider = `http`;
-- OAuth resource = exact canonical MCP URL;
-- backend origin = `https://aiworkstation.cn`;
-- expected allowed hosts;
-- expected rate limits;
-- no secret/token is rendered.
-
-Fail the deployment if `release_commit` is absent, shortened, or belongs to another checkout.
+The output must not require or print OAuth secrets, backend tokens, or payment credentials.
 
 ## 7. Start the Hosted MCP
 
-```bash
-docker compose \
-  -f compose.public-hosted.example.yml \
-  --env-file /ABS/PRIVATE/PATH/osi-hosted.env \
-  up -d --build
-```
+Use the candidate-bound public Hosted Compose definition.
 
-Confirm the container is healthy and that the host only listens on loopback for the upstream MCP port:
-
-```bash
-docker compose -f compose.public-hosted.example.yml ps
-ss -ltnp | grep 8001
-```
-
-Expected host binding:
+Confirm the host listens only on:
 
 ```text
 127.0.0.1:8001
 ```
 
-A public `0.0.0.0:8001`/`[::]:8001` host binding is a deployment failure.
+A public `0.0.0.0:8001` or `[::]:8001` binding is a deployment failure.
 
-## 8. Unauthenticated OAuth boundary
+## 8. Public gateway boundary
 
-From a different machine/network, an MCP request without a token must **not** produce a successful tool list.
+From an external network verify HTTPS reachability and the gateway policy header.
 
-The Hosted validator checks that it receives:
+A simple GET to `/mcp` may return a non-success MCP method/status; that is acceptable. The formal boundary is that the request reaches the intended HTTPS gateway and the response carries:
 
-- HTTP 401;
-- Bearer `WWW-Authenticate`;
-- `resource_metadata` on the same MCP origin;
-- protected-resource metadata HTTP 200 with exact `resource`;
-- `bearer_methods_supported` containing `header`;
-- the expected WorkOS issuer in `authorization_servers`.
-
-Manually useful metadata check:
-
-```bash
-curl -fsS https://mcp.aiworkstation.cn/.well-known/oauth-protected-resource | jq
+```text
+X-OSI-Hosted-Gateway-Policy: tls-ip-rate-limited
 ```
 
-The exact field values should include:
+Do not try to trigger rate-limit exhaustion in production as part of normal evidence generation. The Nginx configuration and header contract establish the configured edge policy; normal operational monitoring can validate 429 behavior separately.
 
-```json
-{
-  "resource": "https://mcp.aiworkstation.cn/mcp",
-  "authorization_servers": ["https://<authkit-domain>"],
-  "bearer_methods_supported": ["header"]
-}
-```
-
-## 9. Authenticated Hosted smoke
+## 9. Formal public Hosted smoke
 
 Run from a clean checkout of the exact Hosted candidate SHA:
 
@@ -284,71 +219,31 @@ source .venv/bin/activate
 osi-remote-smoke \
   --root . \
   --url https://mcp.aiworkstation.cn/mcp \
-  --profile hosted \
-  --auth-mode oauth \
-  --expected-oauth-issuer https://<authkit-domain> \
+  --profile hosted-public \
+  --auth-mode none \
   --locale en \
   --output tmp/hosted-remote.json
 ```
-
-The command will print the authorization URL. Complete sign-in in a browser and paste the final callback URL when prompted. OAuth tokens remain in memory and are not written into the evidence report.
 
 Required result:
 
 - `ok=true`;
 - report `commit` = exact local Hosted candidate SHA;
-- report `deployment_commit` = the same exact SHA, extracted from remote `serverInfo.version`;
-- `deployment-identity` check = passed;
-- OAuth boundary = passed;
-- authenticated MCP connection = passed;
-- exactly 10 tools discovered: nine standard + `deep_research_ai_projects`;
-- standard/Premium annotations correct;
-- standard `search_ai_projects` call succeeds;
-- no Premium invocation occurs.
+- report `deployment_commit` = same SHA from remote `serverInfo.version`;
+- `deployment-identity` = passed;
+- gateway boundary = passed;
+- auth mode = `none`;
+- exactly nine standard Radar tools discovered;
+- all nine advertise read-only/non-destructive/idempotent annotations;
+- `deep_research_ai_projects` is absent;
+- real public `search_ai_projects` succeeds;
+- negotiated MCP protocol version is recorded.
 
-A mismatch between local `commit` and remote `deployment_commit` means the server is running a different build and **must not** be accepted as Hosted evidence.
+A mismatch between local and deployed commit is a hard failure.
 
-### Controlled bearer diagnostic
+## 10. Final evidence-first Hosted readiness
 
-Only if interactive OAuth troubleshooting requires it, put a temporary access token into an environment variable, never an argument:
-
-```bash
-read -rsp "Temporary WorkOS access token: " OSI_HOSTED_MCP_BEARER_TOKEN
-export OSI_HOSTED_MCP_BEARER_TOKEN
-
-osi-remote-smoke \
-  --root . \
-  --url https://mcp.aiworkstation.cn/mcp \
-  --profile hosted \
-  --auth-mode bearer-env \
-  --expected-oauth-issuer https://<authkit-domain> \
-  --output tmp/hosted-remote-diagnostic.json
-
-unset OSI_HOSTED_MCP_BEARER_TOKEN
-```
-
-Treat a shell/session containing that token as sensitive until cleared. `bearer-env` is troubleshooting evidence only and cannot make `osi-hosted-evidence-readiness` pass; final Hosted Private Alpha evidence requires `auth.mode=oauth`.
-
-## 10. Negative OAuth tests
-
-Before Hosted Private Alpha is signed off, verify the deployed resource server fails closed for at least:
-
-- no bearer token;
-- malformed token;
-- expired token;
-- refresh token used as a bearer token;
-- token for another Resource Indicator/audience;
-- inactive/revoked token;
-- wrong issuer;
-- missing configured required scope if a non-empty scope policy is intentionally enabled.
-
-Do not log the raw rejected tokens.
-
-The ordinary Hosted remote evidence proves the public 401/metadata boundary, exact deployed build identity, real OAuth flow, and successful authenticated route. The negative matrix is an operator/security validation record and should be completed before expanding beyond a small invited cohort.
-
-## 11. Final evidence-first Hosted readiness
-
-Once **fresh Hosted-candidate** CI/live/Codex evidence exists, that candidate's live artifact has been reviewed, the exact candidate is deployed through `OSI_RELEASE_COMMIT`, and `tmp/hosted-remote.json` is green:
+Once fresh candidate CI/live/Codex/human evidence exists and `tmp/hosted-remote.json` is green:
 
 ```bash
 osi-hosted-evidence-readiness \
@@ -361,7 +256,7 @@ osi-hosted-evidence-readiness \
   --reviewer "REVIEWER NAME" \
   --expected-base-url https://aiworkstation.cn \
   --expected-hosted-mcp-url https://mcp.aiworkstation.cn/mcp \
-  --expected-oauth-issuer https://<authkit-domain> \
+  --expected-access-mode public \
   --output tmp/hosted-private-alpha-readiness.json
 ```
 
@@ -371,31 +266,82 @@ Success means:
 code_ready=true
 external_alpha_ready=true
 hosted_private_alpha_ready=true
+public_launch_ready=false
 ```
 
-`public_launch_ready=false` is still expected at this stage.
+## 11. AI Workstation membership is the future entitlement source
 
-## 12. Rollback
+Do not create a second unrelated OSI subscription/credit identity just because Skills/MCP is a new entry point.
 
-Before inviting testers, record a rollback owner and make rollback mechanical:
+Future paid/member capabilities should map to the existing AI Workstation membership source of truth. The Hosted project should consume a narrow private membership contract rather than owning payment state itself.
 
-1. retain the prior image/commit identifier;
-2. keep Nginx config versioned and validate with `nginx -t` before reload;
-3. keep server secrets outside image/source control;
-4. set `OSI_RELEASE_COMMIT` to the SHA actually contained in the rollback image—never leave the newer SHA attached to an older image;
-5. if authentication or MCP behavior regresses, remove the invited connection, stop the Hosted container, or route the gateway to a known-good image;
-6. do not relax OAuth validation as a recovery shortcut.
+Target product model:
 
-## 13. Explicit stop line
+```text
+AI Workstation member
+  -> existing member/invite identity and role
+  -> existing AI usage/quota policy
+  -> website entry point
+  -> Skills/MCP entry point
+```
 
-Hosted Private Alpha readiness does **not** authorize broad launch.
+The free nine-tool Hosted surface remains usable without identity.
 
-Do not yet claim Public Launch until the separate gates are complete, including:
+A future member-auth bridge may use standards-based OAuth or another secure client identity mechanism, but WorkOS is only one optional provider. Do not expose invite codes as bearer tokens or tool arguments.
 
-- Paddle sandbox and final merchant/product configuration;
-- Premium first-free / credit / refund behavior;
-- service-specific hosted privacy/terms/retention policy;
-- production revocation/rate-limit/abuse validation;
-- final platform connection identity;
-- fresh-install combined Plugin acceptance;
-- platform/directory review and publish action.
+## 12. Optional OAuth compatibility mode
+
+The existing OAuth implementation is retained for compatibility and future experiments:
+
+```text
+OSI_HOSTED_ACCESS_MODE=oauth
+```
+
+OAuth mode still requires:
+
+- a standards-compliant authorization server;
+- exact MCP Resource Indicator/audience;
+- introspection client credentials;
+- Premium/member backend configuration;
+- per-subject application limits.
+
+WorkOS AuthKit/Connect remains one compatible authorization provider, but it is not part of public-mode Private Alpha.
+
+Formal OAuth evidence uses:
+
+```bash
+osi-remote-smoke \
+  --root . \
+  --url https://mcp.aiworkstation.cn/mcp \
+  --profile hosted-oauth \
+  --auth-mode oauth \
+  --expected-oauth-issuer https://<authorization-server> \
+  --output tmp/hosted-oauth-remote.json
+```
+
+OAuth mode is not required to certify the anonymous nine-tool Hosted Private Alpha.
+
+## 13. Rollback
+
+Rollback is isolated from the existing AI Workstation/Radar services:
+
+1. disable only the `mcp.aiworkstation.cn` Nginx vhost;
+2. validate `nginx -t` before reload;
+3. stop only the OSI Hosted container;
+4. keep ports 8000/8010 and the existing AI Workstation services untouched;
+5. never change `OSI_RELEASE_COMMIT` to claim a SHA that is not actually in the running image.
+
+## 14. Explicit stop line
+
+Hosted Private Alpha does not authorize broad paid launch.
+
+Before any member-only/Premium launch, separately complete:
+
+- secure AI Workstation member identity binding for MCP clients;
+- unified membership/quota semantics with the existing AI Workstation system;
+- Premium model cost/usage accounting against that unified policy;
+- hosted privacy/terms/retention updates;
+- production revocation and abuse validation;
+- final platform connection review/publish.
+
+Automated Paddle billing is optional and can remain deferred while AI Workstation continues manual WeChat/email payment and invite/member activation.
