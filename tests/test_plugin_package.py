@@ -37,9 +37,9 @@ class PluginPackageTests(unittest.TestCase):
         self.assertEqual(self.manifest["license"], "Apache-2.0")
         self.assertTrue((self.ROOT / "LICENSE").is_file())
 
-    def test_manifest_packages_all_three_skill_directories(self) -> None:
+    def test_manifest_packages_exactly_one_unified_skill(self) -> None:
         skills_path = self.manifest["skills"]
-        self.assertTrue(skills_path.startswith("./"))
+        self.assertEqual(skills_path, "./product-skills/")
         skills_root = (self.ROOT / skills_path[2:]).resolve()
         self.assertTrue(skills_root.is_dir())
         self.assertTrue(skills_root.is_relative_to(self.ROOT.resolve()))
@@ -49,23 +49,21 @@ class PluginPackageTests(unittest.TestCase):
             for path in skills_root.iterdir()
             if path.is_dir() and (path / "SKILL.md").is_file()
         }
-        self.assertEqual(
-            skill_directories,
-            {
-                "open-source-project-research",
-                "open-source-project-comparison",
-                "open-source-stack-planner",
-            },
-        )
+        self.assertEqual(skill_directories, {"ai-open-source-intelligence"})
 
-        for skill_name in sorted(skill_directories):
-            content = (skills_root / skill_name / "SKILL.md").read_text(encoding="utf-8")
-            frontmatter_name = re.search(r"(?m)^name:\s*([^\s]+)\s*$", content)
-            description = re.search(r"(?m)^description:\s*(.+?)\s*$", content)
-            self.assertIsNotNone(frontmatter_name, skill_name)
-            self.assertIsNotNone(description, skill_name)
-            assert frontmatter_name is not None
-            self.assertEqual(frontmatter_name.group(1), skill_name)
+        content = (skills_root / "ai-open-source-intelligence" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        frontmatter_name = re.search(r"(?m)^name:\s*([^\s]+)\s*$", content)
+        description = re.search(r"(?m)^description:\s*(.+?)\s*$", content)
+        self.assertIsNotNone(frontmatter_name)
+        self.assertIsNotNone(description)
+        assert frontmatter_name is not None
+        self.assertEqual(frontmatter_name.group(1), "ai-open-source-intelligence")
+
+        self.assertFalse((self.ROOT / "skills" / "open-source-project-research" / "SKILL.md").exists())
+        self.assertFalse((self.ROOT / "skills" / "open-source-project-comparison" / "SKILL.md").exists())
+        self.assertFalse((self.ROOT / "skills" / "open-source-stack-planner" / "SKILL.md").exists())
 
     def test_install_surface_copy_is_complete_and_read_only(self) -> None:
         interface = self.manifest["interface"]
@@ -86,12 +84,15 @@ class PluginPackageTests(unittest.TestCase):
         self.assertGreaterEqual(len(interface["defaultPrompt"]), 5)
         self.assertIn("Read", interface["capabilities"])
         self.assertNotIn("Write", interface["capabilities"])
+        self.assertIn("host model", interface["longDescription"].lower())
+        self.assertIn("must not invoke", interface["longDescription"].lower())
 
-    def test_manifest_uses_hosted_service_legal_pages_but_not_fake_mcp_binding(self) -> None:
+    def test_manifest_uses_ai_workstation_public_site_and_hosted_legal_pages(self) -> None:
         interface = self.manifest["interface"]
+        self.assertEqual(interface["websiteURL"], "https://aiworkstation.cn/githubai/")
+        self.assertEqual(self.manifest["homepage"], "https://aiworkstation.cn/githubai/")
         self.assertEqual(interface["privacyPolicyURL"], "https://useaistation.com/githubai/privacy/")
         self.assertEqual(interface["termsOfServiceURL"], "https://useaistation.com/githubai/terms/")
-        self.assertEqual(interface["websiteURL"], "https://useaistation.com/githubai/")
         self.assertIn("github.com", interface["supportURL"])
         self.assertNotIn("mcpServers", self.manifest)
         self.assertNotIn("apps", self.manifest)
