@@ -23,38 +23,24 @@ class PublicHostedComposeTests(unittest.TestCase):
         self.assertIn("tmpfs:", self.content)
         self.assertIn("resources:", self.content)
 
-    def test_public_mode_is_default_and_oauth_secrets_are_optional(self) -> None:
-        self.assertIn("OSI_HOSTED_ACCESS_MODE: ${OSI_HOSTED_ACCESS_MODE:-public}", self.content)
-        for name in (
-            "OSI_OAUTH_ISSUER_URL",
-            "OSI_OAUTH_INTROSPECTION_URL",
-            "OSI_OAUTH_CLIENT_ID",
-            "OSI_OAUTH_CLIENT_SECRET",
+    def test_hosted_mode_is_fixed_to_public_data_only(self) -> None:
+        self.assertIn("OSI_HOSTED_ACCESS_MODE: public", self.content)
+        self.assertNotIn("${OSI_HOSTED_ACCESS_MODE", self.content)
+        for forbidden in (
+            "OSI_OAUTH_",
             "OSI_BACKEND_SERVICE_TOKEN",
+            "OSI_PREMIUM_RATE_LIMIT",
+            "PADDLE_",
         ):
-            self.assertIn(f"${{{name}:-}}", self.content)
-            self.assertNotIn(f"${{{name}:?required}}", self.content)
-        self.assertNotIn("PADDLE_API_KEY", self.content)
-        self.assertNotIn("PADDLE_WEBHOOK_SECRET", self.content)
+            self.assertNotIn(forbidden, self.content)
 
-    def test_public_resource_is_https_mcp_and_provider_is_live(self) -> None:
+    def test_provider_is_live_public_radar_and_release_identity_is_required(self) -> None:
         self.assertIn("OSI_PROVIDER: http", self.content)
         self.assertIn("AIWORKSTATION_RADAR_BASE_URL: https://aiworkstation.cn", self.content)
-        self.assertIn("OSI_OAUTH_RESOURCE_URL: https://mcp.aiworkstation.cn/mcp", self.content)
+        self.assertIn("OSI_RELEASE_COMMIT: ${OSI_RELEASE_COMMIT:?required}", self.content)
         self.assertIn("OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network", self.content)
         self.assertIn('OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES: "262144"', self.content)
         self.assertNotIn("OSI_MCP_HTTP_BODY_LIMIT_BYTES", self.content)
-
-    def test_workos_specific_scope_is_not_reintroduced(self) -> None:
-        self.assertIn("OSI_OAUTH_REQUIRED_SCOPES: ${OSI_OAUTH_REQUIRED_SCOPES:-}", self.content)
-        self.assertNotIn("OSI_OAUTH_REQUIRED_SCOPES: osi:use", self.content)
-        self.assertIn("WorkOS is", self.content)
-
-    def test_oauth_mode_subject_limits_remain_available(self) -> None:
-        self.assertIn('OSI_RATE_LIMIT_PER_MINUTE: "60"', self.content)
-        self.assertIn('OSI_RATE_LIMIT_PER_HOUR: "300"', self.content)
-        self.assertIn('OSI_PREMIUM_RATE_LIMIT_PER_MINUTE: "5"', self.content)
-        self.assertIn("Nginx IP/connection limits", self.content)
 
 
 if __name__ == "__main__":
