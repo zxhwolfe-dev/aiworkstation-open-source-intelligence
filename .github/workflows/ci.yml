@@ -125,10 +125,43 @@ jobs:
           osi-hosted-evidence-readiness --help >/dev/null
           python -c 'from aiworkstation_osi.mcp_server import mcp; assert mcp is not None'
 
-      - name: Validate public hosted OAuth configuration
+      - name: Validate public Hosted configuration without OAuth secrets
         if: matrix.python-version == '3.12'
         env:
           OSI_PROVIDER: http
+          OSI_HOSTED_ACCESS_MODE: public
+          AIWORKSTATION_RADAR_BASE_URL: https://aiworkstation.cn
+          OSI_RELEASE_COMMIT: ${{ github.sha }}
+          OSI_IMAGE_COMMIT: ${{ github.sha }}
+          OSI_MCP_HTTP_HOST: 0.0.0.0
+          OSI_MCP_HTTP_PORT: "8000"
+          OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network
+          OSI_MCP_HTTP_ALLOWED_HOSTS: mcp.example.com,mcp.example.com:*
+          OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES: "262144"
+        run: |
+          set -euo pipefail
+          osi-mcp-hosted --check-config >tmp/hosted-public-config.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("tmp/hosted-public-config.json").read_text(encoding="utf-8"))
+          if payload.get("release_commit") != os.environ["GITHUB_SHA"]:
+              raise SystemExit("Hosted public check-config did not preserve the exact candidate SHA")
+          if payload.get("mode") != "hosted-public" or payload.get("tool_count") != 9:
+              raise SystemExit(f"unexpected public Hosted surface: {payload}")
+          if payload.get("premium_enabled") is not False:
+              raise SystemExit("public Hosted mode must not enable Premium")
+          if "oauth_issuer" in payload or "backend_origin" in payload:
+              raise SystemExit("public Hosted mode unexpectedly loaded OAuth/backend configuration")
+          PY
+
+      - name: Validate optional OAuth Hosted configuration
+        if: matrix.python-version == '3.12'
+        env:
+          OSI_PROVIDER: http
+          OSI_HOSTED_ACCESS_MODE: oauth
           AIWORKSTATION_RADAR_BASE_URL: https://aiworkstation.cn
           OSI_RELEASE_COMMIT: ${{ github.sha }}
           OSI_IMAGE_COMMIT: ${{ github.sha }}
@@ -148,15 +181,16 @@ jobs:
           OSI_BACKEND_SERVICE_TOKEN: test-service-token
         run: |
           set -euo pipefail
-          osi-mcp-hosted --check-config >tmp/hosted-config.json
+          osi-mcp-hosted --check-config >tmp/hosted-oauth-config.json
           python - <<'PY'
           import json
-          import os
           from pathlib import Path
 
-          payload = json.loads(Path("tmp/hosted-config.json").read_text(encoding="utf-8"))
-          if payload.get("release_commit") != os.environ["GITHUB_SHA"]:
-              raise SystemExit("Hosted check-config did not preserve the exact candidate SHA")
+          payload = json.loads(Path("tmp/hosted-oauth-config.json").read_text(encoding="utf-8"))
+          if payload.get("mode") != "hosted-oauth" or payload.get("tool_count") != 10:
+              raise SystemExit(f"unexpected OAuth Hosted surface: {payload}")
+          if payload.get("premium_enabled") is not True:
+              raise SystemExit("OAuth Hosted mode did not preserve Premium")
           PY
 
       - name: End-to-end Streamable HTTP MCP round trip
@@ -208,11 +242,7 @@ jobs:
           docker compose -f compose.hosted.example.yml config >/dev/null
 
           export OSI_RELEASE_COMMIT="${GITHUB_SHA}"
-          export OSI_OAUTH_ISSUER_URL=https://auth.example.com
-          export OSI_OAUTH_INTROSPECTION_URL=https://auth.example.com/oauth2/introspection
-          export OSI_OAUTH_CLIENT_ID=test-client
-          export OSI_OAUTH_CLIENT_SECRET=test-secret
-          export OSI_BACKEND_SERVICE_TOKEN=test-service-token
+          export OSI_HOSTED_ACCESS_MODE=public
 
           docker compose -f compose.public-hosted.example.yml config >/dev/null
           docker compose -f compose.hosted.example.yml build osi-mcp
@@ -230,7 +260,7 @@ jobs:
 
           # Exercise the actual public Hosted image. Its build arg bakes
           # GITHUB_SHA into OSI_IMAGE_COMMIT, while Compose injects the same SHA
-          # as OSI_RELEASE_COMMIT. Hosted startup must reject any mismatch.
+          # as OSI_RELEASE_COMMIT. Public mode must not need OAuth/backend secrets.
           docker compose -f compose.public-hosted.example.yml run --rm --no-deps \
             osi-mcp-hosted osi-mcp-hosted --check-config >tmp/public-hosted-container-config.json
           python - <<'PY'
@@ -243,6 +273,8 @@ jobs:
           )
           if payload.get("release_commit") != os.environ["GITHUB_SHA"]:
               raise SystemExit("Public Hosted container does not match the candidate SHA")
+          if payload.get("mode") != "hosted-public" or payload.get("tool_count") != 9:
+              raise SystemExit("Public Hosted container did not use the anonymous nine-tool surface")
           PY
 
   evidence:
