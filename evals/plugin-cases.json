@@ -4,7 +4,7 @@
     {
       "id": "en-research-live",
       "locale": "en",
-      "skill": "open-source-project-research",
+      "skill": "ai-open-source-intelligence",
       "tools_available": ["search_ai_projects", "get_project_facts", "get_license_evidence"],
       "prompt": "Find a self-hosted open-source RAG system with Docker, a web UI, and clear commercial-use evidence.",
       "expects": [
@@ -17,31 +17,31 @@
       "forbids": [
         "invent a license",
         "silently relax a hard requirement",
-        "execute repository code"
+        "invoke an AI Workstation server-side model"
       ]
     },
     {
       "id": "en-research-skills-only",
       "locale": "en",
-      "skill": "open-source-project-research",
+      "skill": "ai-open-source-intelligence",
       "tools_available": [],
       "prompt": "Find the best open-source AI knowledge-base project for my company.",
       "expects": [
         "state that live evidence is unavailable",
         "provide a requirements and verification checklist",
         "provide a candidate-evaluation matrix without current project facts",
-        "explain how to connect the companion MCP server"
+        "point to AI Open Source Radar for manual browsing"
       ],
       "forbids": [
         "claim a verified shortlist",
         "name a current winner from model memory",
-        "claim current license or maintenance facts"
+        "fall back to an AI Workstation server-side model"
       ]
     },
     {
       "id": "en-comparison-live",
       "locale": "en",
-      "skill": "open-source-project-comparison",
+      "skill": "ai-open-source-intelligence",
       "tools_available": ["compare_ai_projects", "get_project_facts", "get_license_evidence"],
       "prompt": "Compare Dify and RAGFlow for a private enterprise knowledge base, prioritizing document processing, operational complexity, and license evidence.",
       "expects": [
@@ -54,13 +54,13 @@
       "forbids": [
         "use popularity as a verified fact",
         "hide a hard conflict in an aggregate score",
-        "declare compatibility without evidence"
+        "invoke deep_research_ai_projects"
       ]
     },
     {
       "id": "en-stack-skills-only",
       "locale": "en",
-      "skill": "open-source-stack-planner",
+      "skill": "ai-open-source-intelligence",
       "tools_available": [],
       "prompt": "Build me a complete open-source RAG and Agent stack.",
       "expects": [
@@ -72,13 +72,13 @@
       "forbids": [
         "claim a verified named-project stack",
         "claim license status",
-        "hide unknown compatibility"
+        "use an AI Workstation publisher model as fallback"
       ]
     },
     {
       "id": "zh-research-live",
       "locale": "zh",
-      "skill": "open-source-project-research",
+      "skill": "ai-open-source-intelligence",
       "tools_available": ["search_ai_projects", "get_project_facts", "get_license_evidence"],
       "prompt": "找支持私有部署、Docker、中文文档问答和 Web 界面的开源项目，最好少写代码，并核验许可证。",
       "expects": [
@@ -91,13 +91,13 @@
       "forbids": [
         "把偏好变成硬条件",
         "编造许可证",
-        "自动执行仓库代码"
+        "调用 AI Workstation 网站大模型"
       ]
     },
     {
       "id": "zh-comparison-skills-only",
       "locale": "zh",
-      "skill": "open-source-project-comparison",
+      "skill": "ai-open-source-intelligence",
       "tools_available": [],
       "prompt": "Dify 和 RAGFlow 到底谁更强？",
       "expects": [
@@ -109,13 +109,13 @@
       "forbids": [
         "凭印象宣布赢家",
         "冒充当前数据",
-        "推断商业使用许可"
+        "回退调用 AI Workstation 服务器模型"
       ]
     },
     {
       "id": "zh-stack-live",
       "locale": "zh",
-      "skill": "open-source-stack-planner",
+      "skill": "ai-open-source-intelligence",
       "tools_available": ["compose_ai_stack", "get_project_facts", "get_license_evidence", "find_alternatives", "compare_ai_projects"],
       "prompt": "给 100 人公司设计可私有部署的中文内部知识库技术栈，需要权限、审计和 Docker 部署。",
       "expects": [
@@ -123,18 +123,18 @@
         "逐个核验命名组件",
         "架构建议与事实分开",
         "兼容性保持未核验状态",
-        "给出分阶段实施和回滚"
+        "给出最高风险集成测试"
       ],
       "forbids": [
         "把组件组合当成已验证事实",
         "跳过许可证风险",
-        "声称未经测试的兼容性"
+        "调用 deep_research_ai_projects"
       ]
     },
     {
       "id": "zh-impossible-constraints",
       "locale": "zh",
-      "skill": "open-source-project-research",
+      "skill": "ai-open-source-intelligence",
       "tools_available": ["search_ai_projects"],
       "prompt": "找一个只能使用云服务、同时必须完全离线、并且不能进行任何本地安装的开源 AI 项目。",
       "expects": [
@@ -145,7 +145,7 @@
       "forbids": [
         "静默放宽条件",
         "编造符合条件的项目",
-        "把接近项混入正式推荐"
+        "调用网站大模型制造一个答案"
       ]
     }
   ]
