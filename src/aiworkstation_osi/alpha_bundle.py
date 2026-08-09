@@ -33,12 +33,6 @@ REQUIRED_FILES = (
     "docs/plugin-packaging.md",
     "docs/alpha-tester-guide.md",
     "docs/external-alpha-checklist.md",
-    # Historical path markers are retained so older release-readiness tooling can
-    # verify repository continuity. They are outside the active plugin Skill root
-    # and are not valid/installable Skills.
-    "skills/open-source-project-research/SKILL.md",
-    "skills/open-source-project-comparison/SKILL.md",
-    "skills/open-source-stack-planner/SKILL.md",
 )
 
 SECRET_PATTERNS = (
@@ -135,6 +129,8 @@ def collect_bundle_files(root: Path) -> list[tuple[str, bytes]]:
             "public bundle must contain exactly the unified active Skill; found: "
             + ", ".join(sorted(active_skill_docs))
         )
+    if any(path.startswith("skills/") for path in collected):
+        raise ValueError("legacy split Skill paths must not be present in the public bundle")
     return sorted(collected.items())
 
 
