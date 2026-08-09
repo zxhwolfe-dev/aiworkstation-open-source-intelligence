@@ -21,15 +21,14 @@ services:
       OSI_HTTP_TIMEOUT_SECONDS: "30"
       OSI_HYDRATE_LIMIT: "5"
 
-      # Public is the default: exactly nine anonymous read-only Radar tools.
-      # It has no WorkOS/OAuth, billing, Premium-model, or member-token
-      # dependency. Set this to oauth only when an identity provider and the
-      # Premium/member backend have been intentionally configured.
-      OSI_HOSTED_ACCESS_MODE: ${OSI_HOSTED_ACCESS_MODE:-public}
+      # Current product invariant: exactly nine anonymous read-only Radar tools.
+      # This release has no runtime OAuth, Premium, credits, checkout or
+      # AI Workstation server-model execution switch.
+      OSI_HOSTED_ACCESS_MODE: public
 
       # Non-secret exact Git SHA for deployment/evidence binding. The same SHA
-      # is also baked into the image as OSI_IMAGE_COMMIT at build time. Hosted
-      # startup fails unless both identities match.
+      # is baked into the image as OSI_IMAGE_COMMIT at build time. Hosted startup
+      # fails unless both identities match.
       OSI_RELEASE_COMMIT: ${OSI_RELEASE_COMMIT:?required}
 
       OSI_MCP_HTTP_HOST: 0.0.0.0
@@ -37,30 +36,6 @@ services:
       OSI_MCP_HTTP_PUBLIC_BIND_ACK: reverse-proxy-or-private-network
       OSI_MCP_HTTP_ALLOWED_HOSTS: mcp.aiworkstation.cn,mcp.aiworkstation.cn:*
       OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES: "262144"
-
-      # Optional OAuth/Premium compatibility path. These values are ignored in
-      # public mode. They are deliberately not required from the environment so
-      # a free Hosted MCP does not depend on WorkOS or any other identity vendor.
-      # OAuth mode remains provider-neutral at the server boundary; WorkOS is
-      # only one compatible provider.
-      OSI_OAUTH_ISSUER_URL: ${OSI_OAUTH_ISSUER_URL:-}
-      OSI_OAUTH_INTROSPECTION_URL: ${OSI_OAUTH_INTROSPECTION_URL:-}
-      OSI_OAUTH_CLIENT_ID: ${OSI_OAUTH_CLIENT_ID:-}
-      OSI_OAUTH_CLIENT_SECRET: ${OSI_OAUTH_CLIENT_SECRET:-}
-      OSI_OAUTH_RESOURCE_URL: https://mcp.aiworkstation.cn/mcp
-      OSI_OAUTH_REQUIRED_SCOPES: ${OSI_OAUTH_REQUIRED_SCOPES:-}
-      OSI_OAUTH_INTROSPECTION_AUTH: ${OSI_OAUTH_INTROSPECTION_AUTH:-body}
-
-      # Optional future member/Premium backend. Public mode never loads it.
-      OSI_BACKEND_BASE_URL: https://aiworkstation.cn
-      OSI_BACKEND_SERVICE_TOKEN: ${OSI_BACKEND_SERVICE_TOKEN:-}
-
-      # OAuth mode keeps per-subject application limits. Public mode uses the
-      # Nginx IP/connection limits in deploy/nginx/mcp.aiworkstation.cn.conf.example.
-      OSI_RATE_LIMIT_PER_MINUTE: "60"
-      OSI_RATE_LIMIT_PER_HOUR: "300"
-      OSI_PREMIUM_RATE_LIMIT_PER_MINUTE: "5"
-      OSI_RATE_LIMIT_MAX_SUBJECTS: "10000"
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import socket; s=socket.create_connection((\"127.0.0.1\",8000),3); s.close()'"]
       interval: 30s
