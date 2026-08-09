@@ -48,9 +48,6 @@ class HostedEvidenceReadinessTests(unittest.TestCase):
                 "aiworkstation_osi.hosted_evidence_readiness.validate_public_hosted_remote_evidence",
                 return_value=hosted,
             ) as public_validator, patch(
-                "aiworkstation_osi.hosted_evidence_readiness.validate_hosted_remote_evidence",
-                side_effect=AssertionError("OAuth validator must not run for public mode"),
-            ), patch(
                 "aiworkstation_osi.hosted_evidence_readiness.evaluate_evidence_readiness",
                 return_value=fake_report,
             ) as evaluate:
@@ -81,44 +78,26 @@ class HostedEvidenceReadinessTests(unittest.TestCase):
             self.assertTrue(check["details"]["evidence_verified"])
         self.assertTrue(result["checks"][0]["details"]["remote_evidence_verified"])
 
-    def test_oauth_mode_preserves_existing_validator(self) -> None:
-        fake_report = self._fake_report(True)
-        hosted = {
-            "ok": True,
-            "path": "/tmp/hosted.json",
-            "endpoint": "https://mcp.aiworkstation.cn/mcp",
-            "errors": [],
-        }
+    def test_oauth_access_mode_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             inputs = self._inputs(root)
-            with patch("aiworkstation_osi.hosted_evidence_readiness._git_head", return_value="candidate-sha"), patch(
-                "aiworkstation_osi.hosted_evidence_readiness.validate_public_hosted_remote_evidence",
-                side_effect=AssertionError("public validator must not run for oauth mode"),
-            ), patch(
-                "aiworkstation_osi.hosted_evidence_readiness.validate_hosted_remote_evidence",
-                return_value=hosted,
-            ) as oauth_validator, patch(
-                "aiworkstation_osi.hosted_evidence_readiness.evaluate_evidence_readiness",
-                return_value=fake_report,
-            ):
-                result = evaluate_hosted_evidence_readiness(
-                    root,
-                    ci_evidence=inputs[0],
-                    live_validation_evidence=inputs[1],
-                    codex_acceptance_report=inputs[2],
-                    hosted_remote_evidence=inputs[3],
-                    artifact_reviewed=True,
-                    reviewer="Human Reviewer",
-                    expected_base_url="https://aiworkstation.cn",
-                    expected_hosted_mcp_url="https://mcp.aiworkstation.cn/mcp",
-                    expected_access_mode="oauth",
-                    expected_oauth_issuer="https://auth.example.com",
-                )
-
-        oauth_validator.assert_called_once()
-        self.assertEqual(result["hosted_access_mode"], "oauth")
-        self.assertIn("OAuth-protected", result["checks"][1]["message"])
+            with patch("aiworkstation_osi.hosted_evidence_readiness._git_head", return_value="candidate-sha"):
+                with self.assertRaises(ValueError) as context:
+                    evaluate_hosted_evidence_readiness(
+                        root,
+                        ci_evidence=inputs[0],
+                        live_validation_evidence=inputs[1],
+                        codex_acceptance_report=inputs[2],
+                        hosted_remote_evidence=inputs[3],
+                        artifact_reviewed=True,
+                        reviewer="Human Reviewer",
+                        expected_base_url="https://aiworkstation.cn",
+                        expected_hosted_mcp_url="https://mcp.aiworkstation.cn/mcp",
+                        expected_access_mode="oauth",
+                        expected_oauth_issuer="https://auth.example.com",
+                    )
+        self.assertIn("OAuth Hosted mode is disabled", str(context.exception))
 
     def test_invalid_public_evidence_cannot_be_overridden(self) -> None:
         fake_report = self._fake_report(False)
