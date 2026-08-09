@@ -90,7 +90,7 @@ def _plugin_metadata(root: Path) -> tuple[str, str]:
 
 
 def collect_bundle_files(root: Path) -> list[tuple[str, bytes]]:
-    """Collect the reviewed Skills-only distribution surface."""
+    """Collect the reviewed single-Skill distribution surface."""
 
     resolved_root = root.resolve()
     collected: dict[str, bytes] = {}
@@ -110,14 +110,13 @@ def collect_bundle_files(root: Path) -> list[tuple[str, bytes]]:
             raise ValueError(f"unsupported Skill bundle file type: {relative}")
         collected[relative] = data
 
-    expected_skills = {
-        "skills/open-source-project-research/SKILL.md",
-        "skills/open-source-project-comparison/SKILL.md",
-        "skills/open-source-stack-planner/SKILL.md",
-    }
-    missing = sorted(expected_skills - set(collected))
-    if missing:
-        raise ValueError(f"required Skills are missing: {', '.join(missing)}")
+    expected_skills = {"skills/ai-open-source-intelligence/SKILL.md"}
+    actual_skill_docs = {path for path in collected if path.startswith("skills/") and path.endswith("/SKILL.md")}
+    if actual_skill_docs != expected_skills:
+        raise ValueError(
+            "public bundle must contain exactly the unified Skill; found: "
+            + ", ".join(sorted(actual_skill_docs))
+        )
     return sorted(collected.items())
 
 
