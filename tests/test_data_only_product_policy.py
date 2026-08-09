@@ -68,15 +68,11 @@ class DataOnlyProductPolicyTests(unittest.TestCase):
         self.assertIn("never request or enable AI Workstation server-side model execution", content)
         self.assertIn("never invoke `deep_research_ai_projects`", content)
 
-    def test_historical_skill_paths_are_not_valid_active_skills(self) -> None:
-        for name in (
-            "open-source-project-research",
-            "open-source-project-comparison",
-            "open-source-stack-planner",
-        ):
-            content = (self.ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
-            self.assertFalse(content.startswith("---\n"))
-            self.assertIn("Deprecated compatibility marker", content)
+    def test_legacy_split_skill_paths_are_removed(self) -> None:
+        legacy = self.ROOT / "skills"
+        self.assertFalse((legacy / "open-source-project-research" / "SKILL.md").exists())
+        self.assertFalse((legacy / "open-source-project-comparison" / "SKILL.md").exists())
+        self.assertFalse((legacy / "open-source-stack-planner" / "SKILL.md").exists())
 
     def test_public_compose_contains_no_oauth_or_server_model_secrets(self) -> None:
         compose = (self.ROOT / "compose.public-hosted.example.yml").read_text(encoding="utf-8")
