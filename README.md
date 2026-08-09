@@ -1,50 +1,54 @@
 # AI Open Source Intelligence
 
-**Evidence-backed open-source AI research, Radar browsing, comparison, license verification and stack planning.**
+**One Skill. Nine live read-only Radar tools. Evidence-backed open-source AI research without a second server-side model call.**
 
-[简体中文](README.zh-CN.md) · [AI Open Source Radar](https://aiworkstation.cn/githubai/) · [Quickstart](docs/QUICKSTART.md) · [Architecture](docs/ONE-INSTALL-PRODUCT.md)
+[简体中文](README.zh-CN.md) · [AI Workstation](https://aiworkstation.cn/) · [AI Open Source Radar](https://aiworkstation.cn/githubai/) · [Quickstart](docs/QUICKSTART.md)
 
 AI Open Source Intelligence is the Skills/MCP product layer for **AI Open Source Radar**.
 
-## Product experience
-
-The default Hosted product is intentionally simple:
+## Product shape
 
 ```text
-Install / connect once
-        |
-        v
-3 Skills + public Hosted MCP
-        |
-        v
-9 live read-only Radar tools
-        |
-        v
-AI Workstation public Radar data
+User in ChatGPT / Codex / compatible host
+                 |
+                 v
+      1 unified product Skill
+                 |
+                 v
+      9 read-only MCP tools
+                 |
+                 v
+     AI Workstation public Radar
 ```
 
-The nine standard tools do **not** require WorkOS, another OAuth provider, payment, a Premium backend, or a separate OSI membership.
+The user does not choose separate research/comparison/stack Skills. The single Skill routes the task internally.
 
-Future member-only/Premium capabilities will be linked to the existing **AI Workstation membership** source of truth rather than creating a second unrelated subscriber/credit system.
+The **host model** performs natural-language reasoning and synthesis. The AI Workstation server provides data/evidence only on this product path.
 
-## What it can do
+## One active Skill
 
-### Discover and verify projects
+```text
+ai-open-source-intelligence
+```
 
-- search open-source AI projects from natural-language requirements;
-- verify project identity, public metadata and evidence freshness;
-- verify direct public license evidence without treating a missing license as permission;
-- find alternatives while preserving hard requirements;
-- compare two to five projects in one decision context;
-- compose candidate open-source AI stacks while exposing integration unknowns.
+It handles:
 
-### Browse AI Open Source Radar
+- browsing rankings, collections, categories, scenarios and the Radar Skills library;
+- finding projects from deployment, privacy, integration, budget and license requirements;
+- verifying named-project facts and license evidence;
+- comparing two to five projects for a concrete use case;
+- finding alternatives while preserving hard requirements;
+- planning candidate open-source AI stacks and exposing unverified compatibility.
 
-- `get_radar_overview` — rankings, collections, categories, scenarios and filter dimensions;
-- `browse_radar_projects` — rankings, collections, categories, scenarios, topics, deployment, license and public filters;
-- `browse_radar_skills` — browse/filter/search the Radar Skills library or open one Skill by ID.
+The active Skill is packaged from:
 
-## Nine standard live tools
+```text
+product-skills/ai-open-source-intelligence/SKILL.md
+```
+
+Historical `skills/*/SKILL.md` paths are repository compatibility markers only. They are outside the plugin's active Skill root and are not installable product Skills.
+
+## Nine standard MCP tools
 
 ```text
 search_ai_projects
@@ -58,28 +62,97 @@ browse_radar_projects
 browse_radar_skills
 ```
 
-All nine are read-only with respect to user data, AI Workstation content, GitHub and third-party repositories. They never execute or install third-party repository code.
+All nine are read-only. They do not execute or install third-party repository code.
 
-## Skills
+## No AI Workstation server-model execution
 
-- `open-source-project-research`
-- `open-source-project-comparison`
-- `open-source-stack-planner`
+This is a hard product boundary for the current release.
 
-Skills define reusable safe research workflows; the Hosted MCP supplies current Radar data.
+The Hosted MCP exposes **no Premium model tool**, no checkout tool and no runtime OAuth/Premium switch. Requirement-based selection calls the public Radar selector with:
+
+```text
+use_model=false
+```
+
+Therefore an ordinary Skill/MCP workflow is:
+
+```text
+ChatGPT/Codex host model
+        -> chooses/read tools
+        -> AI Workstation public Radar data/evidence
+        -> host model synthesizes the final answer
+```
+
+It is **not**:
+
+```text
+host model -> AI Workstation model -> second model bill
+```
+
+If member-linked server-model capabilities are added later, they must ship as a new reviewed product version rather than being enabled through a hidden environment variable.
 
 ## Evidence model
 
-Every standard tool result keeps four boundaries explicit:
+Every tool result separates:
 
-1. **verified facts** — source-backed facts that crossed the evidence boundary;
-2. **recommendations** — analysis or decision guidance;
+1. **verified facts** — source-backed observations that crossed the evidence boundary;
+2. **recommendations** — host-model/rules analysis;
 3. **unknowns** — unavailable or unverified information;
 4. **risks** — license, maintenance, deployment, security and integration limits.
 
-License is stricter still: a label is promoted to a verified license only when direct public evidence is available. License output is technical evidence, not legal advice.
+A value in `data` is not automatically a verified fact. License evidence is deliberately stricter and is technical evidence, not legal advice.
 
-## Developer/local mode
+## Official resources in results
+
+MCP tool results include canonical, non-tracking publisher links under:
+
+```text
+data.official_resources
+```
+
+with:
+
+- AI Workstation — https://aiworkstation.cn/
+- AI Open Source Radar — https://aiworkstation.cn/githubai/
+- this open-source project — https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence
+
+The unified Skill may show these once at the end of a normal user-facing answer. They are kept separate from verified facts so publisher attribution never changes a research conclusion.
+
+## Hosted MCP
+
+Canonical endpoint:
+
+```text
+https://mcp.aiworkstation.cn/mcp
+```
+
+Current Hosted mode is intentionally:
+
+```text
+anonymous
+read-only
+data-only
+9 tools
+no OAuth
+no WorkOS dependency
+no Premium/server model
+```
+
+The container stays on host loopback `127.0.0.1:8001` behind Nginx/TLS.
+
+### Anonymous abuse controls
+
+The gateway uses two per-IP request windows plus a connection cap:
+
+- short-window: `60 requests/minute`, burst `30`;
+- sustained: `10 requests/minute`, burst `300`;
+- concurrent connections: `10` per IP;
+- MCP request body: `256 KB` maximum;
+- unrelated paths on the dedicated MCP hostname return `404`.
+
+This is intentionally request-based rather than token-based because the nine data tools do not consume AI Workstation model tokens.
+
+## Local development
 
 ```bash
 python -m venv .venv
@@ -87,13 +160,13 @@ source .venv/bin/activate
 python -m pip install -e ".[mcp]"
 ```
 
-Offline mock:
+Offline fixture data:
 
 ```bash
 OSI_PROVIDER=mock osi-mcp
 ```
 
-Live public Radar data through local stdio MCP:
+Live public Radar data:
 
 ```bash
 OSI_PROVIDER=http \
@@ -101,139 +174,38 @@ AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn \
 osi-mcp
 ```
 
-## Hosted mode
-
-The production command is:
+Hosted configuration check requires an exact candidate identity:
 
 ```bash
+OSI_PROVIDER=http \
+OSI_HOSTED_ACCESS_MODE=public \
+OSI_RELEASE_COMMIT=<exact-40-char-sha> \
+OSI_IMAGE_COMMIT=<same-exact-40-char-sha> \
 osi-mcp-hosted --check-config
 ```
 
-### Public mode — default
+Setting `OSI_HOSTED_ACCESS_MODE=oauth` fails closed in the current release.
 
-```text
-OSI_HOSTED_ACCESS_MODE=public
-```
+## Safety rules
 
-Public mode:
+- never execute third-party repository code as part of research;
+- never infer permission from a missing license;
+- never silently weaken a hard requirement to manufacture a match;
+- never claim cross-project compatibility without evidence or a controlled test;
+- never substitute model memory for unavailable live evidence;
+- never enable AI Workstation server-side model execution in the current standard Skill/MCP path.
 
-- exposes exactly nine standard tools;
-- requires no login;
-- loads no OAuth/WorkOS configuration;
-- loads no Premium/member backend;
-- exposes no Premium tool;
-- preserves exact candidate/image deployment identity;
-- requires HTTPS and gateway per-IP request/connection controls.
-
-The public Compose example publishes the container only on host loopback `127.0.0.1:8001` and expects Nginx/TLS in front of it.
-
-### OAuth mode — optional compatibility/future-member path
-
-```text
-OSI_HOSTED_ACCESS_MODE=oauth
-```
-
-OAuth mode preserves the existing standards-based authorization path and the current `deep_research_ai_projects` compatibility contract. It is not required for the free Hosted Private Alpha.
-
-WorkOS is one compatible authorization provider, not a product dependency.
-
-## Membership and monetization
-
-AI Workstation Open Source Intelligence does **not** need a second independent membership system.
-
-Target direction:
-
-```text
-                    AI Workstation membership
-                              |
-                  +-----------+-----------+
-                  |                       |
-             website usage           Skills / MCP
-                  |                       |
-                  +-----------+-----------+
-                              |
-                     unified AI usage policy
-```
-
-The existing AI Workstation commercial process can remain manual while demand is small: users may pay through existing offline/WeChat/email channels and receive/activate AI Workstation membership through the existing system.
-
-A payment provider such as Paddle is optional automation later. If added, it should update the same AI Workstation membership source of truth instead of creating a separate OSI subscription ledger.
-
-Do not use reusable invite/activation codes as MCP bearer tokens or normal tool arguments. Future member linking must happen through a reviewed first-party or standards-based identity flow.
-
-See [`docs/MEMBERSHIP-AND-MONETIZATION.md`](docs/MEMBERSHIP-AND-MONETIZATION.md).
-
-## Optional Premium research
-
-The repository retains an OAuth-mode compatibility tool:
-
-```text
-deep_research_ai_projects
-```
-
-It is **not present in default public Hosted mode**. The current compatibility implementation remains non-destructive but is intentionally not read-only/idempotent because it can consume publisher-model entitlement state.
-
-Before any paid launch, its entitlement semantics must be unified with AI Workstation membership/quota policy rather than treated as a separate final commercial system.
-
-See [`schemas/hosted-tool-manifest.json`](schemas/hosted-tool-manifest.json).
-
-## Hosted evidence
-
-Formal public Hosted validation proves:
-
-- exact local candidate = Docker image identity = remote deployment identity;
-- HTTPS endpoint;
-- explicit Nginx IP/request/connection abuse-control policy;
-- exactly nine standard read-only tools;
-- real remote `search_ai_projects` invocation;
-- negotiated MCP protocol version.
-
-Example:
+## Development checks
 
 ```bash
-osi-remote-smoke \
-  --root . \
-  --url https://mcp.aiworkstation.cn/mcp \
-  --profile hosted-public \
-  --auth-mode none \
-  --output tmp/hosted-remote.json
+python -m compileall -q src tests
+python -m unittest discover -s tests -v
+osi-validate-plugin --root .
+osi-readiness --root .
 ```
 
-OAuth evidence remains separately available with `--profile hosted-oauth`.
-
-## Live contract validation
-
-Two workflow layers protect releases:
-
-- evidence-critical live contract validation for project facts, selectors, license and privacy-safe captures;
-- full Radar browse validation for EN/ZH overview, rankings, collections, categories, scenarios, Skills listing and Skill detail.
-
-## Status
-
-**Hosted candidate development — not yet a broad public launch.**
-
-The current direction deliberately separates two milestones:
-
-1. launch the anonymous, read-only nine-tool Hosted MCP with no WorkOS/payment dependency;
-2. later add a secure MCP-client-to-AI-Workstation-member bridge before enabling member-only Premium behavior.
-
-Automated billing is not a Hosted Private Alpha gate.
-
-## Documentation
-
-- [`docs/hosted-private-alpha.md`](docs/hosted-private-alpha.md)
-- [`docs/MEMBERSHIP-AND-MONETIZATION.md`](docs/MEMBERSHIP-AND-MONETIZATION.md)
-- [`docs/HOSTED-OAUTH.md`](docs/HOSTED-OAUTH.md)
-- [`docs/ONE-INSTALL-PRODUCT.md`](docs/ONE-INSTALL-PRODUCT.md)
-- [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
-- [`docs/FAQ.md`](docs/FAQ.md)
-- [`docs/MODEL-AND-DATA-FLOW.md`](docs/MODEL-AND-DATA-FLOW.md)
-- [`docs/architecture.md`](docs/architecture.md)
-- [`docs/release-readiness.md`](docs/release-readiness.md)
-- [`SECURITY.md`](SECURITY.md)
-- [`PRIVACY.md`](PRIVACY.md)
-- [`TERMS.md`](TERMS.md)
+CI covers Python 3.10 and 3.12, deterministic Skill packaging, MCP round trips, data-only Hosted configuration and container packaging.
 
 ## License
 
-The public distribution repository is licensed under Apache-2.0. That does not grant rights to private AI Workstation databases, unpublished Radar production data, private backend systems, service credentials, payment accounts or AI Workstation trademarks.
+The public repository is licensed under Apache-2.0. That does not grant rights to private AI Workstation databases, unpublished datasets, credentials, infrastructure or trademarks.
