@@ -40,13 +40,13 @@ ai-open-source-intelligence
 - 在不放宽硬条件的情况下找替代；
 - 规划候选开源 AI 技术栈，并明确兼容性未知项。
 
-真正安装的 Skill 来自：
+唯一正式 Skill 来自：
 
 ```text
 product-skills/ai-open-source-intelligence/SKILL.md
 ```
 
-仓库中历史 `skills/*/SKILL.md` 路径只为旧 release/readiness 工具保留，是兼容标记，不属于 Plugin 的有效 Skill 根目录，也不是用户可安装的 Skill。
+之前拆开的“项目研究 / 项目对比 / 技术栈规划”三个 Skill 文件已从当前产品和分发包中彻底移除。
 
 ## 9 个标准 MCP 工具
 
@@ -144,7 +144,7 @@ https://mcp.aiworkstation.cn/mcp
 
 ### 匿名防刷
 
-公网网关现在使用两层 IP 请求限流 + 并发限制：
+公网网关使用两层 IP 请求限流 + 并发限制：
 
 - 短时：`60 次/分钟`，burst `30`；
 - 持续：`10 次/分钟`，burst `300`；
