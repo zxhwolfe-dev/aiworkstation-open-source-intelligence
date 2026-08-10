@@ -6,8 +6,20 @@ import math
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
-from .contracts import ExecutionEffects, Recommendation, Risk, TOOL_NAMES, ToolResult, VerifiedFact
-from .errors import InvalidInputError, ProviderUnavailableError, UnknownToolError, UpstreamContractError
+from .contracts import (
+    TOOL_NAMES,
+    ExecutionEffects,
+    Recommendation,
+    Risk,
+    ToolResult,
+    VerifiedFact,
+)
+from .errors import (
+    InvalidInputError,
+    ProviderUnavailableError,
+    UnknownToolError,
+    UpstreamContractError,
+)
 from .providers import ProjectIntelligenceProvider, ProviderOutput
 
 ToolHandler = Callable[[Mapping[str, Any]], ToolResult]

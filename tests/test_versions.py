@@ -23,7 +23,7 @@ class VersionAlignmentTests(unittest.TestCase):
 
         self.assertEqual(python_version, plugin_version)
         self.assertIn(f"## [{plugin_version}]", changelog)
-        self.assertNotIn('version = "', pyproject)
+        self.assertNotRegex(pyproject, r'(?m)^version\s*=\s*"')
 
     def test_version_is_plain_semantic_version_for_current_plugin_contract(self) -> None:
         plugin = json.loads(

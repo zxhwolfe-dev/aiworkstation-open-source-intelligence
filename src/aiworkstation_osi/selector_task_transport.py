@@ -14,8 +14,12 @@ from collections.abc import Callable
 from threading import BoundedSemaphore
 from typing import Any, Mapping
 
-from .errors import ProviderOverloadedError, ProviderUnavailableError, UpstreamContractError
-from .http_provider import JsonResponse, JsonTransport, PUBLIC_API_PREFIX
+from .errors import (
+    ProviderOverloadedError,
+    ProviderUnavailableError,
+    UpstreamContractError,
+)
+from .http_provider import PUBLIC_API_PREFIX, JsonResponse, JsonTransport
 
 SELECTOR_PATH = f"{PUBLIC_API_PREFIX}/selector"
 SELECTOR_TASKS_PATH = f"{PUBLIC_API_PREFIX}/selector/tasks"

@@ -12,7 +12,12 @@ import urllib.parse
 from typing import Any, Mapping, Sequence
 
 from .errors import UpstreamContractError
-from .http_provider import DEFAULT_BASE_URL, PUBLIC_API_PREFIX, JsonTransport, _snapshot_id
+from .http_provider import (
+    DEFAULT_BASE_URL,
+    PUBLIC_API_PREFIX,
+    JsonTransport,
+    _snapshot_id,
+)
 from .providers import ProviderOutput
 from .selector_task_transport import SelectorTaskJsonTransport
 from .strict_http_provider import (
@@ -20,7 +25,6 @@ from .strict_http_provider import (
     SafeUrllibJsonTransport,
     _find_internal_fields,
 )
-
 
 _PROJECT_FILTER_FIELDS = (
     "ranking",

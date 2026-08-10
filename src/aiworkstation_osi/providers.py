@@ -197,13 +197,13 @@ class MockProjectIntelligenceProvider:
                     [str(row.get("project_id") or ""), str(row.get("name") or ""), str(row.get("summary") or "")]
                 ).lower()
             ]
-        for field, source_key in (
+        for filter_field, source_key in (
             ("category", "categories"),
             ("scenario", "use_cases"),
             ("use_case", "use_cases"),
             ("collection", "collections"),
         ):
-            wanted = str(request.get(field) or "").strip().lower()
+            wanted = str(request.get(filter_field) or "").strip().lower()
             if wanted:
                 rows = [row for row in rows if wanted in {str(value).lower() for value in row.get(source_key) or []}]
         deployment = str(request.get("deployment") or "").strip().lower()

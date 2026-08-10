@@ -16,7 +16,6 @@ from typing import Any, Mapping, Sequence
 from .contracts import Evidence, Risk, VerifiedFact
 from .errors import ProviderUnavailableError, UpstreamContractError
 from .http_provider import (
-    AIWorkstationHttpProvider as BaseAIWorkstationHttpProvider,
     DEFAULT_BASE_URL,
     JsonResponse,
     JsonTransport,
@@ -24,6 +23,9 @@ from .http_provider import (
     _project_id,
     _response_time,
     _selector_projects,
+)
+from .http_provider import (
+    AIWorkstationHttpProvider as BaseAIWorkstationHttpProvider,
 )
 from .providers import ProviderOutput
 
