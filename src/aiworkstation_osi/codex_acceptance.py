@@ -30,8 +30,7 @@ MAX_CODEX_ATTEMPTS = 2
 
 TOOL_ACCEPTANCE_TASKS = {
     "search_ai_projects": (
-        "find a self-hosted RAG project requiring Docker and a Web UI, "
-        "locale=en, source_mode=required"
+        "find a self-hosted RAG project requiring Docker and a Web UI, locale=en"
     ),
     "get_project_facts": "inspect infiniflow/ragflow in English",
     "get_license_evidence": (

@@ -154,9 +154,11 @@ def run_probe(
         "search_ai_projects",
         {
             "query": query,
-            "constraints": {"docker": "required", "web_ui": "preferred"},
+            "constraints": [
+                {"id": "docker", "value": True, "polarity": "required"},
+                {"id": "web_ui", "value": True, "polarity": "preferred"},
+            ],
             "locale": locale,
-            "source_mode": "required",
             "request_id": "probe-search",
         },
     ).to_dict()

@@ -61,7 +61,7 @@ class MCPServerTests(unittest.TestCase):
                 self.assertIsNotNone(result.structured_content)
                 assert result.structured_content is not None
                 self.assertEqual(result.structured_content["tool"], "browse_radar_projects")
-                self.assertEqual(result.structured_content["schema_version"], "osi.tool-result.v1")
+                self.assertEqual(result.structured_content["schema_version"], "osi.tool-result.v2")
 
         asyncio.run(run())
 
@@ -70,10 +70,11 @@ class MCPServerTests(unittest.TestCase):
             server = build_mcp_server(create_default_registry())
             async with Client(server) as client:
                 result = await client.call_tool("get_project_facts", {"project_id": ""})
-                self.assertTrue(result.is_error)
-                self.assertIsNone(result.structured_content)
-                rendered = " ".join(getattr(item, "text", "") for item in result.content)
-                self.assertIn("INVALID_INPUT", rendered)
+                self.assertFalse(result.is_error)
+                self.assertIsNotNone(result.structured_content)
+                assert result.structured_content is not None
+                self.assertEqual(result.structured_content["schema_version"], "osi.error.v2")
+                self.assertEqual(result.structured_content["error"]["code"], "INVALID_INPUT")
 
         asyncio.run(run())
 

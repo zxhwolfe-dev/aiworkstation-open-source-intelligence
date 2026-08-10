@@ -1,10 +1,9 @@
 name: publish-ghcr
 
 on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
+  workflow_run:
+    workflows: [github-release]
+    types: [completed]
 
 permissions:
   contents: read
@@ -16,9 +15,12 @@ concurrency:
 
 jobs:
   image:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -36,8 +38,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=ref,event=tag
-            type=sha
+            type=raw,value=sha-${{ github.event.workflow_run.head_sha }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -46,6 +47,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            OSI_IMAGE_COMMIT=${{ github.event.workflow_run.head_sha }}
 
       - name: Summarize
         run: |

@@ -10,11 +10,11 @@ class PublicationWorkflowTests(unittest.TestCase):
     def _workflow(self, name: str) -> str:
         return (self.ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
 
-    def test_pypi_requires_manual_confirmation_and_oidc(self) -> None:
+    def test_pypi_promotes_successful_release_artifact_with_oidc(self) -> None:
         content = self._workflow("publish-pypi.yml")
-        self.assertIn("workflow_dispatch:", content)
-        self.assertNotIn("push:\n    branches: [main]", content)
-        self.assertIn('test "$CONFIRM" = "PUBLISH"', content)
+        self.assertIn("workflow_run:", content)
+        self.assertIn("workflows: [github-release]", content)
+        self.assertIn("head_sha", content)
         self.assertIn("id-token: write", content)
         self.assertIn("environment: pypi", content)
         self.assertIn("pypa/gh-action-pypi-publish", content)
@@ -25,16 +25,19 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", content)
         self.assertNotIn("push:\n    branches: [main]", content)
         self.assertIn("contents: write", content)
-        self.assertIn("tag must look like v0.1.0", content)
+        self.assertIn("tag must look like v0.3.0", content)
+        self.assertIn("Full commit SHA to release", content)
+        self.assertIn("commit must be a full 40-character SHA", content)
+        self.assertIn("ref: ${{ inputs.commit }}", content)
         self.assertIn("does not match plugin version", content)
         self.assertIn("osi-build-alpha", content)
         self.assertIn("gh release create", content)
 
-    def test_ghcr_publishes_only_from_tag_or_manual_dispatch(self) -> None:
+    def test_ghcr_promotes_the_successful_release_sha(self) -> None:
         content = self._workflow("publish-ghcr.yml")
-        self.assertIn("workflow_dispatch:", content)
-        self.assertIn('tags:\n      - "v*"', content)
-        self.assertNotIn("branches: [main]", content)
+        self.assertIn("workflow_run:", content)
+        self.assertIn("workflows: [github-release]", content)
+        self.assertIn("OSI_IMAGE_COMMIT=${{ github.event.workflow_run.head_sha }}", content)
         self.assertIn("packages: write", content)
         self.assertIn("docker/build-push-action", content)
         self.assertIn("ghcr.io/${{ github.repository }}", content)

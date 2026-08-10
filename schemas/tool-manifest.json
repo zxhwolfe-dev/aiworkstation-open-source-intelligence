@@ -1,6 +1,6 @@
 {
   "schema_version": "osi.tool-manifest.v1",
-  "status": "m1-alpha",
+  "status": "0.3-release-candidate",
   "runtime_limits": {
     "structured_max_depth": 6,
     "structured_max_nodes": 200,
@@ -31,9 +31,8 @@
         },
         "properties": {
           "query": {"type": "string", "minLength": 1, "maxLength": 4000},
-          "constraints": {"type": "object", "maxProperties": 50, "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.", "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}},
+          "constraints": {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/constraint"}, "description": "Typed constraints preserving required, preferred and excluded intent."},
           "locale": {"enum": ["zh", "en"], "default": "en"},
-          "source_mode": {"enum": ["required", "preferred", "off"], "default": "required"},
           "request_id": {"type": "string", "maxLength": 128}
         }
       }
@@ -58,7 +57,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["project_ids"],
-        "$defs": {"structuredValue": {"anyOf": [{"type": "string", "maxLength": 1000}, {"type": "number"}, {"type": "boolean"}, {"type": "null"}, {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}}, {"type": "object", "maxProperties": 50, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}}]}},
+        "$defs": {"structuredValue": {"anyOf": [{"type": "string", "maxLength": 1000}, {"type": "number"}, {"type": "boolean"}, {"type": "null"}, {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}}, {"type": "object", "maxProperties": 50, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}}]}, "constraint": {"type": "object", "additionalProperties": false, "required": ["id", "value", "polarity"], "properties": {"id": {"type": "string", "minLength": 1, "maxLength": 128}, "value": {"$ref": "#/$defs/structuredValue"}, "polarity": {"enum": ["required", "preferred", "excluded"]}}}},
         "properties": {
           "project_ids": {"type": "array", "minItems": 2, "maxItems": 5, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
           "criteria": {"type": "array", "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
@@ -76,10 +75,10 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["project_id"],
-        "$defs": {"structuredValue": {"anyOf": [{"type": "string", "maxLength": 1000}, {"type": "number"}, {"type": "boolean"}, {"type": "null"}, {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}}, {"type": "object", "maxProperties": 50, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}}]}},
+        "$defs": {"structuredValue": {"anyOf": [{"type": "string", "maxLength": 1000}, {"type": "number"}, {"type": "boolean"}, {"type": "null"}, {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}}, {"type": "object", "maxProperties": 50, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}}]}, "constraint": {"type": "object", "additionalProperties": false, "required": ["id", "value", "polarity"], "properties": {"id": {"type": "string", "minLength": 1, "maxLength": 128}, "value": {"$ref": "#/$defs/structuredValue"}, "polarity": {"enum": ["required", "preferred", "excluded"]}}}},
         "properties": {
           "project_id": {"type": "string", "minLength": 1, "maxLength": 256},
-          "constraints": {"type": "object", "maxProperties": 50, "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.", "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}},
+          "constraints": {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/constraint"}},
           "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}
         }
@@ -96,7 +95,7 @@
         "$defs": {"structuredValue": {"anyOf": [{"type": "string", "maxLength": 1000}, {"type": "number"}, {"type": "boolean"}, {"type": "null"}, {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/structuredValue"}}, {"type": "object", "maxProperties": 50, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}}]}},
         "properties": {
           "business_goal": {"type": "string", "minLength": 1, "maxLength": 4000},
-          "constraints": {"type": "object", "maxProperties": 50, "description": "JSON-compatible constraints. Runtime additionally limits total nodes and nesting depth.", "propertyNames": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F]+$"}, "additionalProperties": {"$ref": "#/$defs/structuredValue"}},
+          "constraints": {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/constraint"}},
           "existing_stack": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
           "locale": {"enum": ["zh", "en"], "default": "en"},
           "request_id": {"type": "string", "maxLength": 128}

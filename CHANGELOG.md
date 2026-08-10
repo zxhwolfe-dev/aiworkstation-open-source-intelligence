@@ -2,6 +2,14 @@
 
 All notable pre-release changes are recorded here. Dates refer to repository changes, not public availability.
 
+## [0.3.0] - 2026-08-10
+
+### Changed
+
+- Rebuilt the public contract around one version source, nine tools and `osi.tool-result.v2` / `osi.error.v2` envelopes.
+- Replaced untyped constraint maps with typed `{id, value, polarity}` arrays and removed the inactive `source_mode` parameter.
+- Documented ephemeral selector control-plane effects while retaining the non-destructive, business-data read-only boundary.
+
 ## [0.2.0] - 2026-08-09
 
 ### Changed

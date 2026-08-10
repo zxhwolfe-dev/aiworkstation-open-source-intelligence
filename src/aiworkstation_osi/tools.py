@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
-from .contracts import Recommendation, Risk, TOOL_NAMES, ToolResult, VerifiedFact
+from .contracts import ExecutionEffects, Recommendation, Risk, TOOL_NAMES, ToolResult, VerifiedFact
 from .errors import InvalidInputError, ProviderUnavailableError, UnknownToolError, UpstreamContractError
 from .providers import ProjectIntelligenceProvider, ProviderOutput
 
@@ -214,6 +214,37 @@ def _mapping(payload: Mapping[str, Any], field: str) -> dict[str, Any]:
     return validated
 
 
+def _constraints(payload: Mapping[str, Any], field: str = "constraints") -> list[dict[str, Any]]:
+    """Validate v2 typed constraints while preserving polarity."""
+    raw = payload.get(field)
+    if raw is None:
+        return []
+    if isinstance(raw, Mapping):
+        raw = [{"id": key, "value": value.get("value") if isinstance(value, Mapping) and "value" in value else value,
+                "polarity": (value.get("polarity") or value.get("status") or "required") if isinstance(value, Mapping) else "required"}
+               for key, value in raw.items()]
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)):
+        raise InvalidInputError(f"{field} must be an array of constraint objects", details={"field": field})
+    if len(raw) > MAX_STRUCTURED_CONTAINER_ITEMS:
+        raise InvalidInputError(f"{field} contains too many constraints", details={"field": field})
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, item in enumerate(raw):
+        if not isinstance(item, Mapping):
+            raise InvalidInputError(f"{field}[{index}] must be an object", details={"field": field})
+        _reject_unknown_fields(item, {"id", "value", "polarity"})
+        identifier = _required_text(item, "id", max_length=128).lower()
+        if any(ord(char) < 32 for char in identifier):
+            raise InvalidInputError(f"{field}[{index}].id contains control characters", details={"field": field})
+        if identifier in seen:
+            raise InvalidInputError(f"{field} contains duplicate ids", details={"field": field, "id": identifier})
+        seen.add(identifier)
+        polarity = _enum_value(item, "polarity", allowed=("required", "preferred", "excluded"), default="required")
+        value = _structured_value(item.get("value"), field=field, location=f"{field}[{index}].value", depth=0, counter=[0])
+        result.append({"id": identifier, "value": value, "polarity": polarity})
+    return result
+
+
 def _request_id(payload: Mapping[str, Any]) -> str:
     raw = payload.get("request_id")
     if raw is None:
@@ -263,7 +294,7 @@ class ToolSpec:
 
 
 class ToolRegistry:
-    """Validate and invoke the six transport-neutral read-only tools."""
+    """Validate and invoke the transport-neutral read-only tools."""
 
     def __init__(self, provider: ProjectIntelligenceProvider) -> None:
         self._provider = provider
@@ -320,21 +351,21 @@ class ToolRegistry:
             recommendations=output.recommendations + recommendations,
             unknowns=output.unknowns + unknowns + mock_unknowns,
             risks=output.risks + risks + mock_risks,
+            execution=ExecutionEffects(
+                business_data_write=False,
+                ephemeral_control_plane_effects=("selector_task_create_or_cancel",)
+                if tool in {"search_ai_projects", "find_alternatives", "compose_ai_stack"}
+                else (),
+            ),
             request_id=_request_id(payload),
         )
 
     def _search_ai_projects(self, payload: Mapping[str, Any]) -> ToolResult:
-        _reject_unknown_fields(payload, {"query", "constraints", "locale", "source_mode", "request_id"})
+        _reject_unknown_fields(payload, {"query", "constraints", "locale", "request_id"})
         request = {
             "query": _required_text(payload, "query"),
-            "constraints": _mapping(payload, "constraints"),
+            "constraints": _constraints(payload),
             "locale": _locale(payload),
-            "source_mode": _enum_value(
-                payload,
-                "source_mode",
-                allowed=("required", "preferred", "off"),
-                default="required",
-            ),
         }
         output = _provider_output(self._provider.search_projects(request), "search_ai_projects")
         return self._result("search_ai_projects", payload, output)
@@ -391,7 +422,7 @@ class ToolRegistry:
         _reject_unknown_fields(payload, {"project_id", "constraints", "locale", "request_id"})
         request = {
             "project_id": _required_text(payload, "project_id", max_length=256),
-            "constraints": _mapping(payload, "constraints"),
+            "constraints": _constraints(payload),
             "locale": _locale(payload),
         }
         output = _provider_output(self._provider.find_alternatives(request), "find_alternatives")
@@ -404,7 +435,7 @@ class ToolRegistry:
         )
         request = {
             "business_goal": _required_text(payload, "business_goal"),
-            "constraints": _mapping(payload, "constraints"),
+            "constraints": _constraints(payload),
             "existing_stack": _string_list(payload, "existing_stack", maximum=20),
             "locale": _locale(payload),
         }

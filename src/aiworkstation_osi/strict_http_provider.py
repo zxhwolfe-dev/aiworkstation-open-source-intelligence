@@ -238,16 +238,24 @@ class SafeUrllibJsonTransport(UrllibJsonTransport):
 
         try:
             response = self._open(request, timeout=timeout)
-            status = int(response.status)
-            raw_headers = {key.lower(): value for key, value in response.headers.items()}
-            raw = response.read(self.max_response_bytes + 1)
+            try:
+                status = int(response.status)
+                raw_headers = {key.lower(): value for key, value in response.headers.items()}
+                raw = response.read(self.max_response_bytes + 1)
+            finally:
+                close = getattr(response, "close", None)
+                if callable(close):
+                    close()
         except urllib.error.HTTPError as exc:
             status = int(exc.code)
             raw_headers = {
                 key.lower(): value
                 for key, value in (exc.headers.items() if exc.headers is not None else [])
             }
-            raw = exc.read(self.max_response_bytes + 1)
+            try:
+                raw = exc.read(self.max_response_bytes + 1)
+            finally:
+                exc.close()
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise ProviderUnavailableError("AI Workstation public Radar request failed") from exc
 

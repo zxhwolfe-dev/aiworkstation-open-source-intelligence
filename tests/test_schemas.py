@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import unittest
 from pathlib import Path
+from jsonschema import Draft202012Validator, FormatChecker
 
 from aiworkstation_osi.app import invoke_tool
+from aiworkstation_osi.errors import InvalidInputError, ProviderOverloadedError
 from aiworkstation_osi.contracts import TOOL_NAMES
 from aiworkstation_osi.tools import (
     MAX_STRUCTURED_CONTAINER_ITEMS,
@@ -36,6 +38,31 @@ class MachineReadableSchemaTests(unittest.TestCase):
         payload = invoke_tool("search_ai_projects", {"query": "RAG"})
         self.assertTrue(set(schema["required"]).issubset(payload))
         self.assertEqual(payload["schema_version"], schema["properties"]["schema_version"]["const"])
+
+    def test_every_tool_result_validates_against_draft_2020_12(self) -> None:
+        schema = json.loads((self.ROOT / "schemas" / "tool-result.schema.json").read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema, format_checker=FormatChecker())
+        arguments = {
+            "search_ai_projects": {"query": "RAG"},
+            "get_project_facts": {"project_id": "infiniflow/ragflow"},
+            "get_license_evidence": {"project_id": "infiniflow/ragflow"},
+            "compare_ai_projects": {"project_ids": ["langgenius/dify", "infiniflow/ragflow"]},
+            "find_alternatives": {"project_id": "langgenius/dify"},
+            "compose_ai_stack": {"business_goal": "Internal document QA"},
+            "get_radar_overview": {}, "browse_radar_projects": {}, "browse_radar_skills": {},
+        }
+        for tool_name, tool_arguments in arguments.items():
+            with self.subTest(tool=tool_name):
+                validator.validate(invoke_tool(tool_name, tool_arguments))
+
+    def test_public_errors_validate_against_draft_2020_12(self) -> None:
+        schema = json.loads((self.ROOT / "schemas" / "error.schema.json").read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
+        for error in (InvalidInputError("invalid"), ProviderOverloadedError()):
+            with self.subTest(code=error.code):
+                validator.validate(error.to_dict())
 
     def test_every_manifest_tool_has_object_input_schema(self) -> None:
         manifest = self._manifest()
@@ -71,18 +98,13 @@ class MachineReadableSchemaTests(unittest.TestCase):
             with self.subTest(tool=tool_name, property=property_name):
                 schema = by_name[tool_name]["input_schema"]
                 prop = schema["properties"][property_name]
-                self.assertEqual(prop["maxProperties"], MAX_STRUCTURED_CONTAINER_ITEMS)
-                self.assertEqual(
-                    prop["propertyNames"]["maxLength"],
-                    MAX_STRUCTURED_KEY_LENGTH,
-                )
-                structured = schema["$defs"]["structuredValue"]["anyOf"]
-                string_schema = next(row for row in structured if row.get("type") == "string")
-                array_schema = next(row for row in structured if row.get("type") == "array")
-                object_schema = next(row for row in structured if row.get("type") == "object")
-                self.assertEqual(string_schema["maxLength"], MAX_STRUCTURED_STRING_LENGTH)
-                self.assertEqual(array_schema["maxItems"], MAX_STRUCTURED_CONTAINER_ITEMS)
-                self.assertEqual(object_schema["maxProperties"], MAX_STRUCTURED_CONTAINER_ITEMS)
+                if property_name == "context":
+                    self.assertEqual(prop["type"], "object")
+                    self.assertEqual(prop["maxProperties"], MAX_STRUCTURED_CONTAINER_ITEMS)
+                else:
+                    self.assertEqual(prop["type"], "array")
+                    self.assertEqual(prop["maxItems"], MAX_STRUCTURED_CONTAINER_ITEMS)
+                    self.assertEqual(prop["items"]["$ref"], "#/$defs/constraint")
 
 
 if __name__ == "__main__":

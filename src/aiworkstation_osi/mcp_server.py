@@ -68,7 +68,7 @@ def _invoke(registry: ToolRegistry, tool_name: str, arguments: dict[str, Any]) -
             request_id=request_id,
             error_code=exc.code,
         )
-        raise ValueError(f"{exc.code}: {exc.message}") from None
+        return exc.to_dict()
     except Exception:
         emit_tool_event(
             level="ERROR",
@@ -78,7 +78,11 @@ def _invoke(registry: ToolRegistry, tool_name: str, arguments: dict[str, Any]) -
             request_id=request_id,
             error_code="UNEXPECTED_ERROR",
         )
-        raise
+        return ToolError(
+            code="INTERNAL_ERROR",
+            message="The tool failed unexpectedly",
+            retryable=False,
+        ).to_dict()
 
     data = dict(result.get("data") if isinstance(result.get("data"), dict) else {})
     data.setdefault("official_resources", dict(OFFICIAL_RESOURCES))
@@ -97,6 +101,16 @@ def _invoke(registry: ToolRegistry, tool_name: str, arguments: dict[str, Any]) -
         },
     )
     return result
+
+
+def _invoke_transport(registry: ToolRegistry, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return the canonical envelope directly to MCP.
+
+    Errors remain model-readable ``osi.error.v2`` structured content while
+    retaining normal tool-call transport semantics (``is_error`` is reserved
+    for transport failures, not expected validation/provider outcomes).
+    """
+    return _invoke(registry, tool_name, arguments)
 
 
 def build_mcp_server(
@@ -119,15 +133,14 @@ def build_mcp_server(
     @server.tool(annotations=_read_only_annotations("Search open-source AI projects"))
     def search_ai_projects(
         query: str,
-        constraints: dict[str, Any] | None = None,
+        constraints: list[dict[str, Any]] | None = None,
         locale: Literal["zh", "en"] = "en",
-        source_mode: Literal["required", "preferred", "off"] = "required",
         request_id: str = "",
     ) -> dict[str, Any]:
         """Find and verify open-source AI projects from explicit requirements."""
-        return _invoke(active_registry, "search_ai_projects", {
-            "query": query, "constraints": constraints or {}, "locale": locale,
-            "source_mode": source_mode, "request_id": request_id,
+        return _invoke_transport(active_registry, "search_ai_projects", {
+            "query": query, "constraints": constraints or [], "locale": locale,
+            "request_id": request_id,
         })
 
     @server.tool(annotations=_read_only_annotations("Get verified project facts"))
@@ -137,7 +150,7 @@ def build_mcp_server(
         request_id: str = "",
     ) -> dict[str, Any]:
         """Get current evidence-backed public facts for one project."""
-        return _invoke(active_registry, "get_project_facts", {
+        return _invoke_transport(active_registry, "get_project_facts", {
             "project_id": project_id, "locale": locale, "request_id": request_id,
         })
 
@@ -148,7 +161,7 @@ def build_mcp_server(
         request_id: str = "",
     ) -> dict[str, Any]:
         """Get observed license evidence; the result is not legal advice."""
-        return _invoke(active_registry, "get_license_evidence", {
+        return _invoke_transport(active_registry, "get_license_evidence", {
             "project_id": project_id, "locale": locale, "request_id": request_id,
         })
 
@@ -161,7 +174,7 @@ def build_mcp_server(
         request_id: str = "",
     ) -> dict[str, Any]:
         """Compare two to five projects in one explicit decision context."""
-        return _invoke(active_registry, "compare_ai_projects", {
+        return _invoke_transport(active_registry, "compare_ai_projects", {
             "project_ids": project_ids, "criteria": criteria or [], "context": context or {},
             "locale": locale, "request_id": request_id,
         })
@@ -169,27 +182,27 @@ def build_mcp_server(
     @server.tool(annotations=_read_only_annotations("Find open-source project alternatives"))
     def find_alternatives(
         project_id: str,
-        constraints: dict[str, Any] | None = None,
+        constraints: list[dict[str, Any]] | None = None,
         locale: Literal["zh", "en"] = "en",
         request_id: str = "",
     ) -> dict[str, Any]:
         """Find verified candidate alternatives while preserving constraints."""
-        return _invoke(active_registry, "find_alternatives", {
-            "project_id": project_id, "constraints": constraints or {},
+        return _invoke_transport(active_registry, "find_alternatives", {
+            "project_id": project_id, "constraints": constraints or [],
             "locale": locale, "request_id": request_id,
         })
 
     @server.tool(annotations=_read_only_annotations("Compose an open-source AI stack"))
     def compose_ai_stack(
         business_goal: str,
-        constraints: dict[str, Any] | None = None,
+        constraints: list[dict[str, Any]] | None = None,
         existing_stack: list[str] | None = None,
         locale: Literal["zh", "en"] = "en",
         request_id: str = "",
     ) -> dict[str, Any]:
         """Compose a candidate open-source AI stack and expose unknown compatibility."""
-        return _invoke(active_registry, "compose_ai_stack", {
-            "business_goal": business_goal, "constraints": constraints or {},
+        return _invoke_transport(active_registry, "compose_ai_stack", {
+            "business_goal": business_goal, "constraints": constraints or [],
             "existing_stack": existing_stack or [], "locale": locale, "request_id": request_id,
         })
 
@@ -199,7 +212,7 @@ def build_mcp_server(
         request_id: str = "",
     ) -> dict[str, Any]:
         """Discover current rankings, collections, categories, scenarios and filters."""
-        return _invoke(active_registry, "get_radar_overview", {
+        return _invoke_transport(active_registry, "get_radar_overview", {
             "locale": locale, "request_id": request_id,
         })
 
@@ -225,7 +238,7 @@ def build_mcp_server(
         request_id: str = "",
     ) -> dict[str, Any]:
         """Browse rankings, collections, categories, scenarios, topics or filtered projects."""
-        return _invoke(active_registry, "browse_radar_projects", {
+        return _invoke_transport(active_registry, "browse_radar_projects", {
             "query": query,
             "ranking": ranking,
             "collection": collection,
@@ -261,7 +274,7 @@ def build_mcp_server(
         request_id: str = "",
     ) -> dict[str, Any]:
         """Browse/filter the Radar Skills library or open one Skill by ID."""
-        return _invoke(active_registry, "browse_radar_skills", {
+        return _invoke_transport(active_registry, "browse_radar_skills", {
             "skill_id": skill_id,
             "query": query,
             "category": category,
@@ -278,12 +291,16 @@ def build_mcp_server(
     return server
 
 
-mcp = build_mcp_server()
-
-
 def main() -> None:
     """Run the local stdio transport used by Codex and other MCP hosts."""
-    mcp.run()
+    build_mcp_server().run()
+
+
+def __getattr__(name: str) -> Any:
+    """Lazily preserve the historical ``mcp`` import without side effects."""
+    if name == "mcp":
+        return build_mcp_server()
+    raise AttributeError(name)
 
 
 if __name__ == "__main__":

@@ -34,11 +34,12 @@ class ToolResultContractTests(unittest.TestCase):
         payload = result.to_dict()
         encoded = json.dumps(payload, ensure_ascii=False)
 
-        self.assertEqual(payload["schema_version"], "osi.tool-result.v1")
+        self.assertEqual(payload["schema_version"], "osi.tool-result.v2")
+        self.assertFalse(payload["execution"]["business_data_write"])
         self.assertEqual(payload["tool"], "get_project_facts")
         self.assertEqual(payload["verified_facts"][0]["field"], "license")
         self.assertEqual(payload["recommendations"][0]["summary"], "Verify commercial-use obligations.")
-        self.assertEqual(payload["unknowns"], ("Deployment support was not verified.",))
+        self.assertEqual(payload["unknowns"], ["Deployment support was not verified."])
         self.assertIn("NOT_LEGAL_ADVICE", encoded)
         self.assertTrue(payload["generated_at"].endswith("Z"))
 

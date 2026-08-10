@@ -54,7 +54,7 @@ class UrllibJsonTransport:
         *,
         allow_insecure_http: bool = False,
         max_response_bytes: int = 2_000_000,
-        user_agent: str = "aiworkstation-open-source-intelligence/0.1",
+        user_agent: str = "aiworkstation-open-source-intelligence/0.3.0",
     ) -> None:
         normalized = base_url.rstrip("/")
         parsed = urllib.parse.urlparse(normalized)
@@ -99,13 +99,21 @@ class UrllibJsonTransport:
                 timeout=timeout,
                 context=self._ssl_context if url.startswith("https://") else None,
             )
-            status = int(response.status)
-            raw_headers = {key.lower(): value for key, value in response.headers.items()}
-            raw = response.read(self.max_response_bytes + 1)
+            try:
+                status = int(response.status)
+                raw_headers = {key.lower(): value for key, value in response.headers.items()}
+                raw = response.read(self.max_response_bytes + 1)
+            finally:
+                close = getattr(response, "close", None)
+                if callable(close):
+                    close()
         except urllib.error.HTTPError as exc:
             status = int(exc.code)
             raw_headers = {key.lower(): value for key, value in exc.headers.items()}
-            raw = exc.read(self.max_response_bytes + 1)
+            try:
+                raw = exc.read(self.max_response_bytes + 1)
+            finally:
+                exc.close()
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise ProviderUnavailableError("AI Workstation public Radar request failed") from exc
 
@@ -259,27 +267,33 @@ _QUERY_CONSTRAINTS = {"local", "docker", "webui", "no_code", "privacy", "chinese
 _FILTER_CONSTRAINTS = {"deployment", "category", "use_case", "resource_type", "license_name", "layer"}
 
 
-def _constraint_plan(constraints: Mapping[str, Any]) -> tuple[dict[str, Any], list[str], list[str]]:
-    """Return public selector filters, query-native IDs, and unsupported required IDs."""
+def _constraint_plan(constraints: Mapping[str, Any] | Sequence[Mapping[str, Any]]) -> tuple[dict[str, Any], list[str], list[str]]:
+    """Return selector filters and query IDs without dropping preference polarity."""
     filters: dict[str, Any] = {}
     query_ids: list[str] = []
     unsupported: list[str] = []
     required_keys: set[str] = set()
     deferred_filters: dict[str, Any] = {}
-    for raw_key, raw_value in constraints.items():
+    if isinstance(constraints, Mapping):
+        entries = [{"id": key, "value": value, "polarity": "required"} for key, value in constraints.items()]
+    else:
+        entries = list(constraints)
+    for entry in entries:
+        raw_key = entry.get("id")
+        raw_value = entry.get("value")
         key = _CONSTRAINT_ALIASES.get(str(raw_key).strip().lower(), str(raw_key).strip().lower())
-        if isinstance(raw_value, Mapping):
-            status = str(raw_value.get("status") or raw_value.get("polarity") or "required").lower()
-            value = raw_value.get("value") or raw_value.get("id") or True
-        else:
-            rendered = str(raw_value).strip().lower()
-            if rendered in {"required", "preferred", "not_required", "off", "unspecified"}:
-                status, value = rendered, True
-            else:
-                status, value = "required", raw_value
-        if status in {"preferred", "not_required", "off", "unspecified"}:
+        status = str(entry.get("polarity") or "required").lower()
+        if status in {"off", "not_required", "unspecified"}:
+            status = "preferred"
+        value = raw_value
+        if status not in {"required", "preferred", "excluded"}:
+            unsupported.append(key)
             continue
-        if status != "required":
+        if status == "preferred":
+            query_ids.append(f"preferred:{key}")
+            continue
+        if status == "excluded":
+            query_ids.append(f"excluded:{key}={value}")
             continue
         if key in {"local", "self_hosted"}:
             required_keys.add("local")
@@ -314,12 +328,12 @@ def _constraint_plan(constraints: Mapping[str, Any]) -> tuple[dict[str, Any], li
     return filters, sorted(set(query_ids)), sorted(set(unsupported))
 
 
-def _constraint_suffix(constraints: Mapping[str, Any], locale: str) -> str:
+def _constraint_suffix(constraints: Mapping[str, Any] | Sequence[Mapping[str, Any]], locale: str) -> str:
     filters, query_ids, unsupported = _constraint_plan(constraints)
     if not query_ids and not filters and not unsupported:
         return ""
     labels = {"local": "self-hosted/local", "webui": "web UI", "no_code": "no-code", "privacy": "privacy", "chinese": "Chinese", "free": "free", "docker": "Docker"}
-    rendered = ", ".join(labels.get(key, key) for key in query_ids)
+    rendered = ", ".join(labels.get(key, key) for key in query_ids if not key.startswith("preferred:"))
     if filters:
         rendered_parts = ([rendered] if rendered else []) + [f"{key}={value}" for key, value in sorted(filters.items())]
         rendered = ", ".join(rendered_parts)
@@ -367,7 +381,7 @@ class AIWorkstationHttpProvider:
     def _selector(
         self,
         query: str,
-        constraints: Mapping[str, Any],
+        constraints: Mapping[str, Any] | Sequence[Mapping[str, Any]],
         locale: str,
     ) -> JsonResponse:
         filters, _query_ids, unsupported = _constraint_plan(constraints)
@@ -582,7 +596,7 @@ class AIWorkstationHttpProvider:
         locale = str(request.get("locale") or "en")
         response = self._selector(
             str(request.get("query") or ""),
-            request.get("constraints") if isinstance(request.get("constraints"), Mapping) else {},
+            request.get("constraints") if isinstance(request.get("constraints"), (Mapping, Sequence)) and not isinstance(request.get("constraints"), (str, bytes, bytearray)) else [],
             locale,
         )
         candidates = _selector_projects(response.payload)
@@ -687,7 +701,7 @@ class AIWorkstationHttpProvider:
     def find_alternatives(self, request: Mapping[str, Any]) -> ProviderOutput:
         locale = str(request.get("locale") or "en")
         project_id = str(request.get("project_id") or "")
-        constraints = request.get("constraints") if isinstance(request.get("constraints"), Mapping) else {}
+        constraints = request.get("constraints") if isinstance(request.get("constraints"), (Mapping, Sequence)) and not isinstance(request.get("constraints"), (str, bytes, bytearray)) else []
         query = (
             f"找 {project_id} 的开源替代项目，并保持给定约束。"
             if locale == "zh"
@@ -717,7 +731,7 @@ class AIWorkstationHttpProvider:
     def compose_stack(self, request: Mapping[str, Any]) -> ProviderOutput:
         locale = str(request.get("locale") or "en")
         goal = str(request.get("business_goal") or "")
-        constraints = request.get("constraints") if isinstance(request.get("constraints"), Mapping) else {}
+        constraints = request.get("constraints") if isinstance(request.get("constraints"), (Mapping, Sequence)) and not isinstance(request.get("constraints"), (str, bytes, bytearray)) else []
         existing = list(request.get("existing_stack") or [])
         query = (
             f"使用开源 AI 项目为以下目标组装可执行技术栈：{goal}"

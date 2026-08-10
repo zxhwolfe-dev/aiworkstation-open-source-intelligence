@@ -39,6 +39,8 @@ class AlphaBundleTests(unittest.TestCase):
             self.assertIn("docs/FAQ.md", names)
             self.assertIn("product-skills/ai-open-source-intelligence/SKILL.md", names)
             self.assertIn("docs/alpha-tester-guide.md", names)
+            self.assertIn("schemas/tool-result.schema.json", names)
+            self.assertIn("schemas/error.schema.json", names)
             self.assertFalse(any(name.startswith("skills/") for name in names))
             self.assertNotIn("src/aiworkstation_osi/mcp_server.py", names)
             self.assertNotIn("pyproject.toml", names)

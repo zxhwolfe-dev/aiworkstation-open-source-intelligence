@@ -95,7 +95,6 @@ class HostedEvidenceReadinessTests(unittest.TestCase):
                         expected_base_url="https://aiworkstation.cn",
                         expected_hosted_mcp_url="https://mcp.aiworkstation.cn/mcp",
                         expected_access_mode="oauth",
-                        expected_oauth_issuer="https://auth.example.com",
                     )
         self.assertIn("OAuth Hosted mode is disabled", str(context.exception))
 

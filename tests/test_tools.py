@@ -36,7 +36,7 @@ class ToolRegistryTests(unittest.TestCase):
             "search_ai_projects",
             {
                 "query": "self-hosted RAG with Docker and web UI",
-                "constraints": {"deployment": "self-hosted"},
+                "constraints": [{"id": "deployment", "value": "self-hosted", "polarity": "required"}],
                 "request_id": "search-1",
             },
         )
@@ -44,7 +44,7 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertEqual(payload["tool"], "search_ai_projects")
         self.assertEqual(payload["request_id"], "search-1")
         self.assertGreaterEqual(payload["data"]["total"], 1)
-        self.assertEqual(payload["verified_facts"], ())
+        self.assertEqual(payload["verified_facts"], [])
         self.assertIn("fixture data", payload["unknowns"][0])
         self.assertEqual(payload["risks"][0]["code"], "MOCK_DATA")
 
@@ -116,15 +116,15 @@ class ToolRegistryTests(unittest.TestCase):
             "compose_ai_stack",
             {
                 "business_goal": "Build an internal document question-answering system",
-                "constraints": {"deployment": "self-hosted"},
+                "constraints": [{"id": "deployment", "value": "self-hosted", "polarity": "required"}],
             },
         )
 
-        self.assertEqual(payload["verified_facts"], ())
+        self.assertEqual(payload["verified_facts"], [])
         self.assertTrue(payload["recommendations"])
         self.assertIn("INTEGRATION_NOT_VERIFIED", {risk["code"] for risk in payload["risks"]})
 
-    def test_search_rejects_invalid_locale_and_source_mode(self) -> None:
+    def test_search_rejects_invalid_locale_and_removed_source_mode(self) -> None:
         with self.assertRaises(InvalidInputError):
             self.registry.invoke("search_ai_projects", {"query": "RAG", "locale": "fr"})
         with self.assertRaises(InvalidInputError):
@@ -154,16 +154,7 @@ class ToolRegistryTests(unittest.TestCase):
             "search_ai_projects",
             {
                 "query": "private RAG",
-                "constraints": {
-                    "deployment": {
-                        "required": ["docker", "self-hosted"],
-                        "preferred": {"platforms": ["linux", "windows"]},
-                    },
-                    "budget": 1000,
-                    "offline": True,
-                    "maximum_latency": 2.5,
-                    "notes": None,
-                },
+                "constraints": [{"id": "deployment", "value": {"required": ["docker", "self-hosted"]}, "polarity": "required"}, {"id": "budget", "value": 1000, "polarity": "preferred"}, {"id": "offline", "value": True, "polarity": "excluded"}],
             },
         )
         self.assertEqual(result.tool, "search_ai_projects")
@@ -175,7 +166,7 @@ class ToolRegistryTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError) as context:
             self.registry.invoke(
                 "search_ai_projects",
-                {"query": "RAG", "constraints": value},  # type: ignore[arg-type]
+                {"query": "RAG", "constraints": [{"id": "nested", "value": value, "polarity": "required"}]},
             )
         self.assertIn("nesting depth", context.exception.message)
 
@@ -185,7 +176,7 @@ class ToolRegistryTests(unittest.TestCase):
                 "search_ai_projects",
                 {
                     "query": "RAG",
-                    "constraints": {"note": "x" * (MAX_STRUCTURED_STRING_LENGTH + 1)},
+                    "constraints": [{"id": "note", "value": "x" * (MAX_STRUCTURED_STRING_LENGTH + 1), "polarity": "required"}],
                 },
             )
         with self.assertRaises(InvalidInputError):
@@ -193,7 +184,7 @@ class ToolRegistryTests(unittest.TestCase):
                 "search_ai_projects",
                 {
                     "query": "RAG",
-                    "constraints": {"targets": list(range(MAX_STRUCTURED_CONTAINER_ITEMS + 1))},
+                    "constraints": [{"id": "targets", "value": list(range(MAX_STRUCTURED_CONTAINER_ITEMS + 1)), "polarity": "required"}],
                 },
             )
 
@@ -211,7 +202,7 @@ class ToolRegistryTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError) as non_finite:
             self.registry.invoke(
                 "search_ai_projects",
-                {"query": "RAG", "constraints": {"weight": float("nan")}},
+                {"query": "RAG", "constraints": [{"id": "weight", "value": float("nan"), "polarity": "required"}]},
             )
         self.assertIn("non-finite", non_finite.exception.message)
 
@@ -219,7 +210,7 @@ class ToolRegistryTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError):
             self.registry.invoke(
                 "search_ai_projects",
-                {"query": "RAG", "constraints": {"bad\nkey": "value"}},
+                {"query": "RAG", "constraints": [{"id": "bad\nkey", "value": "value", "polarity": "required"}]},
             )
 
 

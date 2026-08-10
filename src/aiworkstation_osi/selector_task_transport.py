@@ -11,9 +11,10 @@ import re
 import time
 import urllib.parse
 from collections.abc import Callable
+from threading import BoundedSemaphore
 from typing import Any, Mapping
 
-from .errors import ProviderUnavailableError, UpstreamContractError
+from .errors import ProviderOverloadedError, ProviderUnavailableError, UpstreamContractError
 from .http_provider import JsonResponse, JsonTransport, PUBLIC_API_PREFIX
 
 SELECTOR_PATH = f"{PUBLIC_API_PREFIX}/selector"
@@ -62,6 +63,8 @@ class SelectorTaskJsonTransport:
         poll_interval: float = DEFAULT_SELECTOR_TASK_POLL_INTERVAL_SECONDS,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
+        max_concurrent: int = 8,
+        queue_timeout: float = 2.0,
     ) -> None:
         _validate_selector_task_settings(float(task_timeout), float(poll_interval))
         self.delegate = delegate
@@ -69,6 +72,12 @@ class SelectorTaskJsonTransport:
         self.poll_interval = float(poll_interval)
         self._clock = clock
         self._sleep = sleeper
+        if max_concurrent < 1:
+            raise ValueError("max_concurrent must be positive")
+        if queue_timeout < 0:
+            raise ValueError("queue_timeout must not be negative")
+        self._capacity = BoundedSemaphore(max_concurrent)
+        self.queue_timeout = float(queue_timeout)
 
     def request(
         self,
@@ -82,7 +91,12 @@ class SelectorTaskJsonTransport:
         if method.upper() == "POST" and path == SELECTOR_PATH:
             if query:
                 raise UpstreamContractError("Selector task requests must not use URL query parameters")
-            return self._selector_task(dict(body or {}), request_timeout=float(timeout))
+            if not self._capacity.acquire(timeout=min(max(0.0, float(timeout)), self.queue_timeout)):
+                raise ProviderOverloadedError()
+            try:
+                return self._selector_task(dict(body or {}), request_timeout=float(timeout))
+            finally:
+                self._capacity.release()
         return self.delegate.request(
             method,
             path,

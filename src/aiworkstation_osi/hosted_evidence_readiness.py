@@ -48,15 +48,8 @@ def evaluate_hosted_evidence_readiness(
     expected_base_url: str,
     expected_hosted_mcp_url: str,
     expected_access_mode: str = HOSTED_ACCESS_PUBLIC,
-    expected_oauth_issuer: str = "",
 ) -> dict[str, Any]:
-    """Evaluate the only supported Hosted release mode: public/data-only.
-
-    ``expected_oauth_issuer`` remains accepted as a no-op compatibility argument
-    for older operator scripts, but OAuth cannot be selected as an access mode.
-    """
-
-    del expected_oauth_issuer
+    """Evaluate the only supported Hosted release mode: public/data-only."""
     repository_root = root.expanduser().resolve()
     candidate_commit = _git_head(repository_root)
     access_mode = str(expected_access_mode or "").strip().lower()
@@ -136,11 +129,6 @@ def build_parser() -> argparse.ArgumentParser:
         choices=HOSTED_ACCESS_MODES,
         default=HOSTED_ACCESS_PUBLIC,
     )
-    parser.add_argument(
-        "--expected-oauth-issuer",
-        default="",
-        help="Deprecated compatibility argument; OAuth Hosted mode is disabled.",
-    )
     parser.add_argument("--output", type=Path)
     return parser
 
@@ -158,7 +146,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         expected_base_url=args.expected_base_url,
         expected_hosted_mcp_url=args.expected_hosted_mcp_url,
         expected_access_mode=args.expected_access_mode,
-        expected_oauth_issuer=args.expected_oauth_issuer,
     )
     rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:

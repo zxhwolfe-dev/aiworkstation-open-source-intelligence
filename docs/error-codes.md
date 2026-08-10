@@ -1,12 +1,12 @@
 # Error Codes
 
-All transports must expose the same `osi.error.v1` envelope. HTTP status codes,
+All transports must expose the same `osi.error.v2` envelope. HTTP status codes,
 MCP errors and CLI exit codes are adapters around this contract, not separate
 business semantics.
 
 ```json
 {
-  "schema_version": "osi.error.v1",
+  "schema_version": "osi.error.v2",
   "error": {
     "code": "INVALID_INPUT",
     "message": "query is required",

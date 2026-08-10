@@ -33,6 +33,9 @@ REQUIRED_FILES = (
     "docs/plugin-packaging.md",
     "docs/alpha-tester-guide.md",
     "docs/external-alpha-checklist.md",
+    "schemas/tool-manifest.json",
+    "schemas/tool-result.schema.json",
+    "schemas/error.schema.json",
 )
 
 SECRET_PATTERNS = (

@@ -51,7 +51,6 @@ REQUIRED_REPOSITORY_PATHS = (
     "docs/MODEL-AND-DATA-FLOW.md",
     "docs/openai-plugin-submission.md",
     "docs/architecture.md",
-    "docs/m1-alpha.md",
     "docs/codex-setup.md",
     "docs/live-validation-workflow.md",
     "docs/production-validation.md",
@@ -91,9 +90,11 @@ def _load_json(path: Path) -> Mapping[str, Any]:
 
 
 def _pyproject_version(root: Path) -> str:
-    content = (root / "pyproject.toml").read_text(encoding="utf-8")
-    match = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', content)
-    return match.group(1) if match else ""
+    try:
+        from ._version import __version__
+        return __version__
+    except Exception:
+        return ""
 
 
 def _contract_gate(directory: Path | None, locale: str) -> tuple[dict[str, Any], list[str]]:

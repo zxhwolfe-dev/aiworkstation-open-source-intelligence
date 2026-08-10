@@ -6,6 +6,7 @@ from collections import Counter
 from pathlib import Path
 
 from aiworkstation_osi.contracts import TOOL_NAMES
+from aiworkstation_osi.app import invoke_tool
 
 
 class EvaluationCorpusTests(unittest.TestCase):
@@ -30,6 +31,18 @@ class EvaluationCorpusTests(unittest.TestCase):
                 self.assertIn(case["tool"], TOOL_NAMES)
                 self.assertIsInstance(case["arguments"], dict)
                 self.assertTrue(case["expects"])
+
+    def test_corpus_executes_deterministically(self) -> None:
+        for case in self.payload["cases"]:
+            with self.subTest(case=case["id"]):
+                try:
+                    result = invoke_tool(case["tool"], case["arguments"])
+                except Exception as exc:
+                    self.assertIn(case["tool"], {"search_ai_projects", "find_alternatives", "compose_ai_stack"})
+                    self.assertIn("Unsupported required constraint", str(exc))
+                else:
+                    self.assertEqual(result["tool"], case["tool"])
+                    self.assertEqual(result["schema_version"], "osi.tool-result.v2")
 
 
 if __name__ == "__main__":

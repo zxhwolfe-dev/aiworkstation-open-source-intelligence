@@ -172,7 +172,7 @@ class HttpProviderTests(unittest.TestCase):
             "search_ai_projects",
             {
                 "query": "Find a private RAG service",
-                "constraints": {"docker": "required"},
+                "constraints": [{"id": "docker", "value": True, "polarity": "required"}],
                 "locale": "en",
             },
         )
@@ -192,10 +192,10 @@ class HttpProviderTests(unittest.TestCase):
         provider = AIWorkstationHttpProvider("https://example.test", transport=RouterTransport(handler))
         provider.search_projects({
             "query": "RAG",
-            "constraints": {
-                "self_hosted": "required", "web_ui": "required",
-                "docker": "preferred", "no_code": "not_required",
-            },
+            "constraints": [
+                {"id": "self_hosted", "value": True, "polarity": "required"}, {"id": "web_ui", "value": True, "polarity": "required"},
+                {"id": "docker", "value": True, "polarity": "preferred"}, {"id": "no_code", "value": True, "polarity": "preferred"},
+            ],
             "locale": "en",
         })
         self.assertEqual(seen["filters"], {"deployment": "local"})
@@ -211,8 +211,8 @@ class HttpProviderTests(unittest.TestCase):
                 return 200, {"evidence_status": "available", "items": [], "no_match_reason": "No exact match."}
             raise AssertionError((method, path, query, body))
         provider = AIWorkstationHttpProvider("https://example.test", transport=RouterTransport(handler))
-        first = {"self_hosted": "required", "docker": "required", "web_ui": "required", "no_code": "preferred"}
-        second = {"docker": "required", "web_ui": "required", "self_hosted": "required", "no_code": "preferred"}
+        first = [{"id": x, "value": True, "polarity": "required"} for x in ("self_hosted", "docker", "web_ui")] + [{"id": "no_code", "value": True, "polarity": "preferred"}]
+        second = list(reversed(first))
         provider.search_projects({"query": "RAG", "constraints": first, "locale": "en"})
         provider.search_projects({"query": "RAG", "constraints": second, "locale": "en"})
         self.assertEqual(len(bodies), 2)
@@ -231,7 +231,7 @@ class HttpProviderTests(unittest.TestCase):
     def test_unsupported_required_constraint_fails_explicitly(self) -> None:
         provider = AIWorkstationHttpProvider("https://example.test", transport=RouterTransport(lambda *args: (200, {})))
         with self.assertRaises(UpstreamContractError) as raised:
-            provider.search_projects({"query": "RAG", "constraints": {"cloud_only": "required"}, "locale": "en"})
+            provider.search_projects({"query": "RAG", "constraints": [{"id": "cloud_only", "value": True, "polarity": "required"}], "locale": "en"})
         self.assertIn("cloud_only", raised.exception.details["unsupported_constraints"])
 
     def test_partial_selector_requires_public_notice(self) -> None:

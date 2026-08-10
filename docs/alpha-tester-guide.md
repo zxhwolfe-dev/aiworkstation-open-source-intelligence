@@ -1,6 +1,6 @@
 # External Alpha Tester Guide
 
-This guide is for a small, invited alpha group testing the three Skills and six
+This guide is for a small, invited alpha group testing the unified Skill and nine
 read-only MCP tools. The alpha is not a hosted public product and does not carry
 a service-level guarantee.
 
@@ -65,7 +65,7 @@ OSI_PROVIDER=mock osi-mcp
 
 Expected behavior:
 
-- exactly six tools are visible;
+- exactly nine tools are visible;
 - tool calls return structured results;
 - `MOCK_DATA` appears as a high-severity risk;
 - mock results are not described as current project facts;
@@ -162,7 +162,7 @@ a public issue.
 The invited alpha is successful when:
 
 - testers can install the Skills-only package;
-- Codex discovers exactly six tools in MCP mode;
+- Codex discovers exactly nine tools in MCP mode;
 - all required scenarios complete without writes or execution;
 - no verified fact lacks evidence;
 - no missing license is interpreted as permission;

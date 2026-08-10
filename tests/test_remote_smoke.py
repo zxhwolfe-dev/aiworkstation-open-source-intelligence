@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
-from aiworkstation_osi.hosted_remote_evidence import HOSTED_PREMIUM_TOOL
 from aiworkstation_osi.remote_smoke import (
     _expected_tool_names,
     _tool_annotations_ok,
@@ -59,26 +58,9 @@ class RemoteSmokeEndpointTests(unittest.TestCase):
         standard = _expected_tool_names("standard")
         public_hosted = _expected_tool_names("hosted-public")
         self.assertEqual(public_hosted, standard)
-        self.assertNotIn(HOSTED_PREMIUM_TOOL, public_hosted)
+        self.assertEqual(len(public_hosted), 9)
 
-    def test_oauth_hosted_profiles_expect_standard_tools_plus_premium(self) -> None:
-        standard = _expected_tool_names("standard")
-        for profile in ("hosted", "hosted-oauth"):
-            with self.subTest(profile=profile):
-                hosted = _expected_tool_names(profile)
-                self.assertEqual(len(hosted), len(standard) + 1)
-                self.assertEqual(hosted[-1], HOSTED_PREMIUM_TOOL)
-
-    def test_premium_annotation_contract_is_only_valid_for_oauth_hosted(self) -> None:
-        premium = SimpleNamespace(
-            name=HOSTED_PREMIUM_TOOL,
-            annotations=SimpleNamespace(
-                read_only_hint=False,
-                destructive_hint=False,
-                idempotent_hint=False,
-                open_world_hint=True,
-            ),
-        )
+    def test_only_standard_read_only_annotations_are_accepted(self) -> None:
         standard = SimpleNamespace(
             name="search_ai_projects",
             annotations=SimpleNamespace(
@@ -88,11 +70,7 @@ class RemoteSmokeEndpointTests(unittest.TestCase):
                 open_world_hint=True,
             ),
         )
-        self.assertTrue(_tool_annotations_ok(premium, "hosted"))
-        self.assertTrue(_tool_annotations_ok(premium, "hosted-oauth"))
         self.assertTrue(_tool_annotations_ok(standard, "hosted-public"))
-        self.assertFalse(_tool_annotations_ok(premium, "hosted-public"))
-        self.assertFalse(_tool_annotations_ok(premium, "standard"))
 
 
 if __name__ == "__main__":

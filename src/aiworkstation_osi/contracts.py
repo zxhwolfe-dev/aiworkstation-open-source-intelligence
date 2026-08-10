@@ -23,7 +23,7 @@ TOOL_NAMES: Final[tuple[str, ...]] = (
 HOSTED_TOOL_NAMES: Final[tuple[str, ...]] = TOOL_NAMES
 
 Locale = Literal["zh", "en"]
-SourceMode = Literal["required", "preferred", "off"]
+ConstraintPolarity = Literal["required", "preferred", "excluded"]
 ConfidenceLevel = Literal["high", "medium", "low", "unknown"]
 
 
@@ -31,6 +31,14 @@ def utc_now_iso() -> str:
     """Return an RFC 3339 UTC timestamp with second precision."""
 
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(child) for key, child in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_jsonable(child) for child in value]
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +83,23 @@ class Risk:
 
 
 @dataclass(frozen=True, slots=True)
+class Constraint:
+    """One explicit selection constraint with preserved intent."""
+
+    id: str
+    value: Any
+    polarity: ConstraintPolarity
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionEffects:
+    """Observable execution effects without implying business-data writes."""
+
+    business_data_write: bool = False
+    ephemeral_control_plane_effects: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class ToolResult:
     """Envelope returned by every public tool.
 
@@ -89,13 +114,12 @@ class ToolResult:
     recommendations: tuple[Recommendation, ...] = ()
     unknowns: tuple[str, ...] = ()
     risks: tuple[Risk, ...] = ()
+    execution: ExecutionEffects = field(default_factory=ExecutionEffects)
     generated_at: str = field(default_factory=utc_now_iso)
     request_id: str = ""
-    schema_version: str = "osi.tool-result.v1"
+    schema_version: str = "osi.tool-result.v2"
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
 
-        payload = asdict(self)
-        payload["data"] = dict(self.data)
-        return payload
+        return _jsonable(asdict(self))

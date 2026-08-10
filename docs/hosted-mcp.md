@@ -64,7 +64,7 @@ protected by a trusted private network or authenticated TLS reverse proxy.
 ## Request-body cap
 
 The MCP SDK has its own HTTP body limit, and this project sets a smaller alpha
-default because the six tools accept compact structured requests:
+default because the nine tools accept compact structured requests:
 
 ```text
 OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES=262144
@@ -118,7 +118,7 @@ query strings and fragments embedded in endpoint URLs.
 ## Container build
 
 ```bash
-docker build -t aiworkstation-osi-mcp:0.1.0 .
+docker build --build-arg OSI_IMAGE_COMMIT="$(git rev-parse HEAD)" -t aiworkstation-osi-mcp:0.3.0 .
 docker compose -f compose.hosted.example.yml config
 docker compose -f compose.hosted.example.yml up --build
 ```

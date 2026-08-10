@@ -139,7 +139,7 @@ perform one read-only search. Remote endpoints require credential-free HTTPS.
 
 ## Unified result contract
 
-Every successful tool returns `osi.tool-result.v1` with first-class fields:
+Every successful tool returns `osi.tool-result.v2` with first-class fields:
 
 - `data`: tool-specific structured output;
 - `verified_facts`: facts with confidence and evidence;

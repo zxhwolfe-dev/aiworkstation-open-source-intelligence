@@ -105,7 +105,7 @@ class PluginPackageTests(unittest.TestCase):
         self.assertEqual(entry["name"], self.manifest["name"])
         self.assertEqual(entry["source"], {"source": "local", "path": "./"})
         self.assertEqual(entry["policy"]["installation"], "AVAILABLE")
-        self.assertEqual(entry["policy"]["authentication"], "ON_INSTALL")
+        self.assertEqual(entry["policy"]["authentication"], "NONE")
         self.assertEqual(entry["category"], "Developer Tools")
 
 

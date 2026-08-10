@@ -21,9 +21,8 @@ class TelemetryTests(unittest.TestCase):
                 "search_ai_projects",
                 {
                     "query": "TOP SECRET QUERY TEXT",
-                    "constraints": {"secret_constraint": "DO NOT LOG ME"},
+                    "constraints": [{"id": "secret_constraint", "value": "DO NOT LOG ME", "polarity": "required"}],
                     "locale": "en",
-                    "source_mode": "required",
                     "request_id": "private-correlation-id",
                 },
             )
@@ -45,12 +44,12 @@ class TelemetryTests(unittest.TestCase):
         stream = io.StringIO()
         sensitive_value = "SENSITIVE" * 40
         with patch.dict(os.environ, {"OSI_LOG_LEVEL": "WARNING"}, clear=False), redirect_stderr(stream):
-            with self.assertRaises(ValueError):
-                _invoke(
-                    create_default_registry(),
-                    "get_project_facts",
-                    {"project_id": sensitive_value, "request_id": "request-secret"},
-                )
+            result = _invoke(
+                create_default_registry(),
+                "get_project_facts",
+                {"project_id": sensitive_value, "request_id": "request-secret"},
+            )
+        self.assertEqual(result["schema_version"], "osi.error.v2")
         rendered = stream.getvalue().strip()
         payload = json.loads(rendered)
         self.assertEqual(payload["outcome"], "tool_error")

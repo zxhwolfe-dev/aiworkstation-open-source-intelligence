@@ -99,7 +99,7 @@ The command runs `codex exec` in an ephemeral, read-only sandbox and injects one
 temporary MCP server through inline Codex configuration. It does **not** persist
 or rewrite `~/.codex/config.toml`.
 
-The acceptance workflow asks Codex to exercise all six tools against live public
+The acceptance workflow asks Codex to exercise all nine tools against live public
 Radar data. The MCP process writes a separate privacy-safe JSONL ledger containing
 only tool name, outcome, duration, level and error code. Queries, constraints,
 project IDs, tool arguments, result payloads, raw request IDs and the Codex

@@ -4,6 +4,7 @@ import unittest
 from typing import Any, Mapping
 
 from aiworkstation_osi.errors import ProviderUnavailableError, UpstreamContractError
+from aiworkstation_osi.errors import ProviderOverloadedError
 from aiworkstation_osi.http_provider import JsonResponse, PUBLIC_API_PREFIX
 from aiworkstation_osi.selector_task_transport import SelectorTaskJsonTransport
 
@@ -187,6 +188,25 @@ class SelectorTaskTransportTests(unittest.TestCase):
                 f"{PUBLIC_API_PREFIX}/selector",
                 body={"query": "RAG"},
             )
+
+    def test_capacity_exhaustion_is_retryable_overload(self) -> None:
+        transport = SelectorTaskJsonTransport(
+            FakeTransport(lambda *_args: (200, {})),
+            max_concurrent=1,
+            queue_timeout=0,
+        )
+        self.assertTrue(transport._capacity.acquire(blocking=False))
+        try:
+            with self.assertRaises(ProviderOverloadedError) as raised:
+                transport.request(
+                    "POST",
+                    f"{PUBLIC_API_PREFIX}/selector",
+                    body={"query": "RAG"},
+                )
+            self.assertTrue(raised.exception.retryable)
+            self.assertEqual(raised.exception.details["retry_after_seconds"], 1)
+        finally:
+            transport._capacity.release()
 
 
 if __name__ == "__main__":

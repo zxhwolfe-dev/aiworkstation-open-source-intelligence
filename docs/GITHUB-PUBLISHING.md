@@ -7,7 +7,7 @@ This document contains the exact repository metadata and manual GitHub UI settin
 **Description**
 
 ```text
-Evidence-backed research, comparison, license verification, and stack planning for open-source AI projects. 3 Skills + 6 read-only MCP tools.
+Evidence-backed research, comparison, license verification, and stack planning for open-source AI projects. 1 Skill + 9 read-only MCP tools.
 ```
 
 **Website**
@@ -58,7 +58,7 @@ Create a 1280×640 social-preview image with:
 
 - product name: `AI Open Source Intelligence`;
 - subtitle: `Evidence-backed open-source AI research & technology selection`;
-- small line: `3 Skills · 6 read-only MCP tools`;
+- small line: `1 Skill · 9 read-only MCP tools`;
 - AI Workstation branding;
 - visual language: clean developer tool / radar / open-source network, not surveillance or hacker imagery;
 - avoid GitHub mascot/trademark misuse.
@@ -80,15 +80,16 @@ Use the guarded `github-release` workflow after the final release candidate pass
 Recommended first release:
 
 ```text
-Tag: v0.1.0
-Title: v0.1.0 — AI Open Source Intelligence
+Tag: v0.3.0
+Commit: the full 40-character SHA of the reviewed release candidate
+Title: v0.3.0 — AI Open Source Intelligence
 Pre-release: Yes
 ```
 
 Release notes source:
 
 ```text
-docs/release-v0.1.0.md
+CHANGELOG.md
 ```
 
 Assets:

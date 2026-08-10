@@ -20,7 +20,7 @@ The preferred machine-evidence flow is documented in [`evidence-readiness.md`](e
 - [ ] The successful matrix produces `ci-evidence.json` for the same candidate commit.
 - [ ] `osi-validate-plugin --root .` succeeds.
 - [ ] The bilingual evaluation corpora pass.
-- [ ] In-memory MCP tests discover exactly six tools.
+- [ ] In-memory MCP tests discover exactly nine tools.
 - [ ] All tools advertise read-only, non-destructive and idempotent hints.
 
 ## Real Codex MCP acceptance
@@ -28,7 +28,7 @@ The preferred machine-evidence flow is documented in [`evidence-readiness.md`](e
 - [ ] `osi-codex-acceptance` runs from the same candidate commit.
 - [ ] The acceptance uses the intended live HTTP provider/origin.
 - [ ] Codex completes successfully in the ephemeral read-only acceptance session.
-- [ ] The privacy-safe ledger records at least one successful invocation for each of the six tools.
+- [ ] The privacy-safe ledger records at least one successful invocation for each of the nine tools.
 - [ ] The report SHA-256 matches the ledger file.
 - [ ] `osi-evidence-readiness` accepts the candidate-bound Codex report.
 

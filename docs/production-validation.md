@@ -177,7 +177,7 @@ OSI_PROVIDER=http
 AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn
 ```
 
-Confirm Codex discovers exactly six tools and each advertises:
+Confirm Codex discovers exactly nine tools and each advertises:
 
 ```text
 read_only_hint = true
@@ -224,7 +224,7 @@ osi-mcp-http --check-config
 Build the container:
 
 ```bash
-docker build -t aiworkstation-osi-mcp:0.1.0 .
+docker build --build-arg OSI_IMAGE_COMMIT="$(git rev-parse HEAD)" -t aiworkstation-osi-mcp:0.3.0 .
 docker compose -f compose.hosted.example.yml config
 docker compose -f compose.hosted.example.yml up --build
 ```

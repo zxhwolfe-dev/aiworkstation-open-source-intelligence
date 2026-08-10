@@ -273,8 +273,8 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
                         "NOT_AVAILABLE",
                     }:
                         errors.append("marketplace installation policy is invalid")
-                    if not str(policy.get("authentication") or "").strip():
-                        errors.append("marketplace authentication policy is required")
+                    if policy.get("authentication") not in {"NONE", "ON_INSTALL"}:
+                        errors.append("marketplace authentication policy is invalid")
                 if not str(entry.get("category") or "").strip():
                     errors.append("marketplace category is required")
 

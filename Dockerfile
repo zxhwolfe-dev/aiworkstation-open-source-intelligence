@@ -15,7 +15,7 @@ WORKDIR /app
 RUN groupadd --system osi \
     && useradd --system --gid osi --home-dir /home/osi --create-home osi
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 
 RUN python -m pip install --upgrade pip \

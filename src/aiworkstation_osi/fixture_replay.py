@@ -180,9 +180,8 @@ def replay_contract_directory(directory: Path) -> dict[str, Any]:
         "search_ai_projects",
         {
             "query": "Replay the captured formal selector scenario.",
-            "constraints": {},
+            "constraints": [],
             "locale": locale,
-            "source_mode": "required",
             "request_id": "replay-formal",
         },
     ).to_dict()
@@ -200,9 +199,8 @@ def replay_contract_directory(directory: Path) -> dict[str, Any]:
         "search_ai_projects",
         {
             "query": "Replay the captured no-match selector scenario.",
-            "constraints": {},
+            "constraints": [],
             "locale": locale,
-            "source_mode": "required",
             "request_id": "replay-no-match",
         },
     ).to_dict()

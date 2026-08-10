@@ -18,7 +18,7 @@ class ToolError(Exception):
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": "osi.error.v1",
+            "schema_version": "osi.error.v2",
             "error": {
                 "code": self.code,
                 "message": self.message,
@@ -46,6 +46,11 @@ class UnknownToolError(ToolError):
 class ProviderUnavailableError(ToolError):
     def __init__(self, message: str = "Project intelligence provider is unavailable") -> None:
         super().__init__("PROVIDER_UNAVAILABLE", message, True)
+
+
+class ProviderOverloadedError(ToolError):
+    def __init__(self, message: str = "Project intelligence provider is at capacity") -> None:
+        super().__init__("PROVIDER_OVERLOADED", message, True, {"retry_after_seconds": 1})
 
 
 class UpstreamContractError(ToolError):

@@ -7,6 +7,7 @@ Radar overview, project-directory and Skills-library endpoints.
 
 from __future__ import annotations
 
+import os
 import urllib.parse
 from typing import Any, Mapping, Sequence
 
@@ -90,6 +91,8 @@ class FullRadarHttpProvider(AIWorkstationHttpProvider):
         selector_transport = SelectorTaskJsonTransport(
             delegate,
             task_timeout=max(60.0, float(timeout)),
+            max_concurrent=int(os.getenv("OSI_SELECTOR_MAX_CONCURRENT", "8")),
+            queue_timeout=float(os.getenv("OSI_SELECTOR_QUEUE_TIMEOUT_SECONDS", "2")),
         )
         super().__init__(
             base_url,
