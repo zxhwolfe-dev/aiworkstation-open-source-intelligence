@@ -32,7 +32,8 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("pypi-publish-and-verify:", content)
         self.assertIn("needs: build-and-stage-draft", content)
         self.assertIn("PYTHON-DISTS-SHA256SUMS", content)
-        self.assertIn("os.environ['GITHUB_REPOSITORY']}/releases/{sys.argv[1]}/assets/{assets[name]}", content)
+        self.assertIn('print(f"{name}\\t{assets[name]}")', content)
+        self.assertIn('"repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID/assets/$asset_id" > "tmp/release-assets/$name"', content)
         self.assertIn("sha256sum --check", content)
         self.assertIn("id-token: write", content)
         self.assertIn("environment: pypi", content)
@@ -96,9 +97,64 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertLess(content.index("verify_checksum_manifest((root/'SHA256SUMS')"), content.index("pypi-validate:"))
         self.assertIn("locate_draft", content)
         self.assertIn('test "$COMMIT" = "$(git rev-parse FETCH_HEAD)"', content)
-        self.assertIn('gh api -H \'Accept: application/octet-stream\' --output "tmp/staged-assets/$name"', content)
+        self.assertIn('gh api -H \'Accept: application/octet-stream\' "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id" > "tmp/staged-assets/$name"', content)
         self.assertLess(content.index("test -n \"${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}\""), content.index("-F draft=false"))
         self.assertLess(content.index("-F draft=false"), content.rindex("published tag ref does not resolve to input"))
+
+    def test_new_draft_visibility_uses_bounded_retry(self) -> None:
+        content = self._workflow("release.yml")
+        creation = content.split('gh release create "$TAG" --draft', 1)[1].split('release_id="${release_record', 1)[0]
+        self.assertIn("for attempt in 1 2 3 4 5; do", creation)
+        self.assertIn("if [ -s tmp/release-id-state ]; then break; fi", creation)
+        self.assertIn('if [ "$attempt" -eq 5 ]; then', creation)
+        self.assertIn("created Draft Release did not become visible after bounded retries", creation)
+        self.assertIn("sleep 2", creation)
+
+    def test_release_asset_download_commands_execute_via_stdout(self) -> None:
+        content = self._workflow("release.yml")
+        self.assertNotRegex(content, r"gh api[^\n]*--output")
+        self.assertNotIn("'--output'", content)
+        commands = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip().startswith("gh api -H 'Accept: application/octet-stream'")
+            and "/assets/" in line
+        ]
+        self.assertEqual(len(commands), 3)
+        with tempfile.TemporaryDirectory() as working:
+            root = Path(working)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            fake_gh = fake_bin / "gh"
+            fake_gh.write_text(
+                "#!/bin/sh\n"
+                "case \" $* \" in *\" --output \"*) exit 97 ;; esac\n"
+                "printf 'release-asset-bytes'\n",
+                encoding="utf-8",
+            )
+            fake_gh.chmod(0o755)
+            for directory in ("tmp/staged-assets", "tmp/release-assets", "tmp/final-release-assets"):
+                (root / directory).mkdir(parents=True)
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "GITHUB_REPOSITORY": "owner/repository",
+                    "RELEASE_ID": "7",
+                    "release_id": "7",
+                    "asset_id": "41",
+                    "name": "asset.bin",
+                }
+            )
+            for command in commands:
+                command = command.replace("/tmp/final-release-assets/", "tmp/final-release-assets/")
+                subprocess.run(["bash", "-c", command], cwd=root, env=env, check=True)
+            for path in (
+                root / "tmp/staged-assets/asset.bin",
+                root / "tmp/release-assets/asset.bin",
+                root / "tmp/final-release-assets/asset.bin",
+            ):
+                self.assertEqual(path.read_bytes(), b"release-asset-bytes")
 
     def test_release_asset_id_jq_builds_integer_name_map(self) -> None:
         content = self._workflow("release.yml")

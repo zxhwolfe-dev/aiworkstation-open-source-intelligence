@@ -162,14 +162,22 @@ jobs:
               --title "$TAG — AI Open Source Intelligence" --notes-file CHANGELOG.md \
               "dist/alpha/$archive_name" dist/alpha/SHA256SUMS dist/alpha/bundle-report.json \
               "dist/python/$WHEEL_NAME" "dist/python/$SDIST_NAME" dist/python/PYTHON-DISTS-SHA256SUMS
-            gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > tmp/releases-after-create.json
-            python - "$TAG" "$COMMIT" "${expected[@]}" <<'PY' > tmp/release-id-state
+            for attempt in 1 2 3 4 5; do
+              gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > tmp/releases-after-create.json
+              python - "$TAG" "$COMMIT" "${expected[@]}" <<'PY' > tmp/release-id-state
           import json, sys
           from aiworkstation_osi.release_promotion import flatten_releases, locate_draft
           identity=locate_draft(flatten_releases(json.load(open('tmp/releases-after-create.json'))), tag=sys.argv[1], commit=sys.argv[2], expected_assets=sys.argv[3:])
-          if identity is None: raise SystemExit('created Draft Release could not be located')
-          print(f"{identity.release_id}\t{'draft' if identity.draft else 'public'}")
+          if identity is not None:
+              print(f"{identity.release_id}\t{'draft' if identity.draft else 'public'}")
           PY
+              if [ -s tmp/release-id-state ]; then break; fi
+              if [ "$attempt" -eq 5 ]; then
+                echo "created Draft Release did not become visible after bounded retries" >&2
+                exit 1
+              fi
+              sleep 2
+            done
             release_record="$(cat tmp/release-id-state)"
           fi
           release_id="${release_record%%$'\t'*}"
@@ -194,7 +202,7 @@ jobs:
           test "$(jq -r '.target_commitish' tmp/draft.json)" = "$COMMIT"
           rm -rf tmp/staged-assets && mkdir -p tmp/staged-assets
           jq -r '.assets[] | [.name, .id] | @tsv' tmp/draft.json | while IFS=$'\t' read -r name asset_id; do
-            gh api -H 'Accept: application/octet-stream' --output "tmp/staged-assets/$name" "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id"
+            gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id" > "tmp/staged-assets/$name"
           done
           PYTHONPATH=src python - "$archive_name" "$WHEEL_NAME" "$SDIST_NAME" <<'PY'
           import sys
@@ -272,17 +280,19 @@ jobs:
           set -euo pipefail
           mkdir -p tmp/release-assets
           gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > tmp/release.json
-          PYTHONPATH=src python - "$RELEASE_ID" "$ARCHIVE_NAME" "$WHEEL_NAME" "$SDIST_NAME" <<'PY'
-          import json, os, subprocess, sys
+          PYTHONPATH=src python - "$RELEASE_ID" "$ARCHIVE_NAME" "$WHEEL_NAME" "$SDIST_NAME" <<'PY' > tmp/release-assets.tsv
+          import json, os, sys
           from aiworkstation_osi.release_promotion import validate_release
           release=json.load(open('tmp/release.json'))
           archive_name, wheel_name, sdist_name = sys.argv[2:]
           identity=validate_release(release, tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=[archive_name, 'SHA256SUMS', 'bundle-report.json', wheel_name, sdist_name, 'PYTHON-DISTS-SHA256SUMS'], release_id=int(os.environ['RELEASE_ID']))
           assets=identity.asset_ids
           for name in [wheel_name, sdist_name, 'PYTHON-DISTS-SHA256SUMS']:
-              path='tmp/release-assets/'+name
-              subprocess.run(['gh','api','-H','Accept: application/octet-stream','--output',path,f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/{sys.argv[1]}/assets/{assets[name]}"], check=True)
+              print(f"{name}\t{assets[name]}")
           PY
+          while IFS=$'\t' read -r name asset_id; do
+            gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID/assets/$asset_id" > "tmp/release-assets/$name"
+          done < tmp/release-assets.tsv
           test "$(find tmp/release-assets -maxdepth 1 -type f -name "$WHEEL_NAME" | wc -l)" -eq 1
           test "$(find tmp/release-assets -maxdepth 1 -type f -name "$SDIST_NAME" | wc -l)" -eq 1
           test "$(find tmp/release-assets -maxdepth 1 -type f -name PYTHON-DISTS-SHA256SUMS | wc -l)" -eq 1
@@ -724,7 +734,7 @@ jobs:
           PY
           rm -rf /tmp/final-release-assets && mkdir -p /tmp/final-release-assets
           jq -r '.assets[] | [.name, .id] | @tsv' /tmp/final-release-before.json | while IFS=$'\t' read -r name asset_id; do
-            gh api -H 'Accept: application/octet-stream' --output "/tmp/final-release-assets/$name" "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID/assets/$asset_id"
+            gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID/assets/$asset_id" > "/tmp/final-release-assets/$name"
           done
           PYTHONPATH=src ARCHIVE_NAME="${expected[0]}" VERSION="$VERSION" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" python - <<'PY'
           import os
