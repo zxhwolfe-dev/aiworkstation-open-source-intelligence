@@ -7,8 +7,8 @@ remote MCP runtime remains independently deployed and is not embedded in the
 archive.
 
 The published `v0.3.0` archive is an immutable historical Skills-only artifact.
-This complete-package change must be released under a new patch version rather
-than rebuilding or replacing `v0.3.0`.
+This complete package uses the `v0.3.1` patch identity rather than rebuilding
+or replacing `v0.3.0`.
 
 Package identity is read from `.codex-plugin/plugin.json`; its version must equal
 the Python runtime, wheel metadata and Changelog. The repository marketplace

@@ -46,7 +46,7 @@ class CurrentDocumentationTests(unittest.TestCase):
         content = (self.ROOT / "docs/QUICKSTART.md").read_text(encoding="utf-8")
         self.assertIn("https://mcp.aiworkstation.cn/mcp", content)
         self.assertIn("Authentication: No Authentication", content)
-        self.assertIn("aiworkstation-open-source-intelligence[mcp]==0.3.0", content)
+        self.assertIn("aiworkstation-open-source-intelligence[mcp]==0.3.1", content)
         self.assertIn("codex plugin marketplace add", content)
         self.assertIn("get_radar_overview", content)
         self.assertIn("browse_radar_projects", content)

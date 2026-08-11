@@ -18,8 +18,8 @@ Contains one active Skill and the reviewed Hosted MCP connection:
 After the packaging change reaches `main`, install this Plugin once from the
 repository Marketplace. Confirm that the Skill and all nine live tools become
 available without adding a separate global MCP entry. The immutable `v0.3.0`
-archive remains Skills-only and must not be rebuilt; use the next patch release
-for a versioned complete-Plugin Alpha.
+archive remains Skills-only and must not be rebuilt; use `v0.3.1` for the
+versioned complete-Plugin Alpha.
 
 ### Hosted MCP mode (recommended for product testing)
 
@@ -63,13 +63,13 @@ For local developer validation, also use Python 3.12, a fresh virtual
 environment and a disposable working directory.
 
 Hosted-only testers do not need Python. Local developer testers should install
-the published `v0.3.0` package in a fresh environment:
+the `v0.3.1` package in a fresh environment after it is published:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install \
-  "aiworkstation-open-source-intelligence[mcp]==0.3.0"
+  "aiworkstation-open-source-intelligence[mcp]==0.3.1"
 osi-m0 list-tools
 ```
 

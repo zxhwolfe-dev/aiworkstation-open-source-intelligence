@@ -147,7 +147,7 @@ jobs:
           from aiworkstation_osi.mcp_server import build_mcp_server
           from mcp import Client
 
-          assert aiworkstation_osi.__version__ == "0.3.0"
+          assert aiworkstation_osi.__version__ == "0.3.1"
 
           async def check():
               async with Client(build_mcp_server()) as client:

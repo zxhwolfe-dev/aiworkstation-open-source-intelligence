@@ -163,15 +163,15 @@ https://mcp.aiworkstation.cn/mcp
 - Codex / ChatGPT 桌面版：安装完整的仓库 Plugin；
 - ChatGPT 网页端：公共目录上架前，在 Developer mode 中把
   `https://mcp.aiworkstation.cn/mcp` 注册为 **No Authentication** 应用；
-- Python/CLI：安装已经发布的包：
+- Python/CLI：`v0.3.1` 发布后，安装同版本包：
 
 ```bash
 python -m pip install \
-  "aiworkstation-open-source-intelligence[mcp]==0.3.0"
+  "aiworkstation-open-source-intelligence[mcp]==0.3.1"
 ```
 
 具体步骤见[快速开始](docs/QUICKSTART.md)。不可变的 `v0.3.0` 压缩包仍是旧的
-Skills-only 制品；完整 Plugin 必须使用新的补丁版本发布，不能覆盖重建
+Skills-only 制品；完整 Plugin 使用 `v0.3.1` 补丁版本发布，不能覆盖重建
 `v0.3.0`。
 
 ## 本地开发

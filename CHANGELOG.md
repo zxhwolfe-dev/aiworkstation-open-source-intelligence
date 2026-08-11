@@ -4,6 +4,8 @@ All notable pre-release changes are recorded here. Dates refer to repository cha
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-11
+
 ### Changed
 
 - Replaced the repository's Skills-only Plugin package with a complete package

@@ -162,16 +162,17 @@ public ChatGPT directory listing is still pending review. Today:
 - Codex / ChatGPT desktop users can install the complete repository Plugin;
 - ChatGPT web users can register `https://mcp.aiworkstation.cn/mcp` as a
   **No Authentication** developer-mode app while the public listing is pending;
-- Python users can install the released CLI/MCP package with:
+- after `v0.3.1` is published, Python users can install the matching CLI/MCP
+  package with:
 
 ```bash
 python -m pip install \
-  "aiworkstation-open-source-intelligence[mcp]==0.3.0"
+  "aiworkstation-open-source-intelligence[mcp]==0.3.1"
 ```
 
 See the [Quickstart](docs/QUICKSTART.md) for exact ChatGPT, Codex and Python
 steps. The immutable `v0.3.0` archive remains the earlier Skills-only artifact;
-publish the complete Plugin under a new patch version rather than replacing it.
+the complete Plugin uses the `v0.3.1` patch identity rather than replacing it.
 
 ## Local development
 

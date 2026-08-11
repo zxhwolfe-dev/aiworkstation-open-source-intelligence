@@ -36,6 +36,7 @@ class PluginPackageTests(unittest.TestCase):
             self.manifest["name"],
             "aiworkstation-open-source-intelligence",
         )
+        self.assertEqual(self.manifest["version"], "0.3.1")
         self.assertEqual(self.manifest["license"], "Apache-2.0")
         self.assertTrue((self.ROOT / "LICENSE").is_file())
 

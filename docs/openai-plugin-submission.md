@@ -252,7 +252,7 @@ starter prompts, each no longer than 128 characters:
 - [x] Website and Radar URLs load publicly
 - [x] Hosted MCP passes candidate-bound English and Chinese remote smoke
 - [x] Support, Privacy and Terms URLs load without authentication
-- [x] Plugin package contains exactly one active Skill
+- [x] Plugin package contains exactly one active Skill and the reviewed Hosted MCP configuration
 - [ ] Five positive and at least three negative cases reproduced in a clean installation
 - [x] Server-model/OAuth/Premium paths are not exposed by the release
 - [ ] Starter prompts reviewed

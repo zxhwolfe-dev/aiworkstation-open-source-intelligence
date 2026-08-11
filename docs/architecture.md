@@ -169,8 +169,9 @@ Candidate-bound CI, bilingual contract validation, Codex nine-tool acceptance,
 human artifact review, exact-image deployment and bilingual remote smoke must be
 repeated for a changed runtime candidate.
 
-Documentation-only changes do not mutate the existing `v0.3.0` tag or deployed
-image.
+The `v0.3.1` Plugin/package candidate does not mutate the existing `v0.3.0` tag
+or deployed image. If operators later deploy a `v0.3.1` runtime image, the full
+candidate-bound runtime evidence chain above must be repeated first.
 
 ## Current scope and deferred work
 

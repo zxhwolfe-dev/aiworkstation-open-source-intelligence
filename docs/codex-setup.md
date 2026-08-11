@@ -24,8 +24,8 @@ added Marketplace. The Plugin bundles the unified Skill and `.mcp.json`, so no
 separate global MCP entry is required. Restart the client and confirm the nine
 tools with `codex mcp list` or `/mcp`.
 
-The published `v0.3.0` tag remains the immutable Skills-only artifact. Use the
-next patch release when a version-pinned complete Plugin becomes available.
+The published `v0.3.0` tag remains the immutable Skills-only artifact. Use
+`main` for candidate testing and `v0.3.1` after the complete Plugin is released.
 
 ## 1b. Manual Hosted MCP fallback
 

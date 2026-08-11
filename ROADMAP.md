@@ -37,7 +37,9 @@ Image:  sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849
 - [x] Align active docs to one Skill, nine tools and deployed Hosted status
 - [x] Document ChatGPT Developer mode, Codex Hosted MCP and PyPI installation
 - [x] Replace the broken plugin Terms URL
-- [ ] Run a clean external installation of the exact `v0.3.0` Skill and PyPI package
+- [x] Prepare the `v0.3.1` complete Plugin with bundled Hosted MCP configuration
+- [x] Align directory copy, starter prompts and required square Plugin assets
+- [ ] Run a clean external installation of the exact `v0.3.1` candidate
 - [ ] Run Wave A with three invited testers
 - [ ] Record production error, latency and 429 baseline
 - [ ] Review anonymous thresholds after real-user traffic

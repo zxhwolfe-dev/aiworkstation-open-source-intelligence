@@ -1,12 +1,13 @@
 # Quickstart
 
-AI Workstation Open Source Intelligence `v0.3.0` has one user-facing Skill and
-nine anonymous, read-only Hosted MCP tools.
+AI Workstation Open Source Intelligence `v0.3.1` is the complete-Plugin patch
+candidate: one user-facing Skill plus nine anonymous, read-only Hosted MCP
+tools.
 
 The repository Plugin now bundles the Skill and the Hosted MCP connection in a
 single package for Codex and the ChatGPT desktop Codex host. The immutable
-`v0.3.0` release archive predates this packaging change, so publish the complete
-package under a new patch version instead of rebuilding `v0.3.0`. The public
+`v0.3.0` release archive predates this packaging change, so the complete package
+uses `v0.3.1` instead of rebuilding `v0.3.0`. The public
 ChatGPT directory submission is not yet approved; until then, ChatGPT web users
 can still use the MCP endpoint directly in Developer mode.
 
@@ -65,7 +66,7 @@ on the same Codex host share the installed Plugin configuration. See the
 official [Plugin packaging documentation](https://developers.openai.com/plugins/build/plugins).
 
 The immutable `v0.3.0` Marketplace entry is Skills-only. Users intentionally
-pinned to that tag must either upgrade to the next patch release or add the
+pinned to that tag must either upgrade to `v0.3.1` or add the
 production Hosted MCP manually:
 
 ```toml
@@ -109,14 +110,14 @@ Premium tool.
 
 ## Python / CLI installation
 
-Use the published package for scripting, local MCP hosting or integration
-development:
+After `v0.3.1` is published, use the matching package for scripting, local MCP
+hosting or integration development:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install \
-  "aiworkstation-open-source-intelligence[mcp]==0.3.0"
+  "aiworkstation-open-source-intelligence[mcp]==0.3.1"
 ```
 
 Inspect or call the deterministic offline provider:
@@ -146,7 +147,7 @@ For editable development from a reviewed checkout:
 ```bash
 git clone https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence.git
 cd aiworkstation-open-source-intelligence
-git checkout v0.3.0
+git checkout main
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[mcp]"

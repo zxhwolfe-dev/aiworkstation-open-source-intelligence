@@ -4,11 +4,12 @@ Use this checklist before inviting anyone outside the core development workflow.
 
 The preferred machine-evidence flow is documented in [`evidence-readiness.md`](evidence-readiness.md).
 
-## Current v0.3.0 baseline
+## Production baseline and v0.3.1 Plugin candidate
 
 ```text
-Release: v0.3.0
-Commit: 7b92e463a1da567afd5d1310601afdf1c6674646
+Production release: v0.3.0
+Production commit: 7b92e463a1da567afd5d1310601afdf1c6674646
+Complete Plugin candidate: v0.3.1 (record the final PR #26 merge SHA before release)
 Hosted MCP: https://mcp.aiworkstation.cn/mcp
 Image digest: sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849
 Product surface: one Skill + nine anonymous read-only data/evidence tools

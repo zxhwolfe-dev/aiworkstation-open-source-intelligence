@@ -134,8 +134,8 @@ separate remaining steps.
 - Codex / ChatGPT desktop: after the complete-package change reaches `main`,
   install the repository Plugin once; its `.mcp.json` includes the Hosted URL.
   The immutable `v0.3.0` tag remains Skills-only, so pinned users must upgrade
-  to the next patch release or add the URL manually.
+  to `v0.3.1` or add the URL manually.
 - Python: install
-  `aiworkstation-open-source-intelligence[mcp]==0.3.0`.
+  `aiworkstation-open-source-intelligence[mcp]==0.3.1`.
 
 See [`QUICKSTART.md`](QUICKSTART.md) for exact steps.
