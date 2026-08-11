@@ -23,8 +23,40 @@ class ReleasePromotionError(ValueError):
     """A release cannot safely be staged, resumed, or promoted."""
 
 
+ReleaseState = Literal["draft", "public"]
+
+
+def merge_release_states(states: Sequence[ReleaseState]) -> ReleaseState:
+    """Merge observations with a sticky, fail-closed public state.
+
+    Once any observation is public, later observations must also be public.
+    This prevents a stale Draft response from regaining write permission after
+    a Release was made public during an approval wait or a long build.
+    """
+
+    observed = list(states)
+    if not observed or any(state not in {"draft", "public"} for state in observed):
+        raise ReleasePromotionError("release state observations are invalid")
+    saw_public = False
+    for state in observed:
+        if saw_public and state != "public":
+            raise ReleasePromotionError("Release state regressed from public to Draft")
+        saw_public = saw_public or state == "public"
+    return "public" if saw_public else "draft"
+
+
+def validate_repo_digest(repo_digest: str, repository: str) -> str:
+    """Require one exact repository-qualified sha256 RepoDigest."""
+
+    if not isinstance(repo_digest, str) or not isinstance(repository, str) or not repository:
+        raise ReleasePromotionError("RepoDigest or repository is missing")
+    if re.fullmatch(re.escape(repository) + r"@sha256:[0-9a-f]{64}", repo_digest) is None:
+        raise ReleasePromotionError("RepoDigest is not an exact repository sha256 digest")
+    return repo_digest
+
+
 def decide_pypi_promotion(
-    release_state: Literal["draft", "public"],
+    release_state: ReleaseState,
     *,
     expected_hashes: Mapping[str, str],
     actual_hashes: Mapping[str, str],
@@ -53,7 +85,7 @@ def decide_pypi_promotion(
 
 
 def decide_ghcr_promotion(
-    release_state: Literal["draft", "public"],
+    release_state: ReleaseState,
     *,
     image_exists: bool,
     commit: str,
@@ -69,10 +101,8 @@ def decide_ghcr_promotion(
     if image_exists:
         if revision != commit or image_commit != commit:
             raise ReleasePromotionError("GHCR image identity does not match Release commit")
-        if repository is not None and (
-            not repo_digest or not repo_digest.startswith(f"{repository}@sha256:")
-        ):
-            raise ReleasePromotionError("GHCR RepoDigest is not for the expected repository")
+        if repository is not None:
+            validate_repo_digest(repo_digest or "", repository)
         return "verify_only"
     if release_state == "public":
         raise ReleasePromotionError("public Release is missing its GHCR image")

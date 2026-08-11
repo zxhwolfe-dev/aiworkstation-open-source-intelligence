@@ -178,7 +178,7 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/releases/$release_id" > tmp/draft.json
           RELEASE_JSON=tmp/draft.json TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$release_id" python - "${expected[@]}" <<'PY' > tmp/release-state
           import json, os, sys
-          from aiworkstation_osi.release_promotion import validate_release
+          from aiworkstation_osi.release_promotion import merge_release_states, validate_release
           identity=validate_release(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=sys.argv[1:], release_id=int(os.environ['RELEASE_ID']))
           print('draft' if identity.draft else 'public')
           PY
@@ -363,6 +363,7 @@ jobs:
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ inputs.commit }}
           PRERELEASE: ${{ inputs.prerelease }}
+          INITIAL_STATE: ${{ needs.build-and-stage-draft.outputs.release_state }}
           ARCHIVE_NAME: ${{ needs.build-and-stage-draft.outputs.archive_name }}
           WHEEL_NAME: ${{ needs.pypi-validate.outputs.wheel_name }}
           SDIST_NAME: ${{ needs.pypi-validate.outputs.sdist_name }}
@@ -371,13 +372,14 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/release-current.json
           PYTHONPATH=src python - <<'PY'
           import json, os
-          from aiworkstation_osi.release_promotion import validate_release
+          from aiworkstation_osi.release_promotion import merge_release_states, validate_release
           expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
           identity=validate_release(json.load(open('/tmp/release-current.json')), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
           if not identity.draft and identity.prerelease is not (os.environ['PRERELEASE'] == 'true'):
               raise SystemExit('public Release prerelease state does not match input')
+          state=merge_release_states([os.environ['INITIAL_STATE'], 'draft' if identity.draft else 'public'])
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write(f"release_state={'draft' if identity.draft else 'public'}\n")
+              output.write(f"release_state={'draft' if state == 'draft' else 'public'}\n")
           PY
       - name: Plan safe partial upload from PyPI state
         id: plan
@@ -436,18 +438,21 @@ jobs:
           ARCHIVE_NAME: ${{ needs.build-and-stage-draft.outputs.archive_name }}
           WHEEL_NAME: ${{ needs.pypi-validate.outputs.wheel_name }}
           SDIST_NAME: ${{ needs.pypi-validate.outputs.sdist_name }}
+          INITIAL_STATE: ${{ needs.build-and-stage-draft.outputs.release_state }}
+          APPROVED_STATE: ${{ steps.release-state.outputs.release_state }}
         run: |
           set -euo pipefail
           gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/release-before-upload.json
           PYTHONPATH=src python - <<'PY'
           import json, os
-          from aiworkstation_osi.release_promotion import validate_release
+          from aiworkstation_osi.release_promotion import merge_release_states, validate_release
           expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
           identity=validate_release(json.load(open('/tmp/release-before-upload.json')), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
           if not identity.draft and identity.prerelease is not (os.environ['PRERELEASE'] == 'true'):
               raise SystemExit('public Release prerelease state does not match input')
+          state=merge_release_states([os.environ['INITIAL_STATE'], os.environ['APPROVED_STATE'], 'draft' if identity.draft else 'public'])
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write(f"allow_upload={'true' if identity.draft else 'false'}\n")
+              output.write(f"allow_upload={'true' if state == 'draft' else 'false'}\n")
           PY
       - name: Publish missing files with PyPI Trusted Publishing
         if: steps.plan.outputs.upload_needed == 'true' && steps.before-upload.outputs.allow_upload == 'true'
@@ -515,20 +520,22 @@ jobs:
           ARCHIVE_NAME: ${{ needs.build-and-stage-draft.outputs.archive_name }}
           WHEEL_NAME: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
           SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
+          INITIAL_STATE: ${{ needs.build-and-stage-draft.outputs.release_state }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$COMMIT"
           release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID")"
           RELEASE_JSON="$release_json" TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$RELEASE_ID" PYTHONPATH=src python - <<'PY'
           import json, os
-          from aiworkstation_osi.release_promotion import validate_release
+          from aiworkstation_osi.release_promotion import merge_release_states, validate_release
           payload=json.loads(os.environ['RELEASE_JSON'])
           expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
           identity=validate_release(payload, tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
           if not identity.draft and identity.prerelease is not (os.environ['PRERELEASE'] == 'true'):
               raise SystemExit('public Release prerelease state does not match input')
+          state=merge_release_states([os.environ['INITIAL_STATE'], 'draft' if identity.draft else 'public'])
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write(f"release_state={'draft' if identity.draft else 'public'}\n")
+              output.write(f"release_state={state}\n")
           PY
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -547,29 +554,31 @@ jobs:
           ARCHIVE_NAME: ${{ needs.build-and-stage-draft.outputs.archive_name }}
           WHEEL_NAME: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
           SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
+          INITIAL_STATE: ${{ needs.build-and-stage-draft.outputs.release_state }}
         run: |
           set -euo pipefail
           gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/release-before-image-write.json
           RELEASE_JSON=/tmp/release-before-image-write.json TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$RELEASE_ID" PRERELEASE="$PRERELEASE" ARCHIVE_NAME="$ARCHIVE_NAME" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" PYTHONPATH=src python - <<'PY' > /tmp/current-release-state
           import json, os
-          from aiworkstation_osi.release_promotion import validate_release
+          from aiworkstation_osi.release_promotion import merge_release_states, validate_release
           expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
           identity=validate_release(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
           if not identity.draft and identity.prerelease is not (os.environ['PRERELEASE'] == 'true'):
               raise SystemExit('public Release prerelease state does not match input')
-          print('draft' if identity.draft else 'public')
+          print(merge_release_states([os.environ['INITIAL_STATE'], 'draft' if identity.draft else 'public']))
           PY
           release_state="$(cat /tmp/current-release-state)"
           if docker pull "$IMAGE" >/dev/null 2>/tmp/image-pull-error; then
             docker image inspect "$IMAGE" > /tmp/existing-image.json
             COMMIT="$COMMIT" IMAGE="$IMAGE" RELEASE_STATE="$release_state" PYTHONPATH=src python - <<'PY'
           import json, os
-          from aiworkstation_osi.release_promotion import decide_ghcr_promotion
+          from aiworkstation_osi.release_promotion import decide_ghcr_promotion, validate_repo_digest
           data=json.load(open('/tmp/existing-image.json'))[0]
           labels=data.get('Config',{}).get('Labels') or {}
           env=dict(item.split('=',1) for item in data.get('Config',{}).get('Env') or [] if '=' in item)
           repository=os.environ['IMAGE'].rsplit(':',1)[0]
           digest=next((item for item in data.get('RepoDigests',[]) if item.startswith(repository+'@')), None)
+          validate_repo_digest(digest or '', repository)
           decide_ghcr_promotion(os.environ['RELEASE_STATE'], image_exists=True, commit=os.environ['COMMIT'], revision=labels.get('org.opencontainers.image.revision'), image_commit=env.get('OSI_IMAGE_COMMIT'), repo_digest=digest, repository=repository)
           PY
           else
@@ -585,7 +594,39 @@ jobs:
               decide_ghcr_promotion('public', image_exists=False, commit=os.environ['COMMIT'])
           decide_ghcr_promotion('draft', image_exists=False, commit=os.environ['COMMIT'])
           PY
-            docker buildx build --push --tag "$IMAGE" --label "org.opencontainers.image.revision=$COMMIT" --build-arg "OSI_IMAGE_COMMIT=$COMMIT" .
+            docker buildx build --load --tag "$IMAGE" --label "org.opencontainers.image.revision=$COMMIT" --build-arg "OSI_IMAGE_COMMIT=$COMMIT" .
+            gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/release-after-image-build.json
+            RELEASE_JSON=/tmp/release-after-image-build.json TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$RELEASE_ID" PRERELEASE="$PRERELEASE" INITIAL_STATE="$INITIAL_STATE" START_STATE="$release_state" ARCHIVE_NAME="$ARCHIVE_NAME" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" PYTHONPATH=src python - <<'PY' > /tmp/release-after-build-state
+          import json, os
+          from aiworkstation_osi.release_promotion import merge_release_states, validate_release
+          expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
+          identity=validate_release(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
+          current='draft' if identity.draft else 'public'
+          print(merge_release_states([os.environ['INITIAL_STATE'], os.environ['START_STATE'], current]))
+          PY
+            release_state="$(cat /tmp/release-after-build-state)"
+            if docker pull "$IMAGE" >/dev/null 2>/tmp/image-pull-after-build-error; then
+              docker image inspect "$IMAGE" > /tmp/image-after-build.json
+              COMMIT="$COMMIT" IMAGE="$IMAGE" RELEASE_STATE="$release_state" PYTHONPATH=src python - <<'PY'
+          import json, os
+          from aiworkstation_osi.release_promotion import decide_ghcr_promotion, validate_repo_digest
+          data=json.load(open('/tmp/image-after-build.json'))[0]
+          labels=data.get('Config',{}).get('Labels') or {}
+          env=dict(item.split('=',1) for item in data.get('Config',{}).get('Env') or [] if '=' in item)
+          repository=os.environ['IMAGE'].rsplit(':',1)[0]
+          digest=next((item for item in data.get('RepoDigests',[]) if item.startswith(repository+'@')), None)
+          validate_repo_digest(digest or '', repository)
+          decide_ghcr_promotion(os.environ['RELEASE_STATE'], image_exists=True, commit=os.environ['COMMIT'], revision=labels.get('org.opencontainers.image.revision'), image_commit=env.get('OSI_IMAGE_COMMIT'), repo_digest=digest, repository=repository)
+          PY
+            else
+              grep -Eiq 'manifest unknown|not found|does not exist' /tmp/image-pull-after-build-error || { cat /tmp/image-pull-after-build-error >&2; exit 1; }
+              RELEASE_STATE="$release_state" COMMIT="$COMMIT" PYTHONPATH=src python - <<'PY'
+          import os
+          from aiworkstation_osi.release_promotion import decide_ghcr_promotion
+          decide_ghcr_promotion(os.environ['RELEASE_STATE'], image_exists=False, commit=os.environ['COMMIT'])
+          PY
+              docker push "$IMAGE"
+            fi
           fi
       - name: Inspect pushed image identity and digest
         id: verify
@@ -606,7 +647,7 @@ jobs:
           assert env.get('OSI_IMAGE_COMMIT') == commit
           repository=os.environ['IMAGE'].rsplit(':',1)[0]
           repo_digest=next((d for d in data.get('RepoDigests',[]) if d.startswith(repository+'@')), '')
-          assert repo_digest
+          validate_repo_digest(repo_digest, repository)
           print(f'digest={repo_digest}')
           with open(os.environ['GITHUB_OUTPUT'],'a') as output: output.write(f'digest={repo_digest}\n')
           PY
@@ -617,6 +658,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -625,6 +667,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish verified Draft Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -660,6 +707,32 @@ jobs:
           (cd /tmp/final-release-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
           test "$(sha256sum "/tmp/final-release-assets/$WHEEL_NAME" | cut -d' ' -f1)" = "${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}"
           test "$(sha256sum "/tmp/final-release-assets/$SDIST_NAME" | cut -d' ' -f1)" = "${{ needs.pypi-publish-and-verify.outputs.sdist_sha }}"
+          VERSION="$VERSION" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" EXPECTED_WHEEL_SHA="${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}" EXPECTED_SDIST_SHA="${{ needs.pypi-publish-and-verify.outputs.sdist_sha }}" python - <<'PY'
+          import json, os, urllib.request
+          version=os.environ['VERSION']
+          with urllib.request.urlopen(f'https://pypi.org/pypi/aiworkstation-open-source-intelligence/{version}/json', timeout=15) as response:
+              urls=json.load(response)['urls']
+          expected={os.environ['WHEEL_NAME']: os.environ['EXPECTED_WHEEL_SHA'], os.environ['SDIST_NAME']: os.environ['EXPECTED_SDIST_SHA']}
+          actual={item['filename']: item['digests']['sha256'] for item in urls}
+          if set(actual) != set(expected) or any(actual[name] != digest for name, digest in expected.items()):
+              raise SystemExit('final PyPI state does not exactly match Release artifacts')
+          PY
+          docker pull "ghcr.io/${GITHUB_REPOSITORY}:sha-$COMMIT" >/dev/null
+          docker image inspect "ghcr.io/${GITHUB_REPOSITORY}:sha-$COMMIT" > /tmp/final-image.json
+          COMMIT="$COMMIT" EXPECTED_DIGEST="${{ needs.ghcr-publish-and-verify.outputs.digest }}" IMAGE="ghcr.io/${GITHUB_REPOSITORY}:sha-$COMMIT" python - <<'PY'
+          import json, os
+          from aiworkstation_osi.release_promotion import validate_repo_digest
+          data=json.load(open('/tmp/final-image.json'))[0]
+          commit=os.environ['COMMIT']
+          labels=data.get('Config',{}).get('Labels') or {}
+          env=dict(item.split('=',1) for item in data.get('Config',{}).get('Env') or [] if '=' in item)
+          assert labels.get('org.opencontainers.image.revision') == commit
+          assert env.get('OSI_IMAGE_COMMIT') == commit
+          repository=os.environ['IMAGE'].rsplit(':',1)[0]
+          digest=next((d for d in data.get('RepoDigests',[]) if d.startswith(repository+'@')), '')
+          validate_repo_digest(digest, repository)
+          assert digest == os.environ['EXPECTED_DIGEST']
+          PY
           if [ "$(jq -r '.draft' /tmp/final-release-before.json)" = true ]; then
             tag_response="$(gh api --include "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" 2>/tmp/tag-error || true)"
             tag_status="$(printf '%s\n' "$tag_response" | awk 'toupper($1) ~ /^HTTP/ {code=$2} END {print code}')"

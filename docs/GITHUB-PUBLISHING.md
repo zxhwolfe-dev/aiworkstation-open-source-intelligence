@@ -117,6 +117,11 @@ The GHCR image is published only as
 The `sha-<full-commit>` value is an explicit image tag, not a nested image path;
 no `latest` tag is created or promoted.
 
+GHCR promotion builds a missing Draft image locally first. Only after a fresh
+Release identity check following the build, and a second exact image lookup,
+does it push. If any observation is Public, that sticky state cannot return to
+write mode; Public recovery only pulls and verifies the existing image.
+
 Draft identity is read from the authenticated Releases API (`release_id`,
 `target_commitish`, and asset IDs); the Draft path does not assume that a
 `refs/tags/<tag>` ref already exists. It fails closed if the API proves that a

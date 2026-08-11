@@ -4,6 +4,8 @@ import unittest
 
 from aiworkstation_osi.release_promotion import (
     ReleasePromotionError,
+    merge_release_states,
+    validate_repo_digest,
     flatten_releases,
     decide_ghcr_promotion,
     decide_pypi_promotion,
@@ -35,6 +37,29 @@ def release(*, draft: bool, commit: str = COMMIT, release_id: int = 7, prereleas
 
 
 class ReleasePromotionTests(unittest.TestCase):
+    def test_public_release_state_is_sticky_and_regressions_fail_closed(self) -> None:
+        self.assertEqual(merge_release_states(["draft", "draft"]), "draft")
+        self.assertEqual(merge_release_states(["draft", "public"]), "public")
+        self.assertEqual(merge_release_states(["public", "public"]), "public")
+        for sequence in (("draft", "public", "draft"), ("public", "draft")):
+            with self.assertRaises(ReleasePromotionError):
+                merge_release_states(sequence)
+
+    def test_repo_digest_requires_exact_repository_and_lowercase_sha256(self) -> None:
+        repository = "ghcr.io/example/repo"
+        valid = f"{repository}@sha256:{'a' * 64}"
+        self.assertEqual(validate_repo_digest(valid, repository), valid)
+        for value in (
+            "",
+            f"{repository}@sha256:{'a' * 63}",
+            f"{repository}@sha256:{'g' * 64}",
+            f"ghcr.io/other/repo@sha256:{'a' * 64}",
+            f"{repository}@sha256:{'A' * 64}",
+            f"{repository}@sha256:{'a' * 64}:extra",
+        ):
+            with self.assertRaises(ReleasePromotionError):
+                validate_repo_digest(value, repository)
+
     def test_downstream_promotion_state_machine_is_fail_closed_for_public_releases(self) -> None:
         expected = {"wheel.whl": "a" * 64, "source.tar.gz": "b" * 64}
         self.assertEqual(decide_pypi_promotion("draft", expected_hashes=expected, actual_hashes={"wheel.whl": expected["wheel.whl"]}), "upload_missing")
