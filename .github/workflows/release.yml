@@ -269,7 +269,7 @@ jobs:
     needs: build-and-stage-draft
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     outputs:
       wheel_sha: ${{ steps.check.outputs.wheel_sha }}
       sdist_sha: ${{ steps.check.outputs.sdist_sha }}
@@ -371,7 +371,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      contents: read
+      contents: write
       id-token: write
     outputs:
       wheel_sha: ${{ steps.verify.outputs.wheel_sha }}
@@ -541,7 +541,7 @@ jobs:
     needs: build-and-stage-draft
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     outputs:
       digest: ${{ steps.verify.outputs.digest }}
