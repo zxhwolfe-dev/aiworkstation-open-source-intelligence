@@ -50,13 +50,15 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ inputs.commit }}
+          PRERELEASE: ${{ inputs.prerelease }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main || { echo "workflow must be dispatched from main" >&2; exit 1; }
+          test "$COMMIT" = "$GITHUB_SHA" || { echo "input commit must equal immutable workflow SHA" >&2; exit 1; }
           [[ "$COMMIT" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "commit must be a full 40-character SHA" >&2; exit 1; }
           test "$(git rev-parse HEAD)" = "$(git rev-parse "$COMMIT^{commit}")" || { echo "checkout did not resolve to requested commit" >&2; exit 1; }
-          git fetch origin main --no-tags --depth=1
-          test "$COMMIT" = "$(git rev-parse FETCH_HEAD)" || { echo "input commit must equal current origin/main" >&2; exit 1; }
+          [[ "$PRERELEASE" == true || "$PRERELEASE" == false ]] || { echo "prerelease input is invalid" >&2; exit 1; }
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "tag must look like v0.3.0" >&2; exit 1; }
           version="$(PYTHONPATH=src python -c 'import aiworkstation_osi; print(aiworkstation_osi.__version__)')"
           plugin_version="$(python -c 'import json; from pathlib import Path; print(json.loads(Path(".codex-plugin/plugin.json").read_text(encoding="utf-8"))["version"])')"
@@ -83,12 +85,19 @@ jobs:
           set -euo pipefail
           rm -rf dist
           osi-build-alpha --root . --output-dir dist/alpha
+          PYTHONPATH=src python - <<'PY'
+          from pathlib import Path
+          from aiworkstation_osi.release_promotion import verify_checksum_manifest
+          root=Path('dist/alpha'); archive=Path(__import__('json').loads((root/'bundle-report.json').read_text())['archive']).name
+          verify_checksum_manifest((root/'SHA256SUMS').read_text(), [archive], {archive: (root/archive).read_bytes()})
+          PY
           (cd dist/alpha && sha256sum --check SHA256SUMS)
           osi-build-alpha --root . --output-dir dist/alpha-second
           test "$(sha256sum dist/alpha/*.zip | cut -d' ' -f1)" = "$(sha256sum dist/alpha-second/*.zip | cut -d' ' -f1)"
 
       - name: Build exact Python release artifacts
         env:
+          VERSION: ${{ steps.identity.outputs.version }}
           WHEEL_NAME: ${{ steps.identity.outputs.wheel_name }}
           SDIST_NAME: ${{ steps.identity.outputs.sdist_name }}
         run: |
@@ -100,6 +109,15 @@ jobs:
           test "${#sdists[@]}" -eq 1 && test "${sdists[0]}" = "$SDIST_NAME"
           test -f "dist/python/$WHEEL_NAME" && test -f "dist/python/$SDIST_NAME"
           (cd dist/python && sha256sum "$WHEEL_NAME" "$SDIST_NAME" > PYTHON-DISTS-SHA256SUMS)
+          PYTHONPATH=src VERSION="$VERSION" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" python - <<'PY'
+          import os
+          from pathlib import Path
+          from aiworkstation_osi.release_promotion import validate_sdist_metadata, validate_wheel_metadata, verify_checksum_manifest
+          root=Path('dist/python'); wheel=os.environ['WHEEL_NAME']; sdist=os.environ['SDIST_NAME']
+          verify_checksum_manifest((root/'PYTHON-DISTS-SHA256SUMS').read_text(), [wheel, sdist], {wheel: (root/wheel).read_bytes(), sdist: (root/sdist).read_bytes()})
+          validate_wheel_metadata((root/wheel).read_bytes(), 'aiworkstation-open-source-intelligence', os.environ['VERSION'])
+          validate_sdist_metadata((root/sdist).read_bytes(), 'aiworkstation-open-source-intelligence', os.environ['VERSION'])
+          PY
           python -m twine check "dist/python/$WHEEL_NAME" "dist/python/$SDIST_NAME"
 
       - name: Create or safely resume matching Draft Release
@@ -108,6 +126,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ inputs.commit }}
+          PRERELEASE: ${{ inputs.prerelease }}
           WHEEL_NAME: ${{ steps.identity.outputs.wheel_name }}
           SDIST_NAME: ${{ steps.identity.outputs.sdist_name }}
         run: |
@@ -128,6 +147,8 @@ jobs:
           PY
           release_record="$(cat tmp/release-id-state)"
           if [ -z "$release_record" ]; then
+            git fetch origin main --no-tags --depth=1
+            test "$COMMIT" = "$(git rev-parse FETCH_HEAD)" || { echo "new Draft creation requires current origin/main" >&2; exit 1; }
             tag_response="$(gh api --include "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" 2>/tmp/tag-error || true)"
             tag_status="$(printf '%s\n' "$tag_response" | awk 'toupper($1) ~ /^HTTP/ {code=$2} END {print code}')"
             case "$tag_status" in
@@ -154,10 +175,10 @@ jobs:
           test -n "$release_id" && { test "$discovered_state" = draft || test "$discovered_state" = public; }
           echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
           gh api "repos/${GITHUB_REPOSITORY}/releases/$release_id" > tmp/draft.json
-          RELEASE_JSON=tmp/draft.json TAG="$TAG" COMMIT="$COMMIT" python - "${expected[@]}" <<'PY' > tmp/release-state
+          RELEASE_JSON=tmp/draft.json TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$release_id" python - "${expected[@]}" <<'PY' > tmp/release-state
           import json, os, sys
           from aiworkstation_osi.release_promotion import validate_release
-          identity=validate_release(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=sys.argv[1:])
+          identity=validate_release(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=sys.argv[1:], release_id=int(os.environ['RELEASE_ID']))
           print('draft' if identity.draft else 'public')
           PY
           release_state="$(cat tmp/release-state)"
@@ -166,6 +187,21 @@ jobs:
             echo "a published Release already exists; final promotion will verify and resume it" >&2
           fi
           test "$(jq -r '.target_commitish' tmp/draft.json)" = "$COMMIT"
+          rm -rf tmp/staged-assets && mkdir -p tmp/staged-assets
+          jq -r '.assets[] | [.name, .id] | @tsv' tmp/draft.json | while IFS=$'\t' read -r name asset_id; do
+            gh api -H 'Accept: application/octet-stream' --output "tmp/staged-assets/$name" "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id"
+          done
+          PYTHONPATH=src python - "$archive_name" "$WHEEL_NAME" "$SDIST_NAME" <<'PY'
+          import sys
+          from aiworkstation_osi.release_promotion import verify_checksum_manifest
+          root='tmp/staged-assets'; archive, wheel, sdist=sys.argv[1:]
+          files={name: open(f'{root}/{name}','rb').read() for name in (archive, wheel, sdist)}
+          verify_checksum_manifest(open(f'{root}/SHA256SUMS').read(), [archive], {archive: files[archive]})
+          verify_checksum_manifest(open(f'{root}/PYTHON-DISTS-SHA256SUMS').read(), [wheel, sdist], {wheel: files[wheel], sdist: files[sdist]})
+          PY
+          (cd tmp/staged-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
+          cmp -s "dist/alpha/$archive_name" "tmp/staged-assets/$archive_name" || { echo "Draft Skills archive differs from deterministic build" >&2; exit 1; }
+          cmp -s dist/alpha/bundle-report.json tmp/staged-assets/bundle-report.json || { echo "Draft bundle report differs from deterministic build" >&2; exit 1; }
           if [ "$release_state" = draft ]; then
             tag_response="$(gh api --include "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" 2>/tmp/tag-error || true)"
             tag_status="$(printf '%s\n' "$tag_response" | awk 'toupper($1) ~ /^HTTP/ {code=$2} END {print code}')"
@@ -174,13 +210,25 @@ jobs:
               200|201) echo "tag ref exists before Draft promotion; refusing to continue" >&2; exit 1 ;;
               *) cat /tmp/tag-error >&2; echo "cannot establish that tag ref is absent" >&2; exit 1 ;;
             esac
-            rm -rf tmp/staged-assets && mkdir -p tmp/staged-assets
-            jq -r '.assets[] | [.name, .id] | @tsv' tmp/draft.json | while IFS=$'\t' read -r name asset_id; do
-              gh api -H 'Accept: application/octet-stream' --output "tmp/staged-assets/$name" "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id"
-            done
-            (cd tmp/staged-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
-            cmp -s "dist/alpha/$archive_name" "tmp/staged-assets/$archive_name" || { echo "Draft Skills archive differs from deterministic build" >&2; exit 1; }
+            tag_commit=""
+          else
+            test "$(jq -r '.prerelease' tmp/draft.json)" = "$PRERELEASE"
+            tag_json="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG")"
+            tag_type="$(jq -r '.object.type' <<<"$tag_json")"
+            tag_object="$(jq -r '.object.sha' <<<"$tag_json")"
+            if [ "$tag_type" = tag ]; then tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$tag_object" --jq '.object.sha')"; else tag_sha="$tag_object"; fi
+            test "$tag_sha" = "$COMMIT" || { echo "published tag ref does not resolve to input commit" >&2; exit 1; }
+            tag_commit="$tag_sha"
           fi
+          RELEASE_JSON=tmp/draft.json TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$release_id" PRERELEASE="$PRERELEASE" TAG_COMMIT="$tag_commit" PYTHONPATH=src python - "${expected[@]}" <<'PY'
+          import json, os, sys
+          from aiworkstation_osi.release_promotion import validate_preflight_release
+          validate_preflight_release(
+              json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'],
+              expected_assets=sys.argv[1:], release_id=int(os.environ['RELEASE_ID']),
+              prerelease=os.environ['PRERELEASE']=='true', tag_commit=os.environ['TAG_COMMIT'] or None,
+          )
+          PY
 
   pypi-validate:
     name: Validate Draft Release artifacts for PyPI
@@ -221,7 +269,7 @@ jobs:
           from aiworkstation_osi.release_promotion import validate_release
           release=json.load(open('tmp/release.json'))
           archive_name, wheel_name, sdist_name = sys.argv[2:]
-          identity=validate_release(release, tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=[archive_name, 'SHA256SUMS', 'bundle-report.json', wheel_name, sdist_name, 'PYTHON-DISTS-SHA256SUMS'])
+          identity=validate_release(release, tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=[archive_name, 'SHA256SUMS', 'bundle-report.json', wheel_name, sdist_name, 'PYTHON-DISTS-SHA256SUMS'], release_id=int(os.environ['RELEASE_ID']))
           assets=identity.asset_ids
           for name in [wheel_name, sdist_name, 'PYTHON-DISTS-SHA256SUMS']:
               path='tmp/release-assets/'+name
@@ -238,24 +286,34 @@ jobs:
           SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
         run: |
           set -euo pipefail
+          PYTHONPATH=src VERSION="$VERSION" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" python - <<'PY'
+          import os
+          from pathlib import Path
+          from aiworkstation_osi.release_promotion import validate_sdist_metadata, validate_wheel_metadata, verify_checksum_manifest
+          root=Path('tmp/release-assets'); wheel=os.environ['WHEEL_NAME']; sdist=os.environ['SDIST_NAME']
+          verify_checksum_manifest((root/'PYTHON-DISTS-SHA256SUMS').read_text(), [wheel, sdist], {wheel: (root/wheel).read_bytes(), sdist: (root/sdist).read_bytes()})
+          validate_wheel_metadata((root/wheel).read_bytes(), 'aiworkstation-open-source-intelligence', os.environ['VERSION'])
+          validate_sdist_metadata((root/sdist).read_bytes(), 'aiworkstation-open-source-intelligence', os.environ['VERSION'])
+          PY
           (cd tmp/release-assets && sha256sum --check PYTHON-DISTS-SHA256SUMS)
           python -m pip install twine
           python -m twine check "tmp/release-assets/$WHEEL_NAME" "tmp/release-assets/$SDIST_NAME"
           venv="$(mktemp -d)"; python -m venv "$venv"; "$venv/bin/pip" install 'mcp>=2,<3' "tmp/release-assets/$WHEEL_NAME"
-          env -u PYTHONPATH VERSION="$VERSION" "$venv/bin/python" - <<'PY'
-          import asyncio, importlib.metadata, os
+          env -u PYTHONPATH -u PYTHONHOME VERSION="$VERSION" "$venv/bin/python" - <<'PY'
+          import asyncio, importlib.metadata, os, sys
+          from pathlib import Path
           from mcp import Client
           import aiworkstation_osi
           from aiworkstation_osi.contracts import TOOL_NAMES
           from aiworkstation_osi.mcp_server import build_mcp_server
           assert importlib.metadata.version('aiworkstation-open-source-intelligence') == os.environ['VERSION']
           assert aiworkstation_osi.__version__ == os.environ['VERSION']
-          assert str(aiworkstation_osi.__file__).startswith('/tmp/')
+          assert Path(aiworkstation_osi.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
           async def check() -> None:
               async with Client(build_mcp_server()) as client:
                   tools = (await client.list_tools()).tools
                   assert {tool.name for tool in tools} == set(TOOL_NAMES)
-                  assert len(tools) == 9 and all(tool.annotations and tool.annotations.read_only_hint and not tool.annotations.destructive_hint for tool in tools)
+                  assert len(tools) == 9 and all(tool.annotations and tool.annotations.read_only_hint is True and tool.annotations.destructive_hint is False for tool in tools)
           asyncio.run(check())
           PY
           echo "wheel_sha=$(sha256sum "tmp/release-assets/$WHEEL_NAME" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
@@ -263,6 +321,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: pypi-validated-assets
+          overwrite: true
           path: tmp/release-assets/*
           if-no-files-found: error
           retention-days: 14
@@ -273,6 +332,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      contents: read
       id-token: write
     outputs:
       wheel_sha: ${{ steps.verify.outputs.wheel_sha }}
@@ -283,6 +343,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.commit }}
       - uses: actions/download-artifact@v4
         with:
           name: pypi-validated-assets
@@ -290,22 +354,24 @@ jobs:
       - name: Plan safe partial upload from PyPI state
         id: plan
         env:
+          COMMIT: ${{ inputs.commit }}
           VERSION: ${{ needs.pypi-validate.outputs.version }}
           WHEEL_NAME: ${{ needs.pypi-validate.outputs.wheel_name }}
           SDIST_NAME: ${{ needs.pypi-validate.outputs.sdist_name }}
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$COMMIT"
           mkdir -p dist/upload
-          python - <<'PY'
-          import hashlib, json, os, shutil, urllib.error, urllib.request
+          PYTHONPATH=src python - <<'PY'
+          import json, os, shutil, urllib.error, urllib.request
           from pathlib import Path
+          from aiworkstation_osi.release_promotion import verify_checksum_manifest
           version=os.environ['VERSION']; expected=[os.environ['WHEEL_NAME'], os.environ['SDIST_NAME']]
-          root=Path('dist'); hashes={}
-          for line in (root/'PYTHON-DISTS-SHA256SUMS').read_text().splitlines():
-              digest, name=line.split(); hashes[name]=digest
-          if set(hashes) != set(expected): raise SystemExit('Release checksum file must contain exactly wheel and sdist')
-          for name in expected:
-              if not (root/name).is_file(): raise SystemExit(f'missing validated artifact: {name}')
+          root=Path('dist'); files={name: (root/name).read_bytes() for name in (*expected, 'PYTHON-DISTS-SHA256SUMS') if (root/name).is_file()}
+          if set(files) != set(expected) | {'PYTHON-DISTS-SHA256SUMS'}:
+              raise SystemExit('validated artifact directory is incomplete')
+          manifest=(root/'PYTHON-DISTS-SHA256SUMS').read_text()
+          hashes=verify_checksum_manifest(manifest, expected, {name: files[name] for name in expected})
           try:
               with urllib.request.urlopen(f'https://pypi.org/pypi/aiworkstation-open-source-intelligence/{version}/json', timeout=15) as response:
                   files=json.load(response)['urls']
@@ -338,12 +404,19 @@ jobs:
           EXPECTED_SDIST_SHA: ${{ needs.pypi-validate.outputs.sdist_sha }}
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import hashlib, json, os, time, urllib.error, urllib.request
+          PYTHONPATH=src python - <<'PY'
+          import json, os, time, urllib.error, urllib.request
+          from pathlib import Path
+          from aiworkstation_osi.release_promotion import verify_checksum_manifest
           version=os.environ['VERSION']; expected={
               os.environ['WHEEL_NAME']: os.environ['EXPECTED_WHEEL_SHA'],
               os.environ['SDIST_NAME']: os.environ['EXPECTED_SDIST_SHA'],
           }
+          root=Path('dist')
+          files={name: (root/name).read_bytes() for name in (*expected, 'PYTHON-DISTS-SHA256SUMS') if (root/name).is_file()}
+          if set(files) != set(expected) | {'PYTHON-DISTS-SHA256SUMS'}:
+              raise SystemExit('validated artifact directory is incomplete')
+          verify_checksum_manifest((root/'PYTHON-DISTS-SHA256SUMS').read_text(), list(expected), {name: files[name] for name in expected})
           for attempt in range(12):
               try:
                   with urllib.request.urlopen(f'https://pypi.org/pypi/aiworkstation-open-source-intelligence/{version}/json', timeout=15) as response: files=json.load(response)['urls']
@@ -454,37 +527,34 @@ jobs:
           COMMIT: ${{ inputs.commit }}
           PRERELEASE: ${{ inputs.prerelease }}
           RELEASE_ID: ${{ needs.build-and-stage-draft.outputs.release_id }}
+          VERSION: ${{ needs.build-and-stage-draft.outputs.version }}
           WHEEL_NAME: ${{ needs.pypi-publish-and-verify.outputs.wheel_name }}
           SDIST_NAME: ${{ needs.pypi-publish-and-verify.outputs.sdist_name }}
         run: |
           set -euo pipefail
           expected=("${{ needs.build-and-stage-draft.outputs.archive_name }}" SHA256SUMS bundle-report.json "$WHEEL_NAME" "$SDIST_NAME" PYTHON-DISTS-SHA256SUMS)
           gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/final-release-before.json
-          RELEASE_JSON=/tmp/final-release-before.json TAG="$TAG" COMMIT="$COMMIT" PRERELEASE="$PRERELEASE" RELEASE_ID="$RELEASE_ID" PYTHONPATH=src python - "${expected[@]}" <<'PY'
-          import json, os, sys
-          from aiworkstation_osi.release_promotion import promotion_decision
-          payload=json.load(open(os.environ['RELEASE_JSON']))
-          if os.environ['PRERELEASE'] not in {'true','false'}: raise SystemExit('prerelease input is invalid')
-          decision=promotion_decision(payload, tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=sys.argv[1:], release_id=int(os.environ['RELEASE_ID']), prerelease=os.environ['PRERELEASE']=='true')
-          print(decision)
-          PY
-          decision="$(RELEASE_JSON=/tmp/final-release-before.json TAG="$TAG" COMMIT="$COMMIT" PRERELEASE="$PRERELEASE" RELEASE_ID="$RELEASE_ID" PYTHONPATH=src python - "${expected[@]}" <<'PY'
-          import json, os, sys
-          from aiworkstation_osi.release_promotion import promotion_decision
-          print(promotion_decision(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=sys.argv[1:], release_id=int(os.environ['RELEASE_ID']), prerelease=os.environ['PRERELEASE']=='true'))
-          PY
-          )"
+          [[ "$PRERELEASE" == true || "$PRERELEASE" == false ]] || { echo "prerelease input is invalid" >&2; exit 1; }
           test -n "${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}" && test -n "${{ needs.pypi-publish-and-verify.outputs.sdist_sha }}"
           test -n "${{ needs.ghcr-publish-and-verify.outputs.digest }}"
           rm -rf /tmp/final-release-assets && mkdir -p /tmp/final-release-assets
           jq -r '.assets[] | [.name, .id] | @tsv' /tmp/final-release-before.json | while IFS=$'\t' read -r name asset_id; do
             gh api -H 'Accept: application/octet-stream' --output "/tmp/final-release-assets/$name" "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID/assets/$asset_id"
           done
+          PYTHONPATH=src ARCHIVE_NAME="${expected[0]}" VERSION="$VERSION" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" python - <<'PY'
+          import os
+          from pathlib import Path
+          from aiworkstation_osi.release_promotion import validate_sdist_metadata, validate_wheel_metadata, verify_checksum_manifest
+          root=Path('/tmp/final-release-assets'); archive=os.environ['ARCHIVE_NAME']; wheel=os.environ['WHEEL_NAME']; sdist=os.environ['SDIST_NAME']
+          verify_checksum_manifest((root/'SHA256SUMS').read_text(), [archive], {archive: (root/archive).read_bytes()})
+          verify_checksum_manifest((root/'PYTHON-DISTS-SHA256SUMS').read_text(), [wheel, sdist], {wheel: (root/wheel).read_bytes(), sdist: (root/sdist).read_bytes()})
+          validate_wheel_metadata((root/wheel).read_bytes(), 'aiworkstation-open-source-intelligence', os.environ['VERSION'])
+          validate_sdist_metadata((root/sdist).read_bytes(), 'aiworkstation-open-source-intelligence', os.environ['VERSION'])
+          PY
           (cd /tmp/final-release-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
           test "$(sha256sum "/tmp/final-release-assets/$WHEEL_NAME" | cut -d' ' -f1)" = "${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}"
           test "$(sha256sum "/tmp/final-release-assets/$SDIST_NAME" | cut -d' ' -f1)" = "${{ needs.pypi-publish-and-verify.outputs.sdist_sha }}"
-          if [ "$decision" = publish ]; then
-            test "$(jq -r '.draft' /tmp/final-release-before.json)" = true
+          if [ "$(jq -r '.draft' /tmp/final-release-before.json)" = true ]; then
             tag_response="$(gh api --include "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" 2>/tmp/tag-error || true)"
             tag_status="$(printf '%s\n' "$tag_response" | awk 'toupper($1) ~ /^HTTP/ {code=$2} END {print code}')"
             case "$tag_status" in
@@ -492,7 +562,25 @@ jobs:
               200|201) echo "tag ref exists before promotion" >&2; exit 1 ;;
               *) cat /tmp/tag-error >&2; echo "cannot establish that tag ref is absent" >&2; exit 1 ;;
             esac
-            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" -f draft=false -F prerelease="$PRERELEASE" >/tmp/final-release-after.json
+            tag_commit=""
+          else
+            tag_json="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG")"
+            tag_type="$(jq -r '.object.type' <<<"$tag_json")"
+            tag_object="$(jq -r '.object.sha' <<<"$tag_json")"
+            if [ "$tag_type" = tag ]; then tag_commit="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$tag_object" --jq '.object.sha')"; else tag_commit="$tag_object"; fi
+          fi
+          decision="$(RELEASE_JSON=/tmp/final-release-before.json TAG="$TAG" COMMIT="$COMMIT" PRERELEASE="$PRERELEASE" RELEASE_ID="$RELEASE_ID" TAG_COMMIT="$tag_commit" PYTHONPATH=src python - "${expected[@]}" <<'PY'
+          import json, os, sys
+          from aiworkstation_osi.release_promotion import promotion_decision
+          print(promotion_decision(
+              json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'],
+              expected_assets=sys.argv[1:], release_id=int(os.environ['RELEASE_ID']),
+              prerelease=os.environ['PRERELEASE']=='true', tag_commit=os.environ['TAG_COMMIT'] or None,
+          ))
+          PY
+          )"
+          if [ "$decision" = publish ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" -F draft=false -F prerelease="$PRERELEASE" >/tmp/final-release-after.json
           else
             cp /tmp/final-release-before.json /tmp/final-release-after.json
           fi

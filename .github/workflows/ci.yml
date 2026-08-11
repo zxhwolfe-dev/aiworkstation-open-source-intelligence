@@ -37,7 +37,7 @@ jobs:
       - name: Type-check core sources
         if: matrix.python-version == '3.12'
         # Incrementally expanded while legacy Any-heavy evidence tooling is typed.
-        run: pyright src/aiworkstation_osi/_version.py src/aiworkstation_osi/contracts.py src/aiworkstation_osi/errors.py src/aiworkstation_osi/selector_task_transport.py
+        run: pyright src/aiworkstation_osi/_version.py src/aiworkstation_osi/contracts.py src/aiworkstation_osi/errors.py src/aiworkstation_osi/selector_task_transport.py src/aiworkstation_osi/release_promotion.py
 
       - name: Audit runtime dependencies
         if: matrix.python-version == '3.12'

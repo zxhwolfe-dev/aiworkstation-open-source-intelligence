@@ -118,6 +118,14 @@ create another tag or delete/overwrite Draft assets. Existing PyPI files may be
 reused only when their filename and SHA256 exactly match the Release checksum;
 any hash, asset, tag, or commit mismatch requires manual investigation.
 
+The workflow dispatch identity is immutable: it must be run from `main`, with
+the input commit equal to that run's `GITHUB_SHA`. Only a first-time Draft
+creation rechecks the moving `origin/main` immediately before creating the
+Release. Rerun failed jobs from the original workflow run to preserve the same
+SHA; a new run cannot use a later or unrelated commit to resume an old Release.
+The temporary Actions artifact uses `overwrite: true` only to make a rerun of
+the validated PyPI job safe; GitHub Release assets are never overwritten.
+
 ## Before clicking Publish
 
 Configure the PyPI Trusted Publisher for this repository and

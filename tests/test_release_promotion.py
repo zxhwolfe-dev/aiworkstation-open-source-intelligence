@@ -7,8 +7,13 @@ from aiworkstation_osi.release_promotion import (
     flatten_releases,
     locate_draft,
     locate_release,
+    parse_checksum_manifest,
     promotion_decision,
+    validate_preflight_release,
     validate_release,
+    validate_sdist_metadata,
+    validate_wheel_metadata,
+    verify_checksum_manifest,
 )
 
 COMMIT = "a" * 40
@@ -27,6 +32,51 @@ def release(*, draft: bool, commit: str = COMMIT, release_id: int = 7, prereleas
 
 
 class ReleasePromotionTests(unittest.TestCase):
+    def test_checksum_manifest_requires_exact_safe_set_and_hashes(self) -> None:
+        data = b"skills"
+        digest = __import__("hashlib").sha256(data).hexdigest()
+        self.assertEqual(parse_checksum_manifest(f"{digest}  skills.zip\n", ["skills.zip"]), {"skills.zip": digest})
+        self.assertEqual(verify_checksum_manifest(f"{digest}  skills.zip\n", ["skills.zip"], {"skills.zip": data})["skills.zip"], digest)
+        invalid = (
+            f"{digest}  skills.zip\n{digest}  extra.zip\n",
+            f"{digest}  skills.zip\n{digest}  skills.zip\n",
+            f"{'a' * 63}  skills.zip\n",
+            f"{digest}  /tmp/skills.zip\n",
+            f"{digest}  ../skills.zip\n",
+            f"{digest} *skills.zip\n",
+            f"{digest}  dir/skills.zip\n",
+            f"{digest}  dir\\skills.zip\n",
+            f"{digest}  skills..zip\n",
+        )
+        for content in invalid:
+            with self.assertRaises(ReleasePromotionError):
+                parse_checksum_manifest(content, ["skills.zip"])
+        with self.assertRaises(ReleasePromotionError):
+            parse_checksum_manifest(f"{digest}  skills.zip\n", ["skills.zip", "other.zip"])
+        with self.assertRaises(ReleasePromotionError):
+            verify_checksum_manifest(f"{'0' * 64}  skills.zip\n", ["skills.zip"], {"skills.zip": data})
+
+    def test_package_metadata_helpers_validate_name_and_version(self) -> None:
+        import io
+        import tarfile
+        import zipfile
+
+        wheel = io.BytesIO()
+        with zipfile.ZipFile(wheel, "w") as archive:
+            archive.writestr("pkg-0.3.0.dist-info/METADATA", "Name: aiworkstation-open-source-intelligence\nVersion: 0.3.0\n")
+        validate_wheel_metadata(wheel.getvalue(), "aiworkstation-open-source-intelligence", "0.3.0")
+        with self.assertRaises(ReleasePromotionError):
+            validate_wheel_metadata(wheel.getvalue(), "wrong-distribution", "0.3.0")
+        sdist = io.BytesIO()
+        with tarfile.open(fileobj=sdist, mode="w:gz") as archive:
+            info = tarfile.TarInfo("pkg-0.3.0/PKG-INFO")
+            payload = b"Name: aiworkstation-open-source-intelligence\nVersion: 0.3.0\n"
+            info.size = len(payload)
+            archive.addfile(info, io.BytesIO(payload))
+        validate_sdist_metadata(sdist.getvalue(), "aiworkstation-open-source-intelligence", "0.3.0")
+        with self.assertRaises(ReleasePromotionError):
+            validate_sdist_metadata(sdist.getvalue(), "aiworkstation-open-source-intelligence", "0.2.0")
+
     def test_draft_is_validated_by_release_id_target_and_asset_ids(self) -> None:
         identity = validate_release(release(draft=True), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, draft=True)
         self.assertEqual(identity.release_id, 7)
@@ -43,14 +93,36 @@ class ReleasePromotionTests(unittest.TestCase):
         self.assertIsNotNone(identity)
 
     def test_final_state_machine_publishes_draft_or_accepts_matching_public(self) -> None:
-        self.assertEqual(promotion_decision(release(draft=True), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True), "publish")
-        self.assertEqual(promotion_decision(release(draft=False), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True), "already_public")
+        self.assertEqual(promotion_decision(release(draft=True), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True, tag_commit=None), "publish")
+        self.assertEqual(promotion_decision(release(draft=False), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True, tag_commit=COMMIT), "already_public")
 
     def test_final_state_machine_rejects_public_identity_or_hash_mismatch(self) -> None:
         with self.assertRaises(ReleasePromotionError):
-            promotion_decision(release(draft=False, commit="b" * 40), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True)
+            promotion_decision(release(draft=False, commit="b" * 40), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True, tag_commit=COMMIT)
         with self.assertRaises(ReleasePromotionError):
-            promotion_decision(release(draft=False, release_id=8), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True)
+            promotion_decision(release(draft=False, release_id=8), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True, tag_commit=COMMIT)
+        with self.assertRaises(ReleasePromotionError):
+            promotion_decision(release(draft=False, prerelease=False), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True, tag_commit=COMMIT)
+
+    def test_public_preflight_requires_real_tag_commit_and_draft_requires_absence(self) -> None:
+        validate_preflight_release(
+            release(draft=True), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS,
+            release_id=7, prerelease=True, tag_commit=None,
+        )
+        validate_preflight_release(
+            release(draft=False), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS,
+            release_id=7, prerelease=True, tag_commit=COMMIT,
+        )
+        with self.assertRaises(ReleasePromotionError):
+            validate_preflight_release(
+                release(draft=True), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS,
+                release_id=7, prerelease=True, tag_commit=COMMIT,
+            )
+        with self.assertRaises(ReleasePromotionError):
+            validate_preflight_release(
+                release(draft=False), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS,
+                release_id=7, prerelease=True, tag_commit="b" * 40,
+            )
 
     def test_public_release_can_be_located_for_safe_final_rerun(self) -> None:
         identity = locate_release([release(draft=False)], tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS)

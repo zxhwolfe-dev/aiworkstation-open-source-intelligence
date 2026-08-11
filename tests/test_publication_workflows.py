@@ -29,6 +29,7 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("PyPI hash mismatch", content)
         self.assertIn("PyPI verification did not converge", content)
         self.assertIn("asset_ids", content)
+        self.assertIn("verify_checksum_manifest", content)
 
     def test_github_release_is_manual_and_version_bound(self) -> None:
         content = self._workflow("release.yml")
@@ -44,10 +45,14 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("gh release create", content)
         self.assertIn("gh release create \"$TAG\" --draft", content)
         self.assertIn("gh api -X PATCH \"repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID\"", content)
+        self.assertIn("-F draft=false", content)
+        self.assertIn('-F prerelease="$PRERELEASE"', content)
+        self.assertNotIn("-f draft=false", content)
         self.assertIn("Create or safely resume matching Draft Release", content)
         self.assertIn("a published Release already exists", content)
         self.assertIn("tag ref exists before Draft promotion", content)
         self.assertIn("Draft Skills archive differs from deterministic build", content)
+        self.assertIn("Draft bundle report differs from deterministic build", content)
         self.assertIn("sha256sum --check SHA256SUMS", content)
         self.assertIn("sha256sum --check PYTHON-DISTS-SHA256SUMS", content)
         self.assertIn("tag exists without matching Draft Release", content)
@@ -55,11 +60,25 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertNotIn('commits/$TAG', content)
         self.assertIn("target_commitish", content)
         self.assertIn("release_id", content)
+        self.assertIn("GITHUB_REF", content)
+        self.assertIn("GITHUB_SHA", content)
+        self.assertEqual(content.count("git fetch origin main --no-tags --depth=1"), 1)
+        first_create = content.index('if [ -z "$release_record" ]; then')
+        moving_main_check = content.index("git fetch origin main --no-tags --depth=1")
+        create_draft = content.index('gh release create "$TAG" --draft')
+        self.assertLess(first_create, moving_main_check)
+        self.assertLess(moving_main_check, create_draft)
+        self.assertIn("overwrite: true", content)
+        self.assertIn("is True", content)
+        self.assertIn("is False", content)
+        self.assertIn("verify_checksum_manifest", content)
+        self.assertIn("validate_sdist_metadata", content)
+        self.assertLess(content.index("verify_checksum_manifest((root/'SHA256SUMS')"), content.index("pypi-validate:"))
         self.assertIn("locate_draft", content)
         self.assertIn('test "$COMMIT" = "$(git rev-parse FETCH_HEAD)"', content)
         self.assertIn('gh api -H \'Accept: application/octet-stream\' --output "tmp/staged-assets/$name"', content)
-        self.assertLess(content.index("test -n \"${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}\""), content.index("-f draft=false"))
-        self.assertLess(content.index("-f draft=false"), content.index("published tag ref does not resolve to input"))
+        self.assertLess(content.index("test -n \"${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}\""), content.index("-F draft=false"))
+        self.assertLess(content.index("-F draft=false"), content.rindex("published tag ref does not resolve to input"))
 
     def test_release_contains_gated_ghcr_commit_promotion(self) -> None:
         content = self._workflow("release.yml")
@@ -75,6 +94,11 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("ghcr.io/${{ github.repository }}", content)
         self.assertIn("release_id", content)
         self.assertIn("target_commitish", content)
+
+    def test_pypi_publish_checkout_has_minimal_read_permission(self) -> None:
+        content = self._workflow("release.yml")
+        pypi_job = content.split("  pypi-publish-and-verify:\n", 1)[1].split("  ghcr-publish-and-verify:\n", 1)[0]
+        self.assertIn("    permissions:\n      contents: read\n      id-token: write\n", pypi_job)
 
     def test_promotion_graph_has_no_release_event_fanout(self) -> None:
         content = self._workflow("release.yml")

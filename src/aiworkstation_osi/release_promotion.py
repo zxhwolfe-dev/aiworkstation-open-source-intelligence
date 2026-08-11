@@ -7,8 +7,14 @@ rerun behaviour testable without credentials or a live release.
 
 from __future__ import annotations
 
+import hashlib
+import io
+import re
+import tarfile
+import zipfile
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 
@@ -24,6 +30,112 @@ class ReleaseIdentity:
     draft: bool
     prerelease: bool
     asset_ids: Mapping[str, int]
+
+
+_CHECKSUM_LINE = re.compile(r"^([0-9a-fA-F]{64})  ([^\s]+)$")
+_SAFE_FILENAME = re.compile(r"^[^/\\]+$")
+
+
+def parse_checksum_manifest(content: str, expected_names: Sequence[str]) -> dict[str, str]:
+    """Parse a strict sha256sum manifest before any file is trusted."""
+
+    expected = list(expected_names)
+    if len(set(expected)) != len(expected) or any(
+        not isinstance(name, str) or not _SAFE_FILENAME.fullmatch(name) or name in {"", ".", ".."}
+        or Path(name).is_absolute() or ".." in name
+        for name in expected
+    ):
+        raise ReleasePromotionError("expected checksum filenames are unsafe")
+    parsed: dict[str, str] = {}
+    lines = content.splitlines()
+    if not lines or any(not line.strip() for line in lines):
+        raise ReleasePromotionError("checksum manifest is malformed")
+    for line in lines:
+        match = _CHECKSUM_LINE.fullmatch(line)
+        if match is None:
+            raise ReleasePromotionError("checksum manifest contains an unsupported record")
+        digest, name = match.groups()
+        if (
+            not _SAFE_FILENAME.fullmatch(name)
+            or name in {"", ".", ".."}
+            or Path(name).is_absolute()
+            or ".." in name
+        ):
+            raise ReleasePromotionError("checksum manifest contains an unsafe filename")
+        if name in parsed:
+            raise ReleasePromotionError(f"duplicate checksum filename: {name}")
+        parsed[name] = digest.lower()
+    if set(parsed) != set(expected):
+        raise ReleasePromotionError("checksum manifest file set is not exact")
+    return parsed
+
+
+def verify_checksum_manifest(
+    content: str,
+    expected_names: Sequence[str],
+    files: Mapping[str, bytes],
+) -> dict[str, str]:
+    """Validate manifest syntax, exact names, and bytes in one fail-closed step."""
+
+    expected = parse_checksum_manifest(content, expected_names)
+    if set(files) != set(expected):
+        raise ReleasePromotionError("files do not match checksum manifest set")
+    for name, digest in expected.items():
+        if hashlib.sha256(files[name]).hexdigest() != digest:
+            raise ReleasePromotionError(f"checksum mismatch: {name}")
+    return expected
+
+
+def _metadata_fields(content: bytes) -> tuple[str, str]:
+    from email import policy
+    from email.parser import BytesParser
+
+    metadata = BytesParser(policy=policy.default).parsebytes(content)
+    name = metadata.get("Name")
+    version = metadata.get("Version")
+    if not isinstance(name, str) or not isinstance(version, str):
+        raise ReleasePromotionError("package metadata lacks Name or Version")
+    return name, version
+
+
+def validate_wheel_metadata(content: bytes, expected_name: str, expected_version: str) -> None:
+    """Require one exact wheel METADATA file with the expected identity."""
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            metadata_names = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+            if len(metadata_names) != 1:
+                raise ReleasePromotionError("wheel must contain exactly one dist-info/METADATA")
+            name, version = _metadata_fields(archive.read(metadata_names[0]))
+    except (OSError, zipfile.BadZipFile, KeyError) as exc:
+        raise ReleasePromotionError("wheel metadata is unreadable") from exc
+    if name != expected_name or version != expected_version:
+        raise ReleasePromotionError("wheel Name or Version does not match release")
+
+
+def validate_sdist_metadata(content: bytes, expected_name: str, expected_version: str) -> None:
+    """Require one top-level sdist directory and one matching PKG-INFO."""
+
+    try:
+        with tarfile.open(fileobj=io.BytesIO(content), mode="r:*") as archive:
+            members = archive.getmembers()
+            top_levels = {member.name.split("/", 1)[0] for member in members if member.name}
+            root_name = next(iter(top_levels)) if len(top_levels) == 1 else ""
+            root_pkg_info = [member for member in members if member.name == f"{root_name}/PKG-INFO"]
+            if (
+                len(top_levels) != 1
+                or len(root_pkg_info) != 1
+                or not root_pkg_info[0].isfile()
+            ):
+                raise ReleasePromotionError("sdist must contain one top-level directory and PKG-INFO")
+            extracted = archive.extractfile(root_pkg_info[0])
+            if extracted is None:
+                raise ReleasePromotionError("sdist PKG-INFO is unreadable")
+            name, version = _metadata_fields(extracted.read())
+    except (OSError, tarfile.TarError) as exc:
+        raise ReleasePromotionError("sdist metadata is unreadable") from exc
+    if name != expected_name or version != expected_version:
+        raise ReleasePromotionError("sdist Name or Version does not match release")
 
 
 def _assets(payload: Mapping[str, Any], expected_assets: Sequence[str]) -> dict[str, int]:
@@ -156,6 +268,35 @@ def locate_release(
     )
 
 
+def validate_preflight_release(
+    payload: Mapping[str, Any],
+    *,
+    tag: str,
+    commit: str,
+    expected_assets: Sequence[str],
+    release_id: int,
+    prerelease: bool,
+    tag_commit: str | None,
+) -> ReleaseIdentity:
+    """Validate Draft/public identity before any downstream promotion starts."""
+
+    is_public = payload.get("draft") is False
+    identity = validate_release(
+        payload,
+        tag=tag,
+        commit=commit,
+        expected_assets=expected_assets,
+        release_id=release_id,
+        prerelease=prerelease if is_public else None,
+    )
+    if identity.draft:
+        if tag_commit is not None:
+            raise ReleasePromotionError("tag ref exists before Draft promotion")
+    elif tag_commit is None or tag_commit.lower() != commit.lower():
+        raise ReleasePromotionError("published tag ref does not match input commit")
+    return identity
+
+
 def promotion_decision(
     payload: Mapping[str, Any],
     *,
@@ -164,16 +305,18 @@ def promotion_decision(
     expected_assets: Sequence[str],
     release_id: int,
     prerelease: bool,
+    tag_commit: str | None,
 ) -> Literal["publish", "already_public"]:
     """Return the safe final action for a Draft or already-public Release."""
 
-    identity = validate_release(
+    identity = validate_preflight_release(
         payload,
         tag=tag,
         commit=commit,
         expected_assets=expected_assets,
         release_id=release_id,
-        prerelease=prerelease if payload.get("draft") is False else None,
+        prerelease=prerelease,
+        tag_commit=tag_commit,
     )
     if identity.draft:
         return "publish"
