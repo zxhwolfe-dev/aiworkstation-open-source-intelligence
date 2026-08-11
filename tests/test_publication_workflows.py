@@ -6,6 +6,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -109,6 +110,66 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn('if [ "$attempt" -eq 5 ]; then', creation)
         self.assertIn("created Draft Release did not become visible after bounded retries", creation)
         self.assertIn("sleep 2", creation)
+
+    def test_release_detail_get_recovers_from_transient_404_and_stays_bounded(self) -> None:
+        content = self._workflow("release.yml")
+        marker = "          for release_get_attempt in 1 2 3 4 5; do\n"
+        retry = marker + content.split(marker, 1)[1].split(
+            "          RELEASE_JSON=tmp/draft.json", 1
+        )[0]
+        script = "set -euo pipefail\nrelease_id=7\n" + textwrap.dedent(retry)
+        with tempfile.TemporaryDirectory() as working:
+            root = Path(working)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            (root / "tmp").mkdir()
+            fake_gh = fake_bin / "gh"
+            fake_gh.write_text(
+                "#!/bin/sh\n"
+                "count=0\n"
+                "if [ -f \"$GH_COUNT_FILE\" ]; then count=$(cat \"$GH_COUNT_FILE\"); fi\n"
+                "count=$((count + 1))\n"
+                "printf '%s\\n' \"$count\" > \"$GH_COUNT_FILE\"\n"
+                "if [ \"$GH_SUCCEED_AFTER\" -le 0 ] || [ \"$count\" -lt \"$GH_SUCCEED_AFTER\" ]; then\n"
+                "  echo 'gh: Not Found (HTTP 404)' >&2\n"
+                "  exit 1\n"
+                "fi\n"
+                "printf '{\"id\":7,\"target_commitish\":\"commit\"}\\n'\n",
+                encoding="utf-8",
+            )
+            fake_gh.chmod(0o755)
+            fake_sleep = fake_bin / "sleep"
+            fake_sleep.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            fake_sleep.chmod(0o755)
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "GITHUB_REPOSITORY": "owner/repository",
+                    "GH_COUNT_FILE": str(root / "gh-count"),
+                    "GH_SUCCEED_AFTER": "3",
+                }
+            )
+            subprocess.run(["bash", "-c", script], cwd=root, env=env, check=True)
+            self.assertEqual((root / "gh-count").read_text(encoding="utf-8").strip(), "3")
+            self.assertEqual(
+                json.loads((root / "tmp/draft.json").read_text(encoding="utf-8")),
+                {"id": 7, "target_commitish": "commit"},
+            )
+
+            (root / "gh-count").unlink()
+            (root / "tmp/draft.json").unlink()
+            env["GH_SUCCEED_AFTER"] = "0"
+            failed = subprocess.run(
+                ["bash", "-c", script], cwd=root, env=env, text=True, capture_output=True
+            )
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertEqual((root / "gh-count").read_text(encoding="utf-8").strip(), "5")
+            self.assertIn(
+                "Draft Release details did not become visible after bounded retries",
+                failed.stderr,
+            )
+            self.assertFalse((root / "tmp/draft.json").exists())
 
     def test_release_asset_download_commands_execute_via_stdout(self) -> None:
         content = self._workflow("release.yml")

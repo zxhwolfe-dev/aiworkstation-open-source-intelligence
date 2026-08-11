@@ -184,7 +184,17 @@ jobs:
           discovered_state="${release_record#*$'\t'}"
           test -n "$release_id" && { test "$discovered_state" = draft || test "$discovered_state" = public; }
           echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
-          gh api "repos/${GITHUB_REPOSITORY}/releases/$release_id" > tmp/draft.json
+          for release_get_attempt in 1 2 3 4 5; do
+            if gh api "repos/${GITHUB_REPOSITORY}/releases/$release_id" > tmp/draft.json; then
+              break
+            fi
+            rm -f tmp/draft.json
+            if [ "$release_get_attempt" -eq 5 ]; then
+              echo "Draft Release details did not become visible after bounded retries" >&2
+              exit 1
+            fi
+            sleep 2
+          done
           RELEASE_JSON=tmp/draft.json TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$release_id" python - "${expected[@]}" <<'PY' > tmp/release-state
           import json, os, sys
           from aiworkstation_osi.release_promotion import merge_release_states, validate_release
