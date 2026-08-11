@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from aiworkstation_osi.release_promotion import validate_asset_ids
 
 
 class PublicationWorkflowTests(unittest.TestCase):
@@ -95,6 +99,35 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn('gh api -H \'Accept: application/octet-stream\' --output "tmp/staged-assets/$name"', content)
         self.assertLess(content.index("test -n \"${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}\""), content.index("-F draft=false"))
         self.assertLess(content.index("-F draft=false"), content.rindex("published tag ref does not resolve to input"))
+
+    def test_release_asset_id_jq_builds_integer_name_map(self) -> None:
+        content = self._workflow("release.yml")
+        match = re.search(r"asset_ids=\"\$\(jq -c '([^']+)' tmp/draft\.json\)\"", content)
+        self.assertIsNotNone(match, "release workflow asset_ids jq expression was not found")
+        payload = {
+            "assets": [
+                {"name": "wheel.whl", "id": 41},
+                {"name": "source.tar.gz", "id": 42},
+            ]
+        }
+        result = subprocess.run(
+            ["jq", "-c", match.group(1)],
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        asset_ids = json.loads(result.stdout)
+        self.assertEqual(asset_ids, {"wheel.whl": 41, "source.tar.gz": 42})
+        self.assertTrue(all(type(asset_id) is int for asset_id in asset_ids.values()))
+        self.assertEqual(
+            validate_asset_ids(
+                payload,
+                expected_assets=["wheel.whl", "source.tar.gz"],
+                expected_asset_ids=asset_ids,
+            ),
+            asset_ids,
+        )
 
     def test_release_contains_gated_ghcr_commit_promotion(self) -> None:
         content = self._workflow("release.yml")

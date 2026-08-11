@@ -185,7 +185,7 @@ jobs:
           PY
           release_state="$(cat tmp/release-state)"
           echo "release_state=$release_state" >> "$GITHUB_OUTPUT"
-          asset_ids="$(jq -c '(.assets // []) | map({key: .name, value: .id}) | add // {}' tmp/draft.json)"
+          asset_ids="$(jq -c '(.assets // []) | map({key: .name, value: .id}) | from_entries' tmp/draft.json)"
           test "$asset_ids" != '{}' || { echo "Draft Release has no assets" >&2; exit 1; }
           echo "asset_ids=$asset_ids" >> "$GITHUB_OUTPUT"
           if [ "$release_state" = public ]; then
