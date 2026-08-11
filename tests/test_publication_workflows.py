@@ -10,10 +10,11 @@ class PublicationWorkflowTests(unittest.TestCase):
     def _workflow(self, name: str) -> str:
         return (self.ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
 
-    def test_pypi_promotes_successful_release_artifact_with_oidc(self) -> None:
-        content = self._workflow("publish-pypi.yml")
-        self.assertIn("release:", content)
-        self.assertIn("types: [published]", content)
+    def test_release_contains_gated_pypi_chain_with_oidc(self) -> None:
+        content = self._workflow("release.yml")
+        self.assertIn("pypi-validate:", content)
+        self.assertIn("pypi-publish:", content)
+        self.assertIn("needs: build-and-create", content)
         self.assertIn("PYTHON-DISTS-SHA256SUMS", content)
         self.assertIn("gh release download", content)
         self.assertIn("sha256sum --check", content)
@@ -21,6 +22,8 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("environment: pypi", content)
         self.assertIn("pypa/gh-action-pypi-publish", content)
         self.assertNotIn("PYPI_API_TOKEN", content)
+        self.assertNotIn("types: [published]", content)
+        self.assertNotIn("python -m build", content.split("pypi-validate:", 1)[1])
 
     def test_github_release_is_manual_and_version_bound(self) -> None:
         content = self._workflow("release.yml")
@@ -34,17 +37,27 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("does not match plugin version", content)
         self.assertIn("osi-build-alpha", content)
         self.assertIn("gh release create", content)
+        self.assertIn("Verify published Release identity and exact asset set", content)
 
-    def test_ghcr_promotes_the_successful_release_sha(self) -> None:
-        content = self._workflow("publish-ghcr.yml")
-        self.assertIn("release:", content)
-        self.assertIn("types: [published]", content)
-        self.assertIn("Resolve release commit", content)
-        self.assertIn("sha-${{ steps.identity.outputs.commit }}", content)
-        self.assertIn("OSI_IMAGE_COMMIT=${{ steps.identity.outputs.commit }}", content)
+    def test_release_contains_gated_ghcr_commit_promotion(self) -> None:
+        content = self._workflow("release.yml")
+        self.assertIn("ghcr-publish:", content)
+        self.assertIn("sha-${{ inputs.commit }}", content)
+        self.assertIn("OSI_IMAGE_COMMIT=${{ inputs.commit }}", content)
+        self.assertIn("org.opencontainers.image.revision=${{ inputs.commit }}", content)
         self.assertIn("packages: write", content)
         self.assertIn("docker/build-push-action", content)
         self.assertIn("ghcr.io/${{ github.repository }}", content)
+
+    def test_promotion_graph_has_no_release_event_fanout(self) -> None:
+        content = self._workflow("release.yml")
+        self.assertIn("promotion-complete:", content)
+        self.assertIn("needs: [pypi-publish, ghcr-publish]", content)
+        self.assertNotIn("types: [published]", content)
+
+    def test_old_release_workflows_are_removed(self) -> None:
+        self.assertFalse((self.ROOT / ".github/workflows/publish-pypi.yml").exists())
+        self.assertFalse((self.ROOT / ".github/workflows/publish-ghcr.yml").exists())
 
 
 if __name__ == "__main__":

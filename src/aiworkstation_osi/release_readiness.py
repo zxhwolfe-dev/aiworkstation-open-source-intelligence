@@ -29,8 +29,6 @@ REQUIRED_REPOSITORY_PATHS = (
     ".github/workflows/live-contract-validation.yml",
     ".github/workflows/alpha-package.yml",
     ".github/workflows/release.yml",
-    ".github/workflows/publish-pypi.yml",
-    ".github/workflows/publish-ghcr.yml",
     ".dockerignore",
     "Dockerfile",
     "compose.hosted.example.yml",

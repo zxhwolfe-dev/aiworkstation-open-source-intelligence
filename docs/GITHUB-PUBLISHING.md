@@ -75,7 +75,7 @@ Keep the language switch at the top of both files.
 
 ## First GitHub Release
 
-Use the guarded `github-release` workflow after the final release candidate passes CI/live/Codex validation.
+Use the guarded `github-release` workflow after the final release candidate passes CI/live/Codex validation. This single workflow builds and creates the GitHub Release, validates and promotes the exact wheel/sdist to PyPI with Trusted Publishing, and builds the exact commit-addressed image in GHCR. The former split release-event workflows are retired; no `release: published` fan-out is used.
 
 Recommended first release:
 
@@ -99,6 +99,10 @@ Assets:
 - `bundle-report.json`.
 
 ## Before clicking Publish
+
+Configure the PyPI Trusted Publisher for this repository and
+`.github/workflows/release.yml` (environment `pypi`) before running the
+workflow. It uses OIDC and does not use a long-lived API token.
 
 - [ ] Cohort 1 critical/high feedback triaged
 - [ ] release candidate CI 3.10/3.12 green
