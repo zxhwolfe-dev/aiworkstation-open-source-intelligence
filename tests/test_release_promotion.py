@@ -79,9 +79,28 @@ class ReleasePromotionTests(unittest.TestCase):
             validate_sdist_metadata(sdist.getvalue(), "aiworkstation-open-source-intelligence", "0.2.0")
 
     def test_bundle_report_is_validated_without_absolute_path_identity(self) -> None:
+        import io
         import json
+        import zipfile
 
-        archive = b"zip bytes"
+        files = {"README.md": b"readme", "config.json": b"{}"}
+        embedded = {
+            "schema_version": "osi.alpha-bundle.v1",
+            "name": "aiworkstation-open-source-intelligence",
+            "version": "0.3.0",
+            "distribution_mode": "skills-only",
+            "live_mcp_bundled": False,
+            "files": [
+                {"path": name, "size": len(data), "sha256": __import__("hashlib").sha256(data).hexdigest()}
+                for name, data in files.items()
+            ],
+        }
+        archive_io = io.BytesIO()
+        with zipfile.ZipFile(archive_io, "w") as bundle:
+            bundle.writestr("BUNDLE-MANIFEST.json", json.dumps(embedded))
+            for name, data in files.items():
+                bundle.writestr(name, data)
+        archive = archive_io.getvalue()
         report = {
             "ok": True,
             "schema_version": "osi.alpha-bundle.v1",
@@ -90,7 +109,7 @@ class ReleasePromotionTests(unittest.TestCase):
             "archive": "/different/runner/dist/skills.zip",
             "archive_sha256": __import__("hashlib").sha256(archive).hexdigest(),
             "checksum_file": "/different/runner/dist/SHA256SUMS",
-            "file_count": 21,
+            "file_count": 2,
             "distribution_mode": "skills-only",
             "live_mcp_bundled": False,
         }
@@ -110,6 +129,33 @@ class ReleasePromotionTests(unittest.TestCase):
                 expected_version="0.3.0",
                 expected_archive_name="skills.zip",
                 archive_bytes=archive,
+            )
+        for bad_count in (1, True):
+            report["archive_sha256"] = __import__("hashlib").sha256(archive).hexdigest()
+            report["file_count"] = bad_count
+            with self.assertRaises(ReleasePromotionError):
+                validate_bundle_report(
+                    json.dumps(report).encode(),
+                    expected_name="aiworkstation-open-source-intelligence",
+                    expected_version="0.3.0",
+                    expected_archive_name="skills.zip",
+                    archive_bytes=archive,
+                )
+        embedded["files"][0]["size"] += 1
+        tampered_manifest_io = io.BytesIO()
+        with zipfile.ZipFile(tampered_manifest_io, "w") as bundle:
+            bundle.writestr("BUNDLE-MANIFEST.json", json.dumps(embedded))
+            for name, data in files.items():
+                bundle.writestr(name, data)
+        report["file_count"] = 2
+        report["archive_sha256"] = __import__("hashlib").sha256(tampered_manifest_io.getvalue()).hexdigest()
+        with self.assertRaises(ReleasePromotionError):
+            validate_bundle_report(
+                json.dumps(report).encode(),
+                expected_name="aiworkstation-open-source-intelligence",
+                expected_version="0.3.0",
+                expected_archive_name="skills.zip",
+                archive_bytes=tampered_manifest_io.getvalue(),
             )
 
     def test_draft_is_validated_by_release_id_target_and_asset_ids(self) -> None:

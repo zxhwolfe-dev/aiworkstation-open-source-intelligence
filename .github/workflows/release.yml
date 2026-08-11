@@ -465,7 +465,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build existing or push new commit-addressed image
         env:
-          IMAGE: ghcr.io/${{ github.repository }}/sha-${{ inputs.commit }}
+          IMAGE: ghcr.io/${{ github.repository }}:sha-${{ inputs.commit }}
           COMMIT: ${{ inputs.commit }}
         run: |
           set -euo pipefail
@@ -486,7 +486,7 @@ jobs:
       - name: Inspect pushed image identity and digest
         id: verify
         env:
-          IMAGE: ghcr.io/${{ github.repository }}/sha-${{ inputs.commit }}
+          IMAGE: ghcr.io/${{ github.repository }}:sha-${{ inputs.commit }}
           COMMIT: ${{ inputs.commit }}
         run: |
           set -euo pipefail

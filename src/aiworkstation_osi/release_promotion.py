@@ -15,7 +15,7 @@ import tarfile
 import zipfile
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 
@@ -35,6 +35,7 @@ class ReleaseIdentity:
 
 _CHECKSUM_LINE = re.compile(r"^([0-9a-fA-F]{64})  ([^\s]+)$")
 _SAFE_FILENAME = re.compile(r"^[^/\\]+$")
+_SAFE_BUNDLE_PATH = re.compile(r"^[^/\\]+(?:/[^/\\]+)*$")
 
 
 def parse_checksum_manifest(content: str, expected_names: Sequence[str]) -> dict[str, str]:
@@ -155,6 +156,7 @@ def validate_bundle_report(
         raise ReleasePromotionError("bundle report is not valid UTF-8 JSON") from exc
     if not isinstance(report, Mapping):
         raise ReleasePromotionError("bundle report must be a JSON object")
+    file_count = report.get("file_count")
     if (
         report.get("ok") is not True
         or report.get("schema_version") != "osi.alpha-bundle.v1"
@@ -162,8 +164,8 @@ def validate_bundle_report(
         or report.get("version") != expected_version
         or report.get("distribution_mode") != "skills-only"
         or report.get("live_mcp_bundled") is not False
-        or not isinstance(report.get("file_count"), int)
-        or report.get("file_count", 0) <= 0
+        or type(file_count) is not int
+        or file_count <= 0
     ):
         raise ReleasePromotionError("bundle report identity is invalid")
     archive = report.get("archive")
@@ -177,6 +179,64 @@ def validate_bundle_report(
         raise ReleasePromotionError("bundle report archive digest is invalid")
     if hashlib.sha256(archive_bytes).hexdigest() != digest:
         raise ReleasePromotionError("bundle report archive digest does not match archive")
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as bundle:
+            members = bundle.infolist()
+            names = [member.filename for member in members]
+            manifest_names = [name for name in names if name == "BUNDLE-MANIFEST.json"]
+            if len(manifest_names) != 1 or len(set(names)) != len(names):
+                raise ReleasePromotionError("bundle archive must contain one unique manifest")
+            if any(member.is_dir() for member in members):
+                raise ReleasePromotionError("bundle archive must not contain directory members")
+            embedded = json.loads(bundle.read("BUNDLE-MANIFEST.json").decode("utf-8"))
+            if not isinstance(embedded, Mapping):
+                raise ReleasePromotionError("embedded bundle manifest must be an object")
+            if (
+                embedded.get("schema_version") != "osi.alpha-bundle.v1"
+                or embedded.get("name") != expected_name
+                or embedded.get("version") != expected_version
+                or embedded.get("distribution_mode") != "skills-only"
+                or embedded.get("live_mcp_bundled") is not False
+            ):
+                raise ReleasePromotionError("embedded bundle manifest identity is invalid")
+            entries = embedded.get("files")
+            if not isinstance(entries, list) or not entries:
+                raise ReleasePromotionError("embedded bundle manifest files are invalid")
+            declared: dict[str, Mapping[str, Any]] = {}
+            for entry in entries:
+                if not isinstance(entry, Mapping):
+                    raise ReleasePromotionError("embedded bundle manifest entry is invalid")
+                if set(entry) != {"path", "size", "sha256"}:
+                    raise ReleasePromotionError("embedded bundle manifest entry keys are invalid")
+                path = entry.get("path")
+                size = entry.get("size")
+                entry_digest = entry.get("sha256")
+                if (
+                    not isinstance(path, str)
+                    or not _SAFE_BUNDLE_PATH.fullmatch(path)
+                    or "\x00" in path
+                    or path in {".", "BUNDLE-MANIFEST.json"}
+                    or any(part in {"", ".", ".."} for part in PurePosixPath(path).parts)
+                    or path in declared
+                    or type(size) is not int
+                    or size < 0
+                    or not isinstance(entry_digest, str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", entry_digest)
+                ):
+                    raise ReleasePromotionError("embedded bundle manifest entry is unsafe")
+                declared[path] = entry
+            if file_count != len(entries):
+                raise ReleasePromotionError("bundle report file_count does not match embedded manifest")
+            actual = set(names) - {"BUNDLE-MANIFEST.json"}
+            if actual != set(declared):
+                raise ReleasePromotionError("embedded bundle manifest file set does not match archive")
+            for path, entry in declared.items():
+                data = bundle.read(path)
+                if len(data) != entry["size"] or hashlib.sha256(data).hexdigest() != entry["sha256"]:
+                    raise ReleasePromotionError(f"embedded bundle manifest checksum mismatch: {path}")
+    except (OSError, KeyError, UnicodeDecodeError, json.JSONDecodeError, zipfile.BadZipFile) as exc:
+        raise ReleasePromotionError("bundle archive or embedded manifest is unreadable") from exc
 
 
 def _assets(payload: Mapping[str, Any], expected_assets: Sequence[str]) -> dict[str, int]:

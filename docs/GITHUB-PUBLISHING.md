@@ -105,6 +105,11 @@ The Release remains Draft while PyPI and GHCR are validated. It is made public
 only by the final promotion job after both downstream promotions succeed and
 the tag, prerelease flag, and six-asset set are checked again.
 
+The GHCR image is published only as
+`ghcr.io/zxhwolfe-dev/aiworkstation-open-source-intelligence:sha-<full-commit>`.
+The `sha-<full-commit>` value is an explicit image tag, not a nested image path;
+no `latest` tag is created or promoted.
+
 Draft identity is read from the authenticated Releases API (`release_id`,
 `target_commitish`, and asset IDs); the Draft path does not assume that a
 `refs/tags/<tag>` ref already exists. It fails closed if the API proves that a
