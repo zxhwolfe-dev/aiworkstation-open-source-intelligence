@@ -244,6 +244,8 @@ jobs:
       wheel_name: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
       sdist_name: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
       release_id: ${{ needs.build-and-stage-draft.outputs.release_id }}
+      release_state: ${{ needs.build-and-stage-draft.outputs.release_state }}
+      archive_name: ${{ needs.build-and-stage-draft.outputs.archive_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -329,7 +331,7 @@ jobs:
 
   pypi-publish-and-verify:
     name: Publish and verify exact PyPI files
-    needs: pypi-validate
+    needs: [build-and-stage-draft, pypi-validate]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -340,6 +342,7 @@ jobs:
       sdist_sha: ${{ steps.verify.outputs.sdist_sha }}
       wheel_name: ${{ needs.pypi-validate.outputs.wheel_name }}
       sdist_name: ${{ needs.pypi-validate.outputs.sdist_name }}
+      release_state: ${{ steps.release-state.outputs.release_state }}
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -352,6 +355,30 @@ jobs:
         with:
           name: pypi-validated-assets
           path: dist
+      - name: Revalidate Release state after environment approval
+        id: release-state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.build-and-stage-draft.outputs.release_id }}
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          ARCHIVE_NAME: ${{ needs.build-and-stage-draft.outputs.archive_name }}
+          WHEEL_NAME: ${{ needs.pypi-validate.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.pypi-validate.outputs.sdist_name }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/release-current.json
+          PYTHONPATH=src python - <<'PY'
+          import json, os
+          from aiworkstation_osi.release_promotion import validate_release
+          expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
+          identity=validate_release(json.load(open('/tmp/release-current.json')), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
+          if not identity.draft and identity.prerelease is not (os.environ['PRERELEASE'] == 'true'):
+              raise SystemExit('public Release prerelease state does not match input')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"release_state={'draft' if identity.draft else 'public'}\n")
+          PY
       - name: Plan safe partial upload from PyPI state
         id: plan
         env:
@@ -359,6 +386,7 @@ jobs:
           VERSION: ${{ needs.pypi-validate.outputs.version }}
           WHEEL_NAME: ${{ needs.pypi-validate.outputs.wheel_name }}
           SDIST_NAME: ${{ needs.pypi-validate.outputs.sdist_name }}
+          RELEASE_STATE: ${{ steps.release-state.outputs.release_state }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$COMMIT"
@@ -366,7 +394,7 @@ jobs:
           PYTHONPATH=src python - <<'PY'
           import json, os, shutil, urllib.error, urllib.request
           from pathlib import Path
-          from aiworkstation_osi.release_promotion import verify_checksum_manifest
+          from aiworkstation_osi.release_promotion import decide_pypi_promotion, verify_checksum_manifest
           version=os.environ['VERSION']; expected=[os.environ['WHEEL_NAME'], os.environ['SDIST_NAME']]
           root=Path('dist'); files={name: (root/name).read_bytes() for name in (*expected, 'PYTHON-DISTS-SHA256SUMS') if (root/name).is_file()}
           if set(files) != set(expected) | {'PYTHON-DISTS-SHA256SUMS'}:
@@ -386,12 +414,43 @@ jobs:
               if name in actual:
                   if actual[name] != hashes[name]: raise SystemExit(f'PyPI hash mismatch: {name}')
               else:
-                  missing.append(name); shutil.copy2(root/name, Path('dist/upload')/name)
-          Path('dist/upload-needed').write_text('true' if missing else 'false')
+                  missing.append(name)
+          action=decide_pypi_promotion(os.environ['RELEASE_STATE'], expected_hashes=hashes, actual_hashes=actual)
+          if action == 'upload_missing':
+              for name in expected:
+                  if name not in actual:
+                      shutil.copy2(root/name, Path('dist/upload')/name)
+          # Public Releases are verify-only: missing PyPI files fail closed and are never uploaded.
+          # Error contract: public Release is missing PyPI files.
+          Path('dist/upload-needed').write_text('true' if action == 'upload_missing' else 'false')
           PY
           echo "upload_needed=$(cat dist/upload-needed)" >> "$GITHUB_OUTPUT"
+      - name: Revalidate Draft immediately before any PyPI write
+        id: before-upload
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.build-and-stage-draft.outputs.release_id }}
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          ARCHIVE_NAME: ${{ needs.build-and-stage-draft.outputs.archive_name }}
+          WHEEL_NAME: ${{ needs.pypi-validate.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.pypi-validate.outputs.sdist_name }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/release-before-upload.json
+          PYTHONPATH=src python - <<'PY'
+          import json, os
+          from aiworkstation_osi.release_promotion import validate_release
+          expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
+          identity=validate_release(json.load(open('/tmp/release-before-upload.json')), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
+          if not identity.draft and identity.prerelease is not (os.environ['PRERELEASE'] == 'true'):
+              raise SystemExit('public Release prerelease state does not match input')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"allow_upload={'true' if identity.draft else 'false'}\n")
+          PY
       - name: Publish missing files with PyPI Trusted Publishing
-        if: steps.plan.outputs.upload_needed == 'true'
+        if: steps.plan.outputs.upload_needed == 'true' && steps.before-upload.outputs.allow_upload == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/upload
@@ -446,17 +505,31 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.commit }}
       - name: Verify release identity
+        id: release-state
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ needs.build-and-stage-draft.outputs.release_id }}
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ inputs.commit }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          ARCHIVE_NAME: ${{ needs.build-and-stage-draft.outputs.archive_name }}
+          WHEEL_NAME: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$COMMIT"
           release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID")"
-          test "$(jq -r '.tag_name' <<<"$release_json")" = "$TAG"
-          test "$(jq -r '.target_commitish' <<<"$release_json")" = "$COMMIT"
+          RELEASE_JSON="$release_json" TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$RELEASE_ID" PYTHONPATH=src python - <<'PY'
+          import json, os
+          from aiworkstation_osi.release_promotion import validate_release
+          payload=json.loads(os.environ['RELEASE_JSON'])
+          expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
+          identity=validate_release(payload, tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
+          if not identity.draft and identity.prerelease is not (os.environ['PRERELEASE'] == 'true'):
+              raise SystemExit('public Release prerelease state does not match input')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"release_state={'draft' if identity.draft else 'public'}\n")
+          PY
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -467,20 +540,46 @@ jobs:
         env:
           IMAGE: ghcr.io/${{ github.repository }}:sha-${{ inputs.commit }}
           COMMIT: ${{ inputs.commit }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.build-and-stage-draft.outputs.release_id }}
+          TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          ARCHIVE_NAME: ${{ needs.build-and-stage-draft.outputs.archive_name }}
+          WHEEL_NAME: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
         run: |
           set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/release-before-image-write.json
+          RELEASE_JSON=/tmp/release-before-image-write.json TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$RELEASE_ID" PRERELEASE="$PRERELEASE" ARCHIVE_NAME="$ARCHIVE_NAME" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" PYTHONPATH=src python - <<'PY' > /tmp/current-release-state
+          import json, os
+          from aiworkstation_osi.release_promotion import validate_release
+          expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
+          identity=validate_release(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
+          if not identity.draft and identity.prerelease is not (os.environ['PRERELEASE'] == 'true'):
+              raise SystemExit('public Release prerelease state does not match input')
+          print('draft' if identity.draft else 'public')
+          PY
+          release_state="$(cat /tmp/current-release-state)"
           if docker pull "$IMAGE" >/dev/null 2>/tmp/image-pull-error; then
             docker image inspect "$IMAGE" > /tmp/existing-image.json
-            COMMIT="$COMMIT" python - <<'PY'
+            COMMIT="$COMMIT" IMAGE="$IMAGE" RELEASE_STATE="$release_state" PYTHONPATH=src python - <<'PY'
           import json, os
+          from aiworkstation_osi.release_promotion import decide_ghcr_promotion
           data=json.load(open('/tmp/existing-image.json'))[0]
           labels=data.get('Config',{}).get('Labels') or {}
           env=dict(item.split('=',1) for item in data.get('Config',{}).get('Env') or [] if '=' in item)
-          assert labels.get('org.opencontainers.image.revision') == os.environ['COMMIT']
-          assert env.get('OSI_IMAGE_COMMIT') == os.environ['COMMIT']
+          repository=os.environ['IMAGE'].rsplit(':',1)[0]
+          digest=next((item for item in data.get('RepoDigests',[]) if item.startswith(repository+'@')), None)
+          decide_ghcr_promotion(os.environ['RELEASE_STATE'], image_exists=True, commit=os.environ['COMMIT'], revision=labels.get('org.opencontainers.image.revision'), image_commit=env.get('OSI_IMAGE_COMMIT'), repo_digest=digest, repository=repository)
           PY
           else
             grep -Eiq 'manifest unknown|not found|does not exist' /tmp/image-pull-error || { cat /tmp/image-pull-error >&2; echo "cannot prove that the commit-addressed image tag is absent" >&2; exit 1; }
+            RELEASE_STATE="$release_state" COMMIT="$COMMIT" PYTHONPATH=src python - <<'PY'
+          import os
+          from aiworkstation_osi.release_promotion import decide_ghcr_promotion
+          decide_ghcr_promotion(os.environ['RELEASE_STATE'], image_exists=False, commit=os.environ['COMMIT'])
+          # Error contract: public Release is missing its GHCR image (fail closed).
+          PY
             docker buildx build --push --tag "$IMAGE" --label "org.opencontainers.image.revision=$COMMIT" --build-arg "OSI_IMAGE_COMMIT=$COMMIT" .
           fi
       - name: Inspect pushed image identity and digest

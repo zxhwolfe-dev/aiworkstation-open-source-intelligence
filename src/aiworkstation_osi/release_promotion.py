@@ -23,6 +23,62 @@ class ReleasePromotionError(ValueError):
     """A release cannot safely be staged, resumed, or promoted."""
 
 
+def decide_pypi_promotion(
+    release_state: Literal["draft", "public"],
+    *,
+    expected_hashes: Mapping[str, str],
+    actual_hashes: Mapping[str, str],
+) -> Literal["upload_missing", "verify_only"]:
+    """Choose a safe PyPI action for the current Release state.
+
+    A Draft may be completed with files that are missing from PyPI.  A public
+    Release is an immutable boundary: it can only be verified when the exact
+    file set and hashes are already present; it must never trigger a write.
+    """
+
+    if release_state not in {"draft", "public"}:
+        raise ReleasePromotionError("unknown release state")
+    expected = dict(expected_hashes)
+    actual = dict(actual_hashes)
+    unexpected = set(actual) - set(expected)
+    mismatched = {name for name in set(actual) & set(expected) if actual[name] != expected[name]}
+    if unexpected or mismatched:
+        raise ReleasePromotionError("PyPI file set or hash does not match Release artifacts")
+    missing = set(expected) - set(actual)
+    if release_state == "public":
+        if missing:
+            raise ReleasePromotionError("public Release is missing PyPI files")
+        return "verify_only"
+    return "upload_missing" if missing else "verify_only"
+
+
+def decide_ghcr_promotion(
+    release_state: Literal["draft", "public"],
+    *,
+    image_exists: bool,
+    commit: str,
+    revision: str | None = None,
+    image_commit: str | None = None,
+    repo_digest: str | None = None,
+    repository: str | None = None,
+) -> Literal["build_push", "verify_only"]:
+    """Choose a safe GHCR action, never rebuilding a public Release image."""
+
+    if release_state not in {"draft", "public"}:
+        raise ReleasePromotionError("unknown release state")
+    if image_exists:
+        if revision != commit or image_commit != commit:
+            raise ReleasePromotionError("GHCR image identity does not match Release commit")
+        if repository is not None and (
+            not repo_digest or not repo_digest.startswith(f"{repository}@sha256:")
+        ):
+            raise ReleasePromotionError("GHCR RepoDigest is not for the expected repository")
+        return "verify_only"
+    if release_state == "public":
+        raise ReleasePromotionError("public Release is missing its GHCR image")
+    return "build_push"
+
+
 @dataclass(frozen=True)
 class ReleaseIdentity:
     release_id: int

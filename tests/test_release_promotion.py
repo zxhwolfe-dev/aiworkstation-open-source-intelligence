@@ -5,6 +5,8 @@ import unittest
 from aiworkstation_osi.release_promotion import (
     ReleasePromotionError,
     flatten_releases,
+    decide_ghcr_promotion,
+    decide_pypi_promotion,
     locate_draft,
     locate_release,
     parse_checksum_manifest,
@@ -33,6 +35,25 @@ def release(*, draft: bool, commit: str = COMMIT, release_id: int = 7, prereleas
 
 
 class ReleasePromotionTests(unittest.TestCase):
+    def test_downstream_promotion_state_machine_is_fail_closed_for_public_releases(self) -> None:
+        expected = {"wheel.whl": "a" * 64, "source.tar.gz": "b" * 64}
+        self.assertEqual(decide_pypi_promotion("draft", expected_hashes=expected, actual_hashes={"wheel.whl": expected["wheel.whl"]}), "upload_missing")
+        self.assertEqual(decide_pypi_promotion("public", expected_hashes=expected, actual_hashes=expected), "verify_only")
+        for actual in (
+            {"wheel.whl": expected["wheel.whl"]},
+            {"source.tar.gz": expected["source.tar.gz"]},
+            {**expected, "extra.whl": "c" * 64},
+            {"wheel.whl": "c" * 64, "source.tar.gz": expected["source.tar.gz"]},
+        ):
+            with self.assertRaises(ReleasePromotionError):
+                decide_pypi_promotion("public", expected_hashes=expected, actual_hashes=actual)
+        self.assertEqual(decide_ghcr_promotion("draft", image_exists=False, commit=COMMIT), "build_push")
+        self.assertEqual(decide_ghcr_promotion("public", image_exists=True, commit=COMMIT, revision=COMMIT, image_commit=COMMIT, repo_digest="ghcr.io/example/repo@sha256:" + "d" * 64, repository="ghcr.io/example/repo"), "verify_only")
+        with self.assertRaises(ReleasePromotionError):
+            decide_ghcr_promotion("public", image_exists=False, commit=COMMIT)
+        with self.assertRaises(ReleasePromotionError):
+            decide_ghcr_promotion("public", image_exists=True, commit=COMMIT, revision="b" * 40, image_commit=COMMIT, repo_digest="ghcr.io/example/repo@sha256:" + "d" * 64, repository="ghcr.io/example/repo")
+
     def test_checksum_manifest_requires_exact_safe_set_and_hashes(self) -> None:
         data = b"skills"
         digest = __import__("hashlib").sha256(data).hexdigest()
@@ -158,6 +179,57 @@ class ReleasePromotionTests(unittest.TestCase):
                 archive_bytes=tampered_manifest_io.getvalue(),
             )
 
+    def test_bundle_report_rejects_manifest_identity_paths_and_digest_errors(self) -> None:
+        import hashlib
+        import io
+        import json
+        import zipfile
+
+        def make_archive(entries, *, manifest_overrides=None, duplicate_manifest=False):
+            manifest = {
+                "schema_version": "osi.alpha-bundle.v1", "name": "aiworkstation-open-source-intelligence", "version": "0.3.0",
+                "distribution_mode": "skills-only", "live_mcp_bundled": False, "files": [
+                    {"path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()} for name, data in entries.items()
+                ],
+            }
+            if manifest_overrides: manifest.update(manifest_overrides)
+            stream = io.BytesIO()
+            with zipfile.ZipFile(stream, "w") as archive:
+                archive.writestr("BUNDLE-MANIFEST.json", json.dumps(manifest))
+                if duplicate_manifest: archive.writestr("BUNDLE-MANIFEST.json", json.dumps(manifest))
+                for name, data in entries.items(): archive.writestr(name, data)
+            return stream.getvalue()
+
+        def report(archive):
+            return json.dumps({"ok": True, "schema_version": "osi.alpha-bundle.v1", "name": "aiworkstation-open-source-intelligence", "version": "0.3.0", "archive": "/runner/skills.zip", "archive_sha256": hashlib.sha256(archive).hexdigest(), "checksum_file": "/runner/SHA256SUMS", "file_count": 1, "distribution_mode": "skills-only", "live_mcp_bundled": False}).encode()
+
+        valid = make_archive({"nested/readme.md": b"ok"})
+        valid_report = json.loads(report(valid))
+        valid_report["file_count"] = 1
+        validate_bundle_report(json.dumps(valid_report).encode(), expected_name="aiworkstation-open-source-intelligence", expected_version="0.3.0", expected_archive_name="skills.zip", archive_bytes=valid)
+        cases = [
+            make_archive({"file.txt": b"x"}, manifest_overrides={"schema_version": "wrong"}),
+            make_archive({"file.txt": b"x"}, manifest_overrides={"name": "wrong"}),
+            make_archive({"file.txt": b"x"}, manifest_overrides={"version": "0.2.0"}),
+            make_archive({"../file.txt": b"x"}),
+            make_archive({"/absolute.txt": b"x"}),
+            make_archive({"dir\\file.txt": b"x"}),
+            make_archive({"file.txt": b"x"}, manifest_overrides={"files": [{"path": "file.txt", "size": 1, "sha256": "0" * 64}]}),
+            make_archive({"file.txt": b"x"}, manifest_overrides={"files": [{"path": "file.txt", "size": 1, "sha256": hashlib.sha256(b"x").hexdigest()}, {"path": "file.txt", "size": 1, "sha256": hashlib.sha256(b"x").hexdigest()}]}),
+            make_archive({"file.txt": b"x", "extra.txt": b"y"}, manifest_overrides={"files": [{"path": "file.txt", "size": 1, "sha256": hashlib.sha256(b"x").hexdigest()}]}),
+            make_archive({"file.txt": b"x"}, manifest_overrides={"files": [{"path": "file.txt", "size": 1, "sha256": hashlib.sha256(b"x").hexdigest()}, {"path": "missing.txt", "size": 0, "sha256": "0" * 64}]}),
+        ]
+        for archive in cases:
+            with self.assertRaises(ReleasePromotionError):
+                validate_bundle_report(report(archive), expected_name="aiworkstation-open-source-intelligence", expected_version="0.3.0", expected_archive_name="skills.zip", archive_bytes=archive)
+        duplicate = make_archive({"file.txt": b"x"}, duplicate_manifest=True)
+        with self.assertRaises(ReleasePromotionError):
+            validate_bundle_report(report(duplicate), expected_name="aiworkstation-open-source-intelligence", expected_version="0.3.0", expected_archive_name="skills.zip", archive_bytes=duplicate)
+        missing_manifest = io.BytesIO()
+        with zipfile.ZipFile(missing_manifest, "w") as archive: archive.writestr("file.txt", b"x")
+        with self.assertRaises(ReleasePromotionError):
+            validate_bundle_report(report(missing_manifest.getvalue()), expected_name="aiworkstation-open-source-intelligence", expected_version="0.3.0", expected_archive_name="skills.zip", archive_bytes=missing_manifest.getvalue())
+
     def test_draft_is_validated_by_release_id_target_and_asset_ids(self) -> None:
         identity = validate_release(release(draft=True), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, draft=True)
         self.assertEqual(identity.release_id, 7)
@@ -177,7 +249,7 @@ class ReleasePromotionTests(unittest.TestCase):
         self.assertEqual(promotion_decision(release(draft=True), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True, tag_commit=None), "publish")
         self.assertEqual(promotion_decision(release(draft=False), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True, tag_commit=COMMIT), "already_public")
 
-    def test_final_state_machine_rejects_public_identity_or_hash_mismatch(self) -> None:
+    def test_final_state_machine_rejects_public_identity_mismatch(self) -> None:
         with self.assertRaises(ReleasePromotionError):
             promotion_decision(release(draft=False, commit="b" * 40), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, release_id=7, prerelease=True, tag_commit=COMMIT)
         with self.assertRaises(ReleasePromotionError):

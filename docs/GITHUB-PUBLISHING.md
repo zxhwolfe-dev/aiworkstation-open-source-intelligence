@@ -105,6 +105,13 @@ The Release remains Draft while PyPI and GHCR are validated. It is made public
 only by the final promotion job after both downstream promotions succeed and
 the tag, prerelease flag, and six-asset set are checked again.
 
+If a Release is already public when a downstream job starts or resumes, both
+publishers switch to verify-only mode. PyPI must already contain exactly the
+wheel and sdist with the Release SHA256 values; GHCR must already contain the
+exact `:sha-<full-commit>` image with matching OCI revision, `OSI_IMAGE_COMMIT`,
+and repository digest. Missing or mismatched public artifacts fail closed and
+are never repaired by uploading or rebuilding.
+
 The GHCR image is published only as
 `ghcr.io/zxhwolfe-dev/aiworkstation-open-source-intelligence:sha-<full-commit>`.
 The `sha-<full-commit>` value is an explicit image tag, not a nested image path;
