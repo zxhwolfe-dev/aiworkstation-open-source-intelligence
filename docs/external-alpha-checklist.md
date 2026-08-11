@@ -110,7 +110,7 @@ return-use fields remain open and must be updated from real cohort activity.
 - [x] Public Support/Security routes published.
 - [x] English/Chinese README and Quickstart prepared.
 - [x] Structured issue intake prepared.
-- [x] OpenAI Skills-only submission copy and 5+3 review cases prepared.
+- [x] OpenAI With-MCP submission copy and 5+3 review cases prepared.
 - [x] GitHub/PyPI/GHCR publishing workflows prepared.
 - [ ] Publisher/developer identity verification complete on target platform.
 - [ ] Final logo/social preview uploaded.

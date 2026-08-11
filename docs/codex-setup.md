@@ -4,12 +4,33 @@ This guide covers both the production Hosted MCP and the repository's local
 stdio MCP server for Codex CLI, the Codex IDE extension, or the ChatGPT desktop
 app on the same Codex host.
 
-Both modes remain read-only. Use the Hosted MCP for the shortest real-data path.
-Use local stdio mode when developing or validating the provider boundary.
+Both modes remain read-only. Use the complete repository Plugin for the
+shortest real-data path. Use local stdio mode when developing or validating the
+provider boundary.
 
-## 1. Add the production Hosted MCP
+## 1. Install the complete repository Plugin
 
-Codex clients on the same host share `~/.codex/config.toml`. Add:
+After the packaging change reaches `main`:
+
+```bash
+codex plugin marketplace add \
+  zxhwolfe-dev/aiworkstation-open-source-intelligence \
+  --ref main
+codex plugin marketplace list
+```
+
+Open the Plugins Directory and install **AI Open Source Intelligence** from the
+added Marketplace. The Plugin bundles the unified Skill and `.mcp.json`, so no
+separate global MCP entry is required. Restart the client and confirm the nine
+tools with `codex mcp list` or `/mcp`.
+
+The published `v0.3.0` tag remains the immutable Skills-only artifact. Use the
+next patch release when a version-pinned complete Plugin becomes available.
+
+## 1b. Manual Hosted MCP fallback
+
+Use this only when testing the immutable `v0.3.0` package or diagnosing Plugin
+loading. Codex clients on the same host share `~/.codex/config.toml`. Add:
 
 ```toml
 [mcp_servers.ai_open_source_intelligence]

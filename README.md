@@ -154,12 +154,14 @@ This is intentionally request-based rather than token-based because the nine dat
 
 ## Use it now
 
-The combined public plugin is still pending directory review. Today:
+The repository Plugin now packages the unified Skill and the production Hosted
+MCP configuration together. After this change reaches `main`, Codex and the
+ChatGPT desktop Codex host can install both from one marketplace entry. The
+public ChatGPT directory listing is still pending review. Today:
 
+- Codex / ChatGPT desktop users can install the complete repository Plugin;
 - ChatGPT web users can register `https://mcp.aiworkstation.cn/mcp` as a
-  **No Authentication** developer-mode app;
-- Codex users can install the versioned Skill marketplace and add the Hosted
-  MCP URL to `~/.codex/config.toml`;
+  **No Authentication** developer-mode app while the public listing is pending;
 - Python users can install the released CLI/MCP package with:
 
 ```bash
@@ -168,8 +170,8 @@ python -m pip install \
 ```
 
 See the [Quickstart](docs/QUICKSTART.md) for exact ChatGPT, Codex and Python
-steps. Skill installation and MCP connection remain separate until the reviewed
-public plugin is approved.
+steps. The immutable `v0.3.0` archive remains the earlier Skills-only artifact;
+publish the complete Plugin under a new patch version rather than replacing it.
 
 ## Local development
 

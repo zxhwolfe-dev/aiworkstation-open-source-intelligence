@@ -131,8 +131,10 @@ separate remaining steps.
 
 - ChatGPT web: create a **No Authentication** developer-mode app for the Hosted
   MCP URL.
-- Codex / ChatGPT desktop: install the versioned Skill marketplace, then add
-  the Hosted URL in Codex MCP configuration.
+- Codex / ChatGPT desktop: after the complete-package change reaches `main`,
+  install the repository Plugin once; its `.mcp.json` includes the Hosted URL.
+  The immutable `v0.3.0` tag remains Skills-only, so pinned users must upgrade
+  to the next patch release or add the URL manually.
 - Python: install
   `aiworkstation-open-source-intelligence[mcp]==0.3.0`.
 

@@ -4,6 +4,13 @@ This document is maintained submission copy for the current **one-Skill + data-o
 
 Current status: **prepared, not yet submitted or approved**.
 
+The repository package bundles the unified Skill and `.mcp.json` for a
+one-install Codex experience. For ChatGPT pre-submission testing, first register
+the production MCP in Developer mode and generate a local `.app.json` from that
+workspace's real app ID. Do not commit a fabricated or workspace-scoped app ID
+to the public package. The final directory submission must use **With MCP** and
+submit the production URL directly.
+
 Official references:
 
 - [Submit plugins](https://developers.openai.com/plugins/deploy/submission)
@@ -148,11 +155,12 @@ The Skill may show these once at the end of an answer. They remain separate from
 
 ## Starter prompts
 
-1. Show me the current AI Open Source Radar and useful rankings or categories.
-2. Find a self-hosted RAG platform with Docker and a Web UI. Separate hard requirements from preferences.
-3. Compare Dify and RAGFlow for an enterprise knowledge-base use case and show which facts still require verification.
-4. Check what evidence I would need before relying on an open-source AI project's license for commercial adoption.
-5. Design a self-hosted open-source AI stack for internal document question answering and mark every unverified compatibility assumption.
+The directory manifest contains the current maximum of three single-line
+starter prompts, each no longer than 128 characters:
+
+1. Browse the current AI Open Source Radar and show the most relevant projects for my use case.
+2. Find a self-hosted RAG platform with Docker and a Web UI. Keep hard requirements separate from preferences.
+3. Compare Dify and RAGFlow for an enterprise knowledge base, separating evidence, assumptions, unknowns, and risks.
 
 ## Positive review cases
 

@@ -15,13 +15,15 @@ class PluginValidationTests(unittest.TestCase):
         report = validate_plugin_package(self.ROOT)
 
         self.assertTrue(report["local_skills_ready"])
+        self.assertTrue(report["mcp_configuration_bundled"])
         self.assertTrue(report["public_submission_ready"])
         self.assertEqual(report["summary"]["errors"], 0)
         rendered = " ".join(report["warnings"])
         self.assertNotIn("software license", rendered)
         self.assertNotIn("privacy policy", rendered)
         self.assertNotIn("terms", rendered)
-        self.assertIn("Skills-only", rendered)
+        self.assertNotIn("Skills-only", rendered)
+        self.assertNotIn("separate local workflow", rendered)
 
     def test_invalid_identity_relative_path_and_missing_marketplace_fail(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -64,6 +66,36 @@ class PluginValidationTests(unittest.TestCase):
         rendered = " ".join(report["errors"])
         self.assertIn("must point to .mcp.json", rendered)
         self.assertIn("target does not exist", rendered)
+
+    def test_hosted_mcp_configuration_must_match_the_reviewed_public_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._write_minimal_package(
+                root,
+                manifest_overrides={"mcpServers": "./.mcp.json"},
+            )
+            (root / ".mcp.json").write_text(
+                json.dumps(
+                    {
+                        "mcp_servers": {
+                            "ai_open_source_intelligence": {
+                                "url": "https://example.com/mcp",
+                                "enabled": True,
+                                "required": False,
+                                "default_tools_approval_mode": "auto",
+                                "startup_timeout_sec": 20,
+                                "tool_timeout_sec": 60,
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            report = validate_plugin_package(root)
+
+        self.assertFalse(report["local_skills_ready"])
+        self.assertFalse(report["mcp_configuration_bundled"])
+        self.assertIn("Hosted MCP URL", " ".join(report["errors"]))
 
     def test_skill_frontmatter_name_must_match_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -25,6 +25,8 @@ REQUIRED_INTERFACE_FIELDS = {
     "websiteURL",
     "defaultPrompt",
     "brandColor",
+    "composerIcon",
+    "logo",
 }
 PUBLIC_INTERFACE_URL_FIELDS = (
     "supportURL",
@@ -32,6 +34,16 @@ PUBLIC_INTERFACE_URL_FIELDS = (
     "termsOfServiceURL",
 )
 REQUIRED_MARKETPLACE_POLICY_FIELDS = {"installation", "authentication"}
+HOSTED_MCP_NAME = "ai_open_source_intelligence"
+HOSTED_MCP_URL = "https://mcp.aiworkstation.cn/mcp"
+HOSTED_MCP_FIELDS = {
+    "url",
+    "enabled",
+    "required",
+    "default_tools_approval_mode",
+    "startup_timeout_sec",
+    "tool_timeout_sec",
+}
 
 
 def _load_object(path: Path, errors: list[str]) -> Mapping[str, Any]:
@@ -113,6 +125,77 @@ def _public_https_url(value: Any) -> bool:
     )
 
 
+def _validate_square_svg_asset(
+    root: Path,
+    raw_path: Any,
+    label: str,
+    errors: list[str],
+) -> None:
+    path = _resolve_relative_path(root, raw_path, label, errors)
+    if path is None:
+        return
+    if not path.is_file():
+        errors.append(f"{label} target does not exist: {path}")
+        return
+    if path.suffix.lower() != ".svg":
+        errors.append(f"{label} must use the reviewed square SVG asset")
+        return
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        errors.append(f"{label} SVG is unreadable: {exc}")
+        return
+    match = re.search(r'\bviewBox="([^"]+)"', content)
+    if not match:
+        errors.append(f"{label} SVG must declare a numeric square viewBox")
+        return
+    try:
+        _x, _y, width, height = (float(value) for value in match.group(1).split())
+    except (TypeError, ValueError):
+        errors.append(f"{label} SVG viewBox is invalid")
+        return
+    if width != height or not 48 <= width <= 4096:
+        errors.append(f"{label} SVG must be square and between 48 and 4096 pixels")
+
+
+def _validate_hosted_mcp_config(root: Path, errors: list[str]) -> bool:
+    initial_error_count = len(errors)
+    payload = _load_object(root / ".mcp.json", errors)
+    if not payload:
+        return False
+    servers = payload.get("mcp_servers")
+    if not isinstance(servers, Mapping):
+        errors.append(".mcp.json must contain an mcp_servers object")
+        return False
+    if set(servers) != {HOSTED_MCP_NAME}:
+        errors.append(
+            ".mcp.json must declare exactly the ai_open_source_intelligence server"
+        )
+        return False
+    server = servers.get(HOSTED_MCP_NAME)
+    if not isinstance(server, Mapping):
+        errors.append("Hosted MCP configuration must be an object")
+        return False
+    if set(server) != HOSTED_MCP_FIELDS:
+        errors.append("Hosted MCP configuration fields do not match the reviewed surface")
+    if server.get("url") != HOSTED_MCP_URL:
+        errors.append(f"Hosted MCP URL must be {HOSTED_MCP_URL}")
+    if server.get("enabled") is not True:
+        errors.append("bundled Hosted MCP must be enabled")
+    if server.get("required") is not False:
+        errors.append("bundled Hosted MCP must remain non-required for fail-open startup")
+    if server.get("default_tools_approval_mode") != "auto":
+        errors.append("read-only Hosted MCP tools must use auto approval mode")
+    if server.get("startup_timeout_sec") != 20:
+        errors.append("Hosted MCP startup timeout must remain 20 seconds")
+    if server.get("tool_timeout_sec") != 60:
+        errors.append("Hosted MCP tool timeout must remain 60 seconds")
+    forbidden = {"command", "args", "env", "headers", "bearer_token_env_var"}
+    if forbidden.intersection(server):
+        errors.append("public Hosted MCP configuration must not carry commands or credentials")
+    return len(errors) == initial_error_count
+
+
 def validate_plugin_package(root: Path) -> dict[str, Any]:
     """Return local-install and public-submission metadata readiness for one plugin root."""
 
@@ -172,6 +255,9 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
 
         _validate_component_path(plugin_root, manifest, "mcpServers", ".mcp.json", errors)
         _validate_component_path(plugin_root, manifest, "apps", ".app.json", errors)
+        mcp_configuration_bundled = False
+        if manifest.get("mcpServers") == "./.mcp.json":
+            mcp_configuration_bundled = _validate_hosted_mcp_config(plugin_root, errors)
 
         interface = manifest.get("interface")
         if not isinstance(interface, Mapping):
@@ -182,14 +268,37 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
             missing_interface = sorted(REQUIRED_INTERFACE_FIELDS - set(interface))
             if missing_interface:
                 errors.append(f"plugin interface is missing fields: {missing_interface}")
+            display_name = str(interface.get("displayName") or "")
+            short_description = str(interface.get("shortDescription") or "")
+            developer_name = str(interface.get("developerName") or "")
+            if not display_name or len(display_name) > 30 or "\n" in display_name:
+                errors.append("plugin displayName must fit the 30-character directory limit")
+            if (
+                not short_description
+                or len(short_description) > 30
+                or "\n" in short_description
+            ):
+                errors.append(
+                    "plugin shortDescription must fit the 30-character directory limit"
+                )
+            if not developer_name or len(developer_name) > 80 or "\n" in developer_name:
+                errors.append("plugin developerName must fit the 80-character directory limit")
             prompts = interface.get("defaultPrompt")
             if (
                 not isinstance(prompts, Sequence)
                 or isinstance(prompts, (str, bytes, bytearray))
-                or len(prompts) < 3
-                or any(not isinstance(prompt, str) or not prompt.strip() for prompt in prompts)
+                or not 1 <= len(prompts) <= 3
+                or any(
+                    not isinstance(prompt, str)
+                    or not prompt.strip()
+                    or len(prompt) > 128
+                    or "\n" in prompt
+                    for prompt in prompts
+                )
             ):
-                errors.append("plugin interface must provide at least three non-empty default prompts")
+                errors.append(
+                    "plugin interface must provide one to three single-line default prompts of at most 128 characters"
+                )
             capabilities = interface.get("capabilities")
             if not isinstance(capabilities, Sequence) or isinstance(
                 capabilities, (str, bytes, bytearray)
@@ -203,6 +312,18 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
             brand_color = str(interface.get("brandColor") or "")
             if not re.fullmatch(r"#[0-9A-Fa-f]{6}", brand_color):
                 errors.append("brandColor must be a six-digit hexadecimal color")
+            _validate_square_svg_asset(
+                plugin_root,
+                interface.get("composerIcon"),
+                "interface.composerIcon",
+                errors,
+            )
+            _validate_square_svg_asset(
+                plugin_root,
+                interface.get("logo"),
+                "interface.logo",
+                errors,
+            )
 
         license_id = str(manifest.get("license") or "").strip()
         if not license_id:
@@ -226,6 +347,8 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
             warnings.append(
                 "current package is Skills-only; MCP server setup remains a separate local workflow"
             )
+    else:
+        mcp_configuration_bundled = False
 
     if marketplace:
         if not str(marketplace.get("name") or "").strip():
@@ -289,6 +412,7 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
         "plugin_name": manifest.get("name") if manifest else None,
         "plugin_version": manifest.get("version") if manifest else None,
         "local_skills_ready": local_ready,
+        "mcp_configuration_bundled": mcp_configuration_bundled,
         "public_submission_ready": public_ready,
         "summary": {"errors": len(errors), "warnings": len(warnings)},
         "errors": errors,

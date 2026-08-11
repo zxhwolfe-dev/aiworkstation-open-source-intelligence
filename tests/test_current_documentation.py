@@ -51,6 +51,16 @@ class CurrentDocumentationTests(unittest.TestCase):
         self.assertIn("get_radar_overview", content)
         self.assertIn("browse_radar_projects", content)
         self.assertIn("browse_radar_skills", content)
+        self.assertIn("single install includes both", content)
+        self.assertIn("--ref main", content)
+
+    def test_current_package_documents_one_install_without_rewriting_v030(self) -> None:
+        manifest = (self.ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        packaging = (self.ROOT / "docs/plugin-packaging.md").read_text(encoding="utf-8")
+        self.assertIn('"mcpServers": "./.mcp.json"', manifest)
+        self.assertIn("hosted_mcp_config_bundled=true", packaging)
+        self.assertIn("v0.3.0", packaging)
+        self.assertIn("immutable", packaging)
 
     def test_current_docs_distinguish_hosted_runtime_from_directory_approval(self) -> None:
         faq = (self.ROOT / "docs/FAQ.md").read_text(encoding="utf-8")

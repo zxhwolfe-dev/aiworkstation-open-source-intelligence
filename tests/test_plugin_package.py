@@ -9,11 +9,13 @@ from pathlib import Path
 class PluginPackageTests(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[1]
     MANIFEST_PATH = ROOT / ".codex-plugin" / "plugin.json"
+    MCP_PATH = ROOT / ".mcp.json"
     MARKETPLACE_PATH = ROOT / ".agents" / "plugins" / "marketplace.json"
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.manifest = json.loads(cls.MANIFEST_PATH.read_text(encoding="utf-8"))
+        cls.mcp = json.loads(cls.MCP_PATH.read_text(encoding="utf-8"))
         cls.marketplace = json.loads(cls.MARKETPLACE_PATH.read_text(encoding="utf-8"))
 
     def test_plugin_directory_contains_only_manifest(self) -> None:
@@ -79,9 +81,15 @@ class PluginPackageTests(unittest.TestCase):
             "termsOfServiceURL",
             "defaultPrompt",
             "brandColor",
+            "composerIcon",
+            "logo",
         ):
             self.assertTrue(interface[field], field)
-        self.assertGreaterEqual(len(interface["defaultPrompt"]), 5)
+        self.assertGreaterEqual(len(interface["defaultPrompt"]), 1)
+        self.assertLessEqual(len(interface["defaultPrompt"]), 3)
+        self.assertTrue(all(len(prompt) <= 128 for prompt in interface["defaultPrompt"]))
+        self.assertLessEqual(len(interface["displayName"]), 30)
+        self.assertLessEqual(len(interface["shortDescription"]), 30)
         self.assertIn("Read", interface["capabilities"])
         self.assertNotIn("Write", interface["capabilities"])
         self.assertIn("host model", interface["longDescription"].lower())
@@ -94,8 +102,28 @@ class PluginPackageTests(unittest.TestCase):
         self.assertEqual(interface["privacyPolicyURL"], "https://useaistation.com/githubai/privacy/")
         self.assertEqual(interface["termsOfServiceURL"], "https://useaistation.com/terms/")
         self.assertIn("github.com", interface["supportURL"])
-        self.assertNotIn("mcpServers", self.manifest)
+        self.assertEqual(self.manifest["mcpServers"], "./.mcp.json")
         self.assertNotIn("apps", self.manifest)
+        self.assertEqual(interface["composerIcon"], "./assets/plugin-icon.svg")
+        self.assertEqual(interface["logo"], "./assets/plugin-icon.svg")
+        self.assertTrue((self.ROOT / "assets" / "plugin-icon.svg").is_file())
+
+    def test_plugin_bundles_the_reviewed_hosted_mcp_connection(self) -> None:
+        self.assertEqual(
+            self.mcp,
+            {
+                "mcp_servers": {
+                    "ai_open_source_intelligence": {
+                        "url": "https://mcp.aiworkstation.cn/mcp",
+                        "enabled": True,
+                        "required": False,
+                        "default_tools_approval_mode": "auto",
+                        "startup_timeout_sec": 20,
+                        "tool_timeout_sec": 60,
+                    }
+                }
+            },
+        )
 
     def test_repo_marketplace_points_to_plugin_root(self) -> None:
         self.assertEqual(self.marketplace["name"], "aiworkstation-local-plugins")

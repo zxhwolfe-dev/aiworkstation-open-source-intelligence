@@ -156,12 +156,13 @@ https://mcp.aiworkstation.cn/mcp
 
 ## 现在如何使用
 
-整合后的公共插件仍在等待目录提交/审核。当前可用方式：
+仓库 Plugin 现在已经把统一 Skill 与生产 Hosted MCP 配置打在一起。该改动
+进入 `main` 后，Codex 与 ChatGPT 桌面版的 Codex Host 可从一个 Marketplace
+条目同时安装两者；ChatGPT 公共目录仍在等待审核。当前可用方式：
 
-- ChatGPT 网页端：在 Developer mode 中把
+- Codex / ChatGPT 桌面版：安装完整的仓库 Plugin；
+- ChatGPT 网页端：公共目录上架前，在 Developer mode 中把
   `https://mcp.aiworkstation.cn/mcp` 注册为 **No Authentication** 应用；
-- Codex：安装固定在 `v0.3.0` 的 Skill Marketplace，并在
-  `~/.codex/config.toml` 中添加 Hosted MCP；
 - Python/CLI：安装已经发布的包：
 
 ```bash
@@ -169,8 +170,9 @@ python -m pip install \
   "aiworkstation-open-source-intelligence[mcp]==0.3.0"
 ```
 
-具体步骤见[快速开始](docs/QUICKSTART.md)。在公共插件审核通过前，安装 Skill
-与连接 Hosted MCP 仍是两个明确步骤。
+具体步骤见[快速开始](docs/QUICKSTART.md)。不可变的 `v0.3.0` 压缩包仍是旧的
+Skills-only 制品；完整 Plugin 必须使用新的补丁版本发布，不能覆盖重建
+`v0.3.0`。
 
 ## 本地开发
 

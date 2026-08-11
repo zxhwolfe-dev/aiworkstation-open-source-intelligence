@@ -191,7 +191,7 @@ Exercise discovery, named-project fact and license verification, Dify/RAGFlow
 comparison, alternatives, stack composition and an impossible requirement set.
 The no-match fixture uses an explicit deterministic structured filter and must remain an honest no-match result.
 
-## 6. Validate the Skills-only external alpha gate
+## 6. Validate the complete-Plugin external alpha gate
 
 After CI, Codex testing and human review are real and recorded:
 

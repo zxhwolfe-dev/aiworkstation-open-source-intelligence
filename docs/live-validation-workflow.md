@@ -50,7 +50,7 @@ The job runs in this order:
 
 1. install the package with the MCP runtime;
 2. run the full offline unit suite;
-3. validate the Skills-only plugin package;
+3. validate the unified Skill plus Hosted MCP plugin package;
 4. run English and Chinese public probes;
 5. capture sanitized English and Chinese response fixtures;
 6. validate the fixture contract;

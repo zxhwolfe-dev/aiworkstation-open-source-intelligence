@@ -3,10 +3,12 @@
 AI Workstation Open Source Intelligence `v0.3.0` has one user-facing Skill and
 nine anonymous, read-only Hosted MCP tools.
 
-The public plugin-directory submission is not yet approved. Until it is, Skill
-installation and Hosted MCP connection are two explicit steps. The MCP endpoint
-can also be used on its own in ChatGPT Developer mode or any compatible MCP
-host.
+The repository Plugin now bundles the Skill and the Hosted MCP connection in a
+single package for Codex and the ChatGPT desktop Codex host. The immutable
+`v0.3.0` release archive predates this packaging change, so publish the complete
+package under a new patch version instead of rebuilding `v0.3.0`. The public
+ChatGPT directory submission is not yet approved; until then, ChatGPT web users
+can still use the MCP endpoint directly in Developer mode.
 
 ## Fastest live-data path: ChatGPT web
 
@@ -35,28 +37,36 @@ page whenever the server's tools or descriptions change. See the official
 [ChatGPT Developer mode documentation](https://developers.openai.com/api/docs/guides/developer-mode).
 
 This path connects the live tools; it does not install the repository Skill.
-The future reviewed public plugin will combine the Skill and Hosted MCP in one
-directory installation.
+The reviewed public Plugin will provide the complete one-install experience in
+ChatGPT web after directory approval.
 
-## Full Skill workflow in Codex / ChatGPT desktop
+## Complete Plugin in Codex / ChatGPT desktop
 
-Add the versioned repository marketplace:
+After this packaging change reaches `main`, add the repository marketplace:
 
 ```bash
 codex plugin marketplace add \
   zxhwolfe-dev/aiworkstation-open-source-intelligence \
-  --ref v0.3.0
+  --ref main
 codex plugin marketplace list
 ```
 
 Open the Plugins Directory, select the added marketplace, and install
-**AI Open Source Intelligence**. The active product Skill is:
+**AI Open Source Intelligence**. That single install includes both:
 
 ```text
-ai-open-source-intelligence
+Skill: ai-open-source-intelligence
+Hosted MCP: https://mcp.aiworkstation.cn/mcp
 ```
 
-Then add the production Hosted MCP to `~/.codex/config.toml`:
+Restart the client and confirm the connection with `codex mcp list` or `/mcp`
+in the Codex TUI. Codex CLI, the Codex IDE extension and the ChatGPT desktop app
+on the same Codex host share the installed Plugin configuration. See the
+official [Plugin packaging documentation](https://developers.openai.com/plugins/build/plugins).
+
+The immutable `v0.3.0` Marketplace entry is Skills-only. Users intentionally
+pinned to that tag must either upgrade to the next patch release or add the
+production Hosted MCP manually:
 
 ```toml
 [mcp_servers.ai_open_source_intelligence]
@@ -68,10 +78,8 @@ startup_timeout_sec = 20
 tool_timeout_sec = 60
 ```
 
-Restart the client and confirm the connection with `codex mcp list` or `/mcp`
-in the Codex TUI. Codex CLI, the Codex IDE extension and the ChatGPT desktop app
-on the same Codex host share this configuration. See the official
-[Codex MCP documentation](https://developers.openai.com/codex/mcp).
+See the official [Codex MCP documentation](https://developers.openai.com/codex/mcp)
+for manual connection troubleshooting.
 
 ## Nine Hosted tools
 

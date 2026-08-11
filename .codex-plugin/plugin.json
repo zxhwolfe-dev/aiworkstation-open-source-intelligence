@@ -19,9 +19,10 @@
     "mcp"
   ],
   "skills": "./product-skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "AI Open Source Intelligence",
-    "shortDescription": "One Skill for evidence-backed open-source AI research and selection",
+    "shortDescription": "Open-source AI research",
     "longDescription": "Use one unified Skill to browse AI Open Source Radar, find projects from requirements, verify project and license evidence, compare alternatives, and plan candidate open-source AI stacks. The host model performs the reasoning; the public AI Workstation MCP path supplies read-only Radar data and must not invoke AI Workstation server-side models.",
     "developerName": "AI Workstation",
     "category": "Developer Tools",
@@ -35,12 +36,12 @@
     "privacyPolicyURL": "https://useaistation.com/githubai/privacy/",
     "termsOfServiceURL": "https://useaistation.com/terms/",
     "defaultPrompt": [
-      "Show me the current AI Open Source Radar and help me browse its rankings, collections, categories, use cases, and Skills.",
+      "Browse the current AI Open Source Radar and show the most relevant projects for my use case.",
       "Find a self-hosted RAG platform with Docker and a Web UI. Keep hard requirements separate from preferences.",
-      "Compare Dify and RAGFlow for an enterprise knowledge-base use case, clearly separating verified facts from assumptions and unknowns.",
-      "Check what evidence I need before relying on an open-source AI project's license for commercial adoption.",
-      "Design a self-hosted open-source AI stack for internal document question answering and mark every unverified compatibility or license condition."
+      "Compare Dify and RAGFlow for an enterprise knowledge base, separating evidence, assumptions, unknowns, and risks."
     ],
-    "brandColor": "#24292F"
+    "brandColor": "#24292F",
+    "composerIcon": "./assets/plugin-icon.svg",
+    "logo": "./assets/plugin-icon.svg"
   }
 }

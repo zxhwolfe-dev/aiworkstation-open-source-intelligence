@@ -8,15 +8,18 @@ reachable, but the product remains an Alpha without a service-level guarantee.
 
 The alpha should cover these modes:
 
-### Skills-only package
+### Complete repository Plugin (recommended for Codex)
 
-Contains one active Skill:
+Contains one active Skill and the reviewed Hosted MCP connection:
 
 - `ai-open-source-intelligence`
+- `https://mcp.aiworkstation.cn/mcp`
 
-This mode teaches the agent the workflow and safety boundaries. It does not
-provide live Radar tools by itself. The Skill must disclose that live facts are
-unavailable rather than fabricate results.
+After the packaging change reaches `main`, install this Plugin once from the
+repository Marketplace. Confirm that the Skill and all nine live tools become
+available without adding a separate global MCP entry. The immutable `v0.3.0`
+archive remains Skills-only and must not be rebuilt; use the next patch release
+for a versioned complete-Plugin Alpha.
 
 ### Hosted MCP mode (recommended for product testing)
 
@@ -39,9 +42,9 @@ exposes nine read-only tools:
 - `browse_radar_projects`
 - `browse_radar_skills`
 
-Follow [`QUICKSTART.md`](QUICKSTART.md) for ChatGPT Developer mode or Codex
-configuration. Skill installation and MCP connection remain separate until the
-combined public plugin passes platform review.
+Follow [`QUICKSTART.md`](QUICKSTART.md) for ChatGPT Developer mode or the
+complete Codex Plugin. ChatGPT web still uses a standalone Developer-mode
+connection until the With-MCP public Plugin passes platform review.
 
 ### Local MCP mode (developer validation)
 
@@ -76,8 +79,9 @@ local `osi-mcp`.
 
 ## Required product test: Hosted MCP
 
-Connect the Skill and Hosted MCP using [`QUICKSTART.md`](QUICKSTART.md), then run
-the assigned scenarios below. Expected baseline:
+Install the complete Plugin or connect ChatGPT Developer mode using
+[`QUICKSTART.md`](QUICKSTART.md), then run the assigned scenarios below.
+Expected baseline:
 
 - the host discovers exactly nine tools;
 - no authentication or AI Workstation account is requested;
