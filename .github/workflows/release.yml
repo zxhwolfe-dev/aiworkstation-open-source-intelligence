@@ -574,11 +574,16 @@ jobs:
           PY
           else
             grep -Eiq 'manifest unknown|not found|does not exist' /tmp/image-pull-error || { cat /tmp/image-pull-error >&2; echo "cannot prove that the commit-addressed image tag is absent" >&2; exit 1; }
-            RELEASE_STATE="$release_state" COMMIT="$COMMIT" PYTHONPATH=src python - <<'PY'
-          import os
-          from aiworkstation_osi.release_promotion import decide_ghcr_promotion
-          decide_ghcr_promotion(os.environ['RELEASE_STATE'], image_exists=False, commit=os.environ['COMMIT'])
-          # Error contract: public Release is missing its GHCR image (fail closed).
+            gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/release-before-image-push.json
+            RELEASE_JSON=/tmp/release-before-image-push.json TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$RELEASE_ID" PRERELEASE="$PRERELEASE" ARCHIVE_NAME="$ARCHIVE_NAME" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" PYTHONPATH=src python - <<'PY'
+          import json, os
+          from aiworkstation_osi.release_promotion import decide_ghcr_promotion, validate_release
+          expected=[os.environ['ARCHIVE_NAME'], 'SHA256SUMS', 'bundle-report.json', os.environ['WHEEL_NAME'], os.environ['SDIST_NAME'], 'PYTHON-DISTS-SHA256SUMS']
+          identity=validate_release(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=expected, release_id=int(os.environ['RELEASE_ID']))
+          if not identity.draft:
+              # public Release is missing its GHCR image: verify-only failure; never build or push.
+              decide_ghcr_promotion('public', image_exists=False, commit=os.environ['COMMIT'])
+          decide_ghcr_promotion('draft', image_exists=False, commit=os.environ['COMMIT'])
           PY
             docker buildx build --push --tag "$IMAGE" --label "org.opencontainers.image.revision=$COMMIT" --build-arg "OSI_IMAGE_COMMIT=$COMMIT" .
           fi
