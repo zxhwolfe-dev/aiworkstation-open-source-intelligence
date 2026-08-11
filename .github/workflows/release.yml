@@ -133,6 +133,23 @@ jobs:
           SDIST_NAME: ${{ steps.identity.outputs.sdist_name }}
         run: |
           set -euo pipefail
+          retry_gh_api_to_file() {
+            local output="$1"
+            local label="$2"
+            shift 2
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              if gh api "$@" > "$output"; then
+                return 0
+              fi
+              rm -f "$output"
+              if [ "$attempt" -eq 5 ]; then
+                echo "$label did not become readable after bounded retries" >&2
+                return 1
+              fi
+              sleep 2
+            done
+          }
           archive_path="$(python -c 'import json; from pathlib import Path; print(json.loads(Path("dist/alpha/bundle-report.json").read_text())["archive"])')"
           archive_name="$(basename "$archive_path")"
           echo "archive_name=$archive_name" >> "$GITHUB_OUTPUT"
@@ -163,14 +180,17 @@ jobs:
               "dist/alpha/$archive_name" dist/alpha/SHA256SUMS dist/alpha/bundle-report.json \
               "dist/python/$WHEEL_NAME" "dist/python/$SDIST_NAME" dist/python/PYTHON-DISTS-SHA256SUMS
             for attempt in 1 2 3 4 5; do
-              gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > tmp/releases-after-create.json
-              python - "$TAG" "$COMMIT" "${expected[@]}" <<'PY' > tmp/release-id-state
+              if gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > tmp/releases-after-create.json; then
+                python - "$TAG" "$COMMIT" "${expected[@]}" <<'PY' > tmp/release-id-state
           import json, sys
           from aiworkstation_osi.release_promotion import flatten_releases, locate_draft
           identity=locate_draft(flatten_releases(json.load(open('tmp/releases-after-create.json'))), tag=sys.argv[1], commit=sys.argv[2], expected_assets=sys.argv[3:])
           if identity is not None:
               print(f"{identity.release_id}\t{'draft' if identity.draft else 'public'}")
           PY
+              else
+                rm -f tmp/releases-after-create.json tmp/release-id-state
+              fi
               if [ -s tmp/release-id-state ]; then break; fi
               if [ "$attempt" -eq 5 ]; then
                 echo "created Draft Release did not become visible after bounded retries" >&2
@@ -184,17 +204,7 @@ jobs:
           discovered_state="${release_record#*$'\t'}"
           test -n "$release_id" && { test "$discovered_state" = draft || test "$discovered_state" = public; }
           echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
-          for release_get_attempt in 1 2 3 4 5; do
-            if gh api "repos/${GITHUB_REPOSITORY}/releases/$release_id" > tmp/draft.json; then
-              break
-            fi
-            rm -f tmp/draft.json
-            if [ "$release_get_attempt" -eq 5 ]; then
-              echo "Draft Release details did not become visible after bounded retries" >&2
-              exit 1
-            fi
-            sleep 2
-          done
+          retry_gh_api_to_file tmp/draft.json "Draft Release details" "repos/${GITHUB_REPOSITORY}/releases/$release_id"
           RELEASE_JSON=tmp/draft.json TAG="$TAG" COMMIT="$COMMIT" RELEASE_ID="$release_id" python - "${expected[@]}" <<'PY' > tmp/release-state
           import json, os, sys
           from aiworkstation_osi.release_promotion import merge_release_states, validate_release
@@ -212,7 +222,8 @@ jobs:
           test "$(jq -r '.target_commitish' tmp/draft.json)" = "$COMMIT"
           rm -rf tmp/staged-assets && mkdir -p tmp/staged-assets
           jq -r '.assets[] | [.name, .id] | @tsv' tmp/draft.json | while IFS=$'\t' read -r name asset_id; do
-            gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id" > "tmp/staged-assets/$name"
+            retry_gh_api_to_file "tmp/staged-assets/$name" "Draft Release asset $name" \
+              -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id"
           done
           PYTHONPATH=src python - "$archive_name" "$WHEEL_NAME" "$SDIST_NAME" <<'PY'
           import sys
