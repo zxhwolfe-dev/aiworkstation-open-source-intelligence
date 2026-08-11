@@ -98,7 +98,10 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertLess(content.index("verify_checksum_manifest((root/'SHA256SUMS')"), content.index("pypi-validate:"))
         self.assertIn("locate_draft", content)
         self.assertIn('test "$COMMIT" = "$(git rev-parse FETCH_HEAD)"', content)
-        self.assertIn('gh api -H \'Accept: application/octet-stream\' "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id" > "tmp/staged-assets/$name"', content)
+        self.assertIn(
+            'retry_gh_api_to_file "tmp/staged-assets/$name" "Draft Release asset $name"',
+            content,
+        )
         self.assertLess(content.index("test -n \"${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}\""), content.index("-F draft=false"))
         self.assertLess(content.index("-F draft=false"), content.rindex("published tag ref does not resolve to input"))
 
@@ -106,18 +109,27 @@ class PublicationWorkflowTests(unittest.TestCase):
         content = self._workflow("release.yml")
         creation = content.split('gh release create "$TAG" --draft', 1)[1].split('release_id="${release_record', 1)[0]
         self.assertIn("for attempt in 1 2 3 4 5; do", creation)
+        self.assertIn("if gh api --paginate --slurp", creation)
+        self.assertIn("rm -f tmp/releases-after-create.json tmp/release-id-state", creation)
         self.assertIn("if [ -s tmp/release-id-state ]; then break; fi", creation)
         self.assertIn('if [ "$attempt" -eq 5 ]; then', creation)
         self.assertIn("created Draft Release did not become visible after bounded retries", creation)
         self.assertIn("sleep 2", creation)
 
-    def test_release_detail_get_recovers_from_transient_404_and_stays_bounded(self) -> None:
+    def test_fresh_release_api_reads_recover_from_transient_404_and_stay_bounded(self) -> None:
         content = self._workflow("release.yml")
-        marker = "          for release_get_attempt in 1 2 3 4 5; do\n"
-        retry = marker + content.split(marker, 1)[1].split(
-            "          RELEASE_JSON=tmp/draft.json", 1
+        marker = "          retry_gh_api_to_file() {\n"
+        helper = marker + content.split(marker, 1)[1].split(
+            "          archive_path=", 1
         )[0]
-        script = "set -euo pipefail\nrelease_id=7\n" + textwrap.dedent(retry)
+        script = "set -euo pipefail\n" + textwrap.dedent(helper)
+        self.assertIn(
+            'retry_gh_api_to_file tmp/draft.json "Draft Release details"', content
+        )
+        self.assertIn(
+            'retry_gh_api_to_file "tmp/staged-assets/$name" "Draft Release asset $name"',
+            content,
+        )
         with tempfile.TemporaryDirectory() as working:
             root = Path(working)
             fake_bin = root / "bin"
@@ -150,26 +162,27 @@ class PublicationWorkflowTests(unittest.TestCase):
                     "GH_SUCCEED_AFTER": "3",
                 }
             )
-            subprocess.run(["bash", "-c", script], cwd=root, env=env, check=True)
+            command = script + (
+                '\nretry_gh_api_to_file tmp/result.json "test object" '
+                '"repos/owner/repository/releases/7"\n'
+            )
+            subprocess.run(["bash", "-c", command], cwd=root, env=env, check=True)
             self.assertEqual((root / "gh-count").read_text(encoding="utf-8").strip(), "3")
             self.assertEqual(
-                json.loads((root / "tmp/draft.json").read_text(encoding="utf-8")),
+                json.loads((root / "tmp/result.json").read_text(encoding="utf-8")),
                 {"id": 7, "target_commitish": "commit"},
             )
 
             (root / "gh-count").unlink()
-            (root / "tmp/draft.json").unlink()
+            (root / "tmp/result.json").unlink()
             env["GH_SUCCEED_AFTER"] = "0"
             failed = subprocess.run(
-                ["bash", "-c", script], cwd=root, env=env, text=True, capture_output=True
+                ["bash", "-c", command], cwd=root, env=env, text=True, capture_output=True
             )
             self.assertNotEqual(failed.returncode, 0)
             self.assertEqual((root / "gh-count").read_text(encoding="utf-8").strip(), "5")
-            self.assertIn(
-                "Draft Release details did not become visible after bounded retries",
-                failed.stderr,
-            )
-            self.assertFalse((root / "tmp/draft.json").exists())
+            self.assertIn("test object did not become readable after bounded retries", failed.stderr)
+            self.assertFalse((root / "tmp/result.json").exists())
 
     def test_release_asset_download_commands_execute_via_stdout(self) -> None:
         content = self._workflow("release.yml")
@@ -181,7 +194,7 @@ class PublicationWorkflowTests(unittest.TestCase):
             if line.strip().startswith("gh api -H 'Accept: application/octet-stream'")
             and "/assets/" in line
         ]
-        self.assertEqual(len(commands), 3)
+        self.assertEqual(len(commands), 2)
         with tempfile.TemporaryDirectory() as working:
             root = Path(working)
             fake_bin = root / "bin"
@@ -194,7 +207,7 @@ class PublicationWorkflowTests(unittest.TestCase):
                 encoding="utf-8",
             )
             fake_gh.chmod(0o755)
-            for directory in ("tmp/staged-assets", "tmp/release-assets", "tmp/final-release-assets"):
+            for directory in ("tmp/release-assets", "tmp/final-release-assets"):
                 (root / directory).mkdir(parents=True)
             env = os.environ.copy()
             env.update(
@@ -211,7 +224,6 @@ class PublicationWorkflowTests(unittest.TestCase):
                 command = command.replace("/tmp/final-release-assets/", "tmp/final-release-assets/")
                 subprocess.run(["bash", "-c", command], cwd=root, env=env, check=True)
             for path in (
-                root / "tmp/staged-assets/asset.bin",
                 root / "tmp/release-assets/asset.bin",
                 root / "tmp/final-release-assets/asset.bin",
             ):
