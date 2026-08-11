@@ -55,6 +55,52 @@ def validate_repo_digest(repo_digest: str, repository: str) -> str:
     return repo_digest
 
 
+def validate_image_identity(
+    inspect_payload: Mapping[str, Any] | Sequence[Mapping[str, Any]],
+    *,
+    commit: str,
+    repository: str,
+    expected_digest: str | None = None,
+) -> str:
+    """Validate image labels, environment identity, and exact RepoDigest."""
+
+    if isinstance(inspect_payload, Sequence) and not isinstance(inspect_payload, (str, bytes, bytearray)):
+        if len(inspect_payload) != 1 or not isinstance(inspect_payload[0], Mapping):
+            raise ReleasePromotionError("docker inspect must contain exactly one image")
+        data = inspect_payload[0]
+    elif isinstance(inspect_payload, Mapping):
+        data = inspect_payload
+    else:
+        raise ReleasePromotionError("docker inspect payload is invalid")
+    config = data.get("Config")
+    if not isinstance(config, Mapping):
+        raise ReleasePromotionError("docker inspect Config is missing")
+    labels = config.get("Labels")
+    labels = labels if isinstance(labels, Mapping) else {}
+    raw_env = config.get("Env")
+    if not isinstance(raw_env, list):
+        raise ReleasePromotionError("docker inspect Env is missing")
+    image_commits = [
+        item.split("=", 1)[1]
+        for item in raw_env
+        if isinstance(item, str) and item.startswith("OSI_IMAGE_COMMIT=")
+    ]
+    if labels.get("org.opencontainers.image.revision") != commit:
+        raise ReleasePromotionError("OCI revision does not match release commit")
+    if image_commits != [commit]:
+        raise ReleasePromotionError("OSI_IMAGE_COMMIT does not match release commit")
+    raw_digests = data.get("RepoDigests")
+    if not isinstance(raw_digests, list):
+        raise ReleasePromotionError("RepoDigests is missing")
+    matching = [digest for digest in raw_digests if isinstance(digest, str) and digest.startswith(repository + "@")]
+    if len(matching) != 1:
+        raise ReleasePromotionError("image does not contain exactly one repository RepoDigest")
+    digest = validate_repo_digest(matching[0], repository)
+    if expected_digest is not None and digest != expected_digest:
+        raise ReleasePromotionError("RepoDigest changed after verification")
+    return digest
+
+
 def decide_pypi_promotion(
     release_state: ReleaseState,
     *,
@@ -336,7 +382,7 @@ def _assets(payload: Mapping[str, Any], expected_assets: Sequence[str]) -> dict[
             raise ReleasePromotionError("release contains an invalid asset")
         name = item.get("name")
         asset_id = item.get("id")
-        if not isinstance(name, str) or not isinstance(asset_id, int) or asset_id <= 0:
+        if not isinstance(name, str) or type(asset_id) is not int or asset_id <= 0:
             raise ReleasePromotionError("release asset lacks a valid name or id")
         if name in asset_ids:
             raise ReleasePromotionError(f"duplicate release asset: {name}")
@@ -347,6 +393,31 @@ def _assets(payload: Mapping[str, Any], expected_assets: Sequence[str]) -> dict[
     if len(asset_ids) != len(expected_assets):
         raise ReleasePromotionError("release asset count is not exact")
     return asset_ids
+
+
+def validate_asset_ids(
+    payload: Mapping[str, Any],
+    *,
+    expected_assets: Sequence[str],
+    expected_asset_ids: Mapping[str, int],
+) -> dict[str, int]:
+    """Require the exact Release asset set and stable name-to-ID mapping.
+
+    Release asset names are not an identity boundary by themselves: an asset
+    can be deleted and recreated under the same name.  Callers that downloaded
+    and verified candidate bytes must therefore retain the original IDs and
+    reject any replacement before promotion.
+    """
+
+    actual = _assets(payload, expected_assets)
+    expected = dict(expected_asset_ids)
+    if set(expected) != set(expected_assets) or any(
+        type(asset_id) is not int or asset_id <= 0 for asset_id in expected.values()
+    ):
+        raise ReleasePromotionError("expected Release asset IDs are invalid")
+    if actual != expected:
+        raise ReleasePromotionError("Release asset IDs changed after verification")
+    return actual
 
 
 def validate_release(

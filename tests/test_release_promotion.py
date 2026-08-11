@@ -4,18 +4,20 @@ import unittest
 
 from aiworkstation_osi.release_promotion import (
     ReleasePromotionError,
-    merge_release_states,
-    validate_repo_digest,
-    flatten_releases,
     decide_ghcr_promotion,
     decide_pypi_promotion,
+    flatten_releases,
     locate_draft,
     locate_release,
+    merge_release_states,
     parse_checksum_manifest,
     promotion_decision,
+    validate_asset_ids,
     validate_bundle_report,
+    validate_image_identity,
     validate_preflight_release,
     validate_release,
+    validate_repo_digest,
     validate_sdist_metadata,
     validate_wheel_metadata,
     verify_checksum_manifest,
@@ -59,6 +61,51 @@ class ReleasePromotionTests(unittest.TestCase):
         ):
             with self.assertRaises(ReleasePromotionError):
                 validate_repo_digest(value, repository)
+
+    def test_image_identity_requires_exact_metadata_and_digest(self) -> None:
+        repository = "ghcr.io/example/repo"
+        digest = f"{repository}@sha256:{'a' * 64}"
+        payload = [{"Config": {"Labels": {"org.opencontainers.image.revision": COMMIT}, "Env": [f"OSI_IMAGE_COMMIT={COMMIT}"]}, "RepoDigests": [digest]}]
+        self.assertEqual(validate_image_identity(payload, commit=COMMIT, repository=repository, expected_digest=digest), digest)
+        for bad in (
+            "",
+            f"{repository}@sha256:{'a' * 63}",
+            f"{repository}@sha256:{'g' * 64}",
+            f"ghcr.io/other/repo@sha256:{'a' * 64}",
+        ):
+            with self.assertRaises(ReleasePromotionError):
+                validate_image_identity([{**payload[0], "RepoDigests": [bad]}], commit=COMMIT, repository=repository)
+        with self.assertRaises(ReleasePromotionError):
+            validate_image_identity(payload, commit="b" * 40, repository=repository)
+        with self.assertRaises(ReleasePromotionError):
+            validate_image_identity(payload, commit=COMMIT, repository=repository, expected_digest=f"{repository}@sha256:{'b' * 64}")
+        wrong_env = [{"Config": {"Labels": {"org.opencontainers.image.revision": COMMIT}, "Env": [f"OSI_IMAGE_COMMIT={'b' * 40}"]}, "RepoDigests": [digest]}]
+        with self.assertRaises(ReleasePromotionError):
+            validate_image_identity(wrong_env, commit=COMMIT, repository=repository)
+        duplicate_env = [{"Config": {"Labels": {"org.opencontainers.image.revision": COMMIT}, "Env": [f"OSI_IMAGE_COMMIT={COMMIT}", f"OSI_IMAGE_COMMIT={COMMIT}"]}, "RepoDigests": [digest]}]
+        with self.assertRaises(ReleasePromotionError):
+            validate_image_identity(duplicate_env, commit=COMMIT, repository=repository)
+
+    def test_release_asset_ids_are_stable(self) -> None:
+        payload = release(draft=True)
+        expected = {name: index + 1 for index, name in enumerate(ASSETS)}
+        self.assertEqual(validate_asset_ids(payload, expected_assets=ASSETS, expected_asset_ids=expected), expected)
+        replaced = release(draft=True)
+        replaced["assets"][0]["id"] = 99
+        with self.assertRaises(ReleasePromotionError):
+            validate_asset_ids(replaced, expected_assets=ASSETS, expected_asset_ids=expected)
+        removed = release(draft=True)
+        removed["assets"] = removed["assets"][:-1]
+        with self.assertRaises(ReleasePromotionError):
+            validate_asset_ids(removed, expected_assets=ASSETS, expected_asset_ids=expected)
+        extra = release(draft=True)
+        extra["assets"].append({"id": 99, "name": "extra"})
+        with self.assertRaises(ReleasePromotionError):
+            validate_asset_ids(extra, expected_assets=ASSETS, expected_asset_ids=expected)
+        duplicate = release(draft=True)
+        duplicate["assets"].append({"id": 99, "name": ASSETS[0]})
+        with self.assertRaises(ReleasePromotionError):
+            validate_asset_ids(duplicate, expected_assets=ASSETS, expected_asset_ids=expected)
 
     def test_downstream_promotion_state_machine_is_fail_closed_for_public_releases(self) -> None:
         expected = {"wheel.whl": "a" * 64, "source.tar.gz": "b" * 64}

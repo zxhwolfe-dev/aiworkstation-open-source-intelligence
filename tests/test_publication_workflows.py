@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,6 +13,13 @@ class PublicationWorkflowTests(unittest.TestCase):
 
     def _workflow(self, name: str) -> str:
         return (self.ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+
+    def _assert_src_helper_block(self, block: str, helper: str) -> None:
+        command = "PYTHONPATH=src python - <<'PY'"
+        if command not in block:
+            raise AssertionError("src-layout inline Python command lacks PYTHONPATH=src")
+        if f"from aiworkstation_osi.release_promotion import {helper}" not in block:
+            raise AssertionError(f"inline Python block does not import {helper}")
 
     def test_release_contains_gated_pypi_chain_with_oidc(self) -> None:
         content = self._workflow("release.yml")
@@ -99,11 +110,14 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertNotIn("docker buildx build --push", content)
         self.assertIn("docker image inspect", content)
         self.assertIn("decide_ghcr_promotion", content)
-        self.assertIn("public Release is missing its GHCR image", content)
+        self.assertIn("A public Release missing its image is a hard failure", content)
         self.assertIn("/tmp/release-before-image-write.json", content)
         self.assertIn("RepoDigests", content)
         self.assertIn("repository=os.environ['IMAGE'].rsplit(':',1)[0]", content)
         self.assertIn("validate_repo_digest", content)
+        inspect_block = content.split("      - name: Inspect pushed image identity and digest\n", 1)[1].split("  promotion-complete-and-publish-release:\n", 1)[0]
+        self._assert_src_helper_block(inspect_block, "validate_image_identity")
+        self.assertNotIn("python - <<'PY'", inspect_block.replace("PYTHONPATH=src python - <<'PY'", ""))
         self.assertIn("merge_release_states", content)
         self.assertIn("release-after-image-build.json", content)
         self.assertIn("docker push \"$IMAGE\"", content)
@@ -114,6 +128,14 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("ghcr.io/${{ github.repository }}", content)
         self.assertIn("release_id", content)
         self.assertIn("target_commitish", content)
+        self.assertIn("validate_asset_ids", content)
+        self.assertIn("final-release-latest.json", content)
+        self.assertNotIn("cp /tmp/final-release-before.json /tmp/final-release-after.json", content)
+        self.assertIn("INITIAL_ASSET_IDS", content)
+        prebuild = content.index("/tmp/prebuild-release-state")
+        build = content.index("docker buildx build --load")
+        self.assertLess(prebuild, build)
+        self.assertIn("merge_release_states([os.environ['INITIAL_STATE'], os.environ['JOB_START_STATE'], os.environ['PRIOR_STATE'], current])", content)
 
     def test_pypi_publish_checkout_has_minimal_read_permission(self) -> None:
         content = self._workflow("release.yml")
@@ -127,6 +149,47 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertNotIn("types: [published]", content)
         self.assertIn("promotion_decision", content)
         self.assertIn("published tag ref does not resolve to input commit", content)
+
+    def test_final_promotion_imports_src_layout_helpers_explicitly(self) -> None:
+        content = self._workflow("release.yml")
+        final = content.split("  promotion-complete-and-publish-release:\n", 1)[1]
+        self._assert_src_helper_block(final, "validate_image_identity")
+        with self.assertRaises(AssertionError):
+            self._assert_src_helper_block(final.replace("PYTHONPATH=src python - <<'PY'", "python - <<'PY'"), "validate_image_identity")
+        with self.assertRaises(AssertionError):
+            self._assert_src_helper_block(final.replace("from aiworkstation_osi.release_promotion import validate_image_identity", ""), "validate_image_identity")
+
+    def test_release_helper_imports_in_clean_src_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as working:
+            env = {key: value for key, value in os.environ.items() if key not in {"PYTHONHOME", "PYTHONPATH"}}
+            command = [sys.executable, "-S", "-c", "from aiworkstation_osi.release_promotion import validate_image_identity"]
+            missing = subprocess.run(command, cwd=working, env=env, check=False, capture_output=True)
+            self.assertNotEqual(missing.returncode, 0)
+            env["PYTHONPATH"] = str(self.ROOT / "src")
+            imported = subprocess.run(command, cwd=working, env=env, check=False, capture_output=True)
+            self.assertEqual(imported.returncode, 0, imported.stderr.decode())
+
+    def test_uninstalled_release_jobs_bind_every_source_import(self) -> None:
+        content = self._workflow("release.yml")
+        job_names = (
+            "pypi-validate",
+            "pypi-publish-and-verify",
+            "ghcr-publish-and-verify",
+            "promotion-complete-and-publish-release",
+        )
+        for index, job_name in enumerate(job_names):
+            start = content.index(f"  {job_name}:\n")
+            end = content.index(f"  {job_names[index + 1]}:\n") if index + 1 < len(job_names) else len(content)
+            lines = content[start:end].splitlines()
+            for line_number, line in enumerate(lines):
+                if "from aiworkstation_osi" not in line and "import aiworkstation_osi" not in line:
+                    continue
+                command = next((candidate for candidate in reversed(lines[:line_number]) if "<<'PY'" in candidate), "")
+                installed_wheel_import = "env -u PYTHONPATH -u PYTHONHOME" in command
+                self.assertTrue(
+                    "PYTHONPATH=src" in command or installed_wheel_import,
+                    f"{job_name} source import is not isolated: {line.strip()}",
+                )
 
     def test_release_uses_explicit_tools_and_exact_artifact_paths(self) -> None:
         content = self._workflow("release.yml")
