@@ -87,9 +87,10 @@ jobs:
           osi-build-alpha --root . --output-dir dist/alpha
           PYTHONPATH=src python - <<'PY'
           from pathlib import Path
-          from aiworkstation_osi.release_promotion import verify_checksum_manifest
+          from aiworkstation_osi.release_promotion import validate_bundle_report, verify_checksum_manifest
           root=Path('dist/alpha'); archive=Path(__import__('json').loads((root/'bundle-report.json').read_text())['archive']).name
           verify_checksum_manifest((root/'SHA256SUMS').read_text(), [archive], {archive: (root/archive).read_bytes()})
+          validate_bundle_report((root/'bundle-report.json').read_bytes(), expected_name='aiworkstation-open-source-intelligence', expected_version='${{ steps.identity.outputs.version }}', expected_archive_name=archive, archive_bytes=(root/archive).read_bytes())
           PY
           (cd dist/alpha && sha256sum --check SHA256SUMS)
           osi-build-alpha --root . --output-dir dist/alpha-second
@@ -193,15 +194,15 @@ jobs:
           done
           PYTHONPATH=src python - "$archive_name" "$WHEEL_NAME" "$SDIST_NAME" <<'PY'
           import sys
-          from aiworkstation_osi.release_promotion import verify_checksum_manifest
+          from aiworkstation_osi.release_promotion import validate_bundle_report, verify_checksum_manifest
           root='tmp/staged-assets'; archive, wheel, sdist=sys.argv[1:]
           files={name: open(f'{root}/{name}','rb').read() for name in (archive, wheel, sdist)}
           verify_checksum_manifest(open(f'{root}/SHA256SUMS').read(), [archive], {archive: files[archive]})
           verify_checksum_manifest(open(f'{root}/PYTHON-DISTS-SHA256SUMS').read(), [wheel, sdist], {wheel: files[wheel], sdist: files[sdist]})
+          validate_bundle_report(open(f'{root}/bundle-report.json','rb').read(), expected_name='aiworkstation-open-source-intelligence', expected_version='${{ steps.identity.outputs.version }}', expected_archive_name=archive, archive_bytes=files[archive])
           PY
           (cd tmp/staged-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
           cmp -s "dist/alpha/$archive_name" "tmp/staged-assets/$archive_name" || { echo "Draft Skills archive differs from deterministic build" >&2; exit 1; }
-          cmp -s dist/alpha/bundle-report.json tmp/staged-assets/bundle-report.json || { echo "Draft bundle report differs from deterministic build" >&2; exit 1; }
           if [ "$release_state" = draft ]; then
             tag_response="$(gh api --include "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" 2>/tmp/tag-error || true)"
             tag_status="$(printf '%s\n' "$tag_response" | awk 'toupper($1) ~ /^HTTP/ {code=$2} END {print code}')"
@@ -544,10 +545,11 @@ jobs:
           PYTHONPATH=src ARCHIVE_NAME="${expected[0]}" VERSION="$VERSION" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" python - <<'PY'
           import os
           from pathlib import Path
-          from aiworkstation_osi.release_promotion import validate_sdist_metadata, validate_wheel_metadata, verify_checksum_manifest
+          from aiworkstation_osi.release_promotion import validate_bundle_report, validate_sdist_metadata, validate_wheel_metadata, verify_checksum_manifest
           root=Path('/tmp/final-release-assets'); archive=os.environ['ARCHIVE_NAME']; wheel=os.environ['WHEEL_NAME']; sdist=os.environ['SDIST_NAME']
           verify_checksum_manifest((root/'SHA256SUMS').read_text(), [archive], {archive: (root/archive).read_bytes()})
           verify_checksum_manifest((root/'PYTHON-DISTS-SHA256SUMS').read_text(), [wheel, sdist], {wheel: (root/wheel).read_bytes(), sdist: (root/sdist).read_bytes()})
+          validate_bundle_report((root/'bundle-report.json').read_bytes(), expected_name='aiworkstation-open-source-intelligence', expected_version=os.environ['VERSION'], expected_archive_name=archive, archive_bytes=(root/archive).read_bytes())
           validate_wheel_metadata((root/wheel).read_bytes(), 'aiworkstation-open-source-intelligence', os.environ['VERSION'])
           validate_sdist_metadata((root/sdist).read_bytes(), 'aiworkstation-open-source-intelligence', os.environ['VERSION'])
           PY

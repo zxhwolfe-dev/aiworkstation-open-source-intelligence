@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import re
 import tarfile
 import zipfile
@@ -136,6 +137,46 @@ def validate_sdist_metadata(content: bytes, expected_name: str, expected_version
         raise ReleasePromotionError("sdist metadata is unreadable") from exc
     if name != expected_name or version != expected_version:
         raise ReleasePromotionError("sdist Name or Version does not match release")
+
+
+def validate_bundle_report(
+    content: bytes,
+    *,
+    expected_name: str,
+    expected_version: str,
+    expected_archive_name: str,
+    archive_bytes: bytes,
+) -> None:
+    """Validate the path-independent identity of an Alpha bundle report."""
+
+    try:
+        report = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ReleasePromotionError("bundle report is not valid UTF-8 JSON") from exc
+    if not isinstance(report, Mapping):
+        raise ReleasePromotionError("bundle report must be a JSON object")
+    if (
+        report.get("ok") is not True
+        or report.get("schema_version") != "osi.alpha-bundle.v1"
+        or report.get("name") != expected_name
+        or report.get("version") != expected_version
+        or report.get("distribution_mode") != "skills-only"
+        or report.get("live_mcp_bundled") is not False
+        or not isinstance(report.get("file_count"), int)
+        or report.get("file_count", 0) <= 0
+    ):
+        raise ReleasePromotionError("bundle report identity is invalid")
+    archive = report.get("archive")
+    checksum_file = report.get("checksum_file")
+    if not isinstance(archive, str) or Path(archive).name != expected_archive_name:
+        raise ReleasePromotionError("bundle report archive name is invalid")
+    if not isinstance(checksum_file, str) or Path(checksum_file).name != "SHA256SUMS":
+        raise ReleasePromotionError("bundle report checksum filename is invalid")
+    digest = report.get("archive_sha256")
+    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ReleasePromotionError("bundle report archive digest is invalid")
+    if hashlib.sha256(archive_bytes).hexdigest() != digest:
+        raise ReleasePromotionError("bundle report archive digest does not match archive")
 
 
 def _assets(payload: Mapping[str, Any], expected_assets: Sequence[str]) -> dict[str, int]:

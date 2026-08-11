@@ -9,6 +9,7 @@ from aiworkstation_osi.release_promotion import (
     locate_release,
     parse_checksum_manifest,
     promotion_decision,
+    validate_bundle_report,
     validate_preflight_release,
     validate_release,
     validate_sdist_metadata,
@@ -76,6 +77,40 @@ class ReleasePromotionTests(unittest.TestCase):
         validate_sdist_metadata(sdist.getvalue(), "aiworkstation-open-source-intelligence", "0.3.0")
         with self.assertRaises(ReleasePromotionError):
             validate_sdist_metadata(sdist.getvalue(), "aiworkstation-open-source-intelligence", "0.2.0")
+
+    def test_bundle_report_is_validated_without_absolute_path_identity(self) -> None:
+        import json
+
+        archive = b"zip bytes"
+        report = {
+            "ok": True,
+            "schema_version": "osi.alpha-bundle.v1",
+            "name": "aiworkstation-open-source-intelligence",
+            "version": "0.3.0",
+            "archive": "/different/runner/dist/skills.zip",
+            "archive_sha256": __import__("hashlib").sha256(archive).hexdigest(),
+            "checksum_file": "/different/runner/dist/SHA256SUMS",
+            "file_count": 21,
+            "distribution_mode": "skills-only",
+            "live_mcp_bundled": False,
+        }
+        content = json.dumps(report).encode()
+        validate_bundle_report(
+            content,
+            expected_name="aiworkstation-open-source-intelligence",
+            expected_version="0.3.0",
+            expected_archive_name="skills.zip",
+            archive_bytes=archive,
+        )
+        report["archive_sha256"] = "0" * 64
+        with self.assertRaises(ReleasePromotionError):
+            validate_bundle_report(
+                json.dumps(report).encode(),
+                expected_name="aiworkstation-open-source-intelligence",
+                expected_version="0.3.0",
+                expected_archive_name="skills.zip",
+                archive_bytes=archive,
+            )
 
     def test_draft_is_validated_by_release_id_target_and_asset_ids(self) -> None:
         identity = validate_release(release(draft=True), tag="v0.3.0", commit=COMMIT, expected_assets=ASSETS, draft=True)

@@ -52,7 +52,7 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("a published Release already exists", content)
         self.assertIn("tag ref exists before Draft promotion", content)
         self.assertIn("Draft Skills archive differs from deterministic build", content)
-        self.assertIn("Draft bundle report differs from deterministic build", content)
+        self.assertIn("validate_bundle_report", content)
         self.assertIn("sha256sum --check SHA256SUMS", content)
         self.assertIn("sha256sum --check PYTHON-DISTS-SHA256SUMS", content)
         self.assertIn("tag exists without matching Draft Release", content)
