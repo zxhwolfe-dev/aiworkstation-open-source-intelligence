@@ -92,17 +92,33 @@ Release notes source:
 CHANGELOG.md
 ```
 
-Assets:
+The workflow first creates a Draft Release and stages exactly these six assets:
 
 - deterministic Skills ZIP;
 - `SHA256SUMS`;
-- `bundle-report.json`.
+- `bundle-report.json`;
+- one exact-version Python wheel;
+- one exact-version Python sdist;
+- `PYTHON-DISTS-SHA256SUMS`.
+
+The Release remains Draft while PyPI and GHCR are validated. It is made public
+only by the final promotion job after both downstream promotions succeed and
+the tag, prerelease flag, and six-asset set are checked again.
+
+If a run fails, rerun the failed jobs in the same workflow run first. Do not
+create another tag or delete/overwrite Draft assets. Existing PyPI files may be
+reused only when their filename and SHA256 exactly match the Release checksum;
+any hash, asset, tag, or commit mismatch requires manual investigation.
 
 ## Before clicking Publish
 
 Configure the PyPI Trusted Publisher for this repository and
 `.github/workflows/release.yml` (environment `pypi`) before running the
 workflow. It uses OIDC and does not use a long-lived API token.
+The Trusted Publisher identity is owner `zxhwolfe-dev`, repository
+`aiworkstation-open-source-intelligence`, workflow filename `release.yml`, and
+environment `pypi`. Configure a required reviewer on the `pypi` GitHub
+environment for production release control.
 
 - [ ] Cohort 1 critical/high feedback triaged
 - [ ] release candidate CI 3.10/3.12 green

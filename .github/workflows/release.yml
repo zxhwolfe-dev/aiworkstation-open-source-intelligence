@@ -22,13 +22,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-create:
-    name: Build and create GitHub Release
+  build-and-stage-draft:
+    name: Build and stage Draft Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ steps.identity.outputs.version }}
+      wheel_name: ${{ steps.identity.outputs.wheel_name }}
+      sdist_name: ${{ steps.identity.outputs.sdist_name }}
+      archive_name: ${{ steps.draft.outputs.archive_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,7 +44,7 @@ jobs:
           cache: pip
 
       - name: Validate release identity and package version
-        id: version
+        id: identity
         env:
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ inputs.commit }}
@@ -50,29 +53,24 @@ jobs:
           set -euo pipefail
           [[ "$COMMIT" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "commit must be a full 40-character SHA" >&2; exit 1; }
           test "$(git rev-parse HEAD)" = "$(git rev-parse "$COMMIT^{commit}")" || { echo "checkout did not resolve to requested commit" >&2; exit 1; }
+          git fetch origin main --no-tags --depth=1
+          git merge-base --is-ancestor "$COMMIT" FETCH_HEAD || { echo "commit is not reachable from origin/main" >&2; exit 1; }
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "tag must look like v0.3.0" >&2; exit 1; }
-          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then echo "tag already exists" >&2; exit 1; fi
-          if gh release view "$TAG" >/dev/null 2>&1; then echo "release already exists" >&2; exit 1; fi
-          version="$(PYTHONPATH=src python - <<'PY'
-          import aiworkstation_osi
-          print(aiworkstation_osi.__version__)
-          PY
-          )"
-          plugin_version="$(python - <<'PY'
-          import json
-          from pathlib import Path
-          print(json.loads(Path('.codex-plugin/plugin.json').read_text(encoding='utf-8'))['version'])
-          PY
-          )"
+          version="$(PYTHONPATH=src python -c 'import aiworkstation_osi; print(aiworkstation_osi.__version__)')"
+          plugin_version="$(python -c 'import json; from pathlib import Path; print(json.loads(Path(".codex-plugin/plugin.json").read_text(encoding="utf-8"))["version"])')"
           test "$TAG" = "v$version" || { echo "tag does not match runtime version" >&2; exit 1; }
           test "$version" = "$plugin_version" || { echo "runtime does not match plugin version" >&2; exit 1; }
+          wheel_name="aiworkstation_open_source_intelligence-${version}-py3-none-any.whl"
+          sdist_name="aiworkstation_open_source_intelligence-${version}.tar.gz"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "wheel_name=$wheel_name" >> "$GITHUB_OUTPUT"
+          echo "sdist_name=$sdist_name" >> "$GITHUB_OUTPUT"
 
       - name: Install and run release gates
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install build twine -e ".[mcp]"
+          python -m pip install build twine ruff -e ".[mcp]"
           python -m compileall -q src tests
           python -m unittest discover -s tests -v
           osi-validate-plugin --root .
@@ -87,113 +85,111 @@ jobs:
           osi-build-alpha --root . --output-dir dist/alpha-second
           test "$(sha256sum dist/alpha/*.zip | cut -d' ' -f1)" = "$(sha256sum dist/alpha-second/*.zip | cut -d' ' -f1)"
 
-      - name: Build Python release artifacts
+      - name: Build exact Python release artifacts
+        env:
+          WHEEL_NAME: ${{ steps.identity.outputs.wheel_name }}
+          SDIST_NAME: ${{ steps.identity.outputs.sdist_name }}
         run: |
           set -euo pipefail
           python -m build --outdir dist/python
-          wheels=(dist/python/*.whl); sdists=(dist/python/*.tar.gz)
-          test "${#wheels[@]}" -eq 1; test "${#sdists[@]}" -eq 1
-          (cd dist/python && sha256sum "$(basename "${wheels[0]}")" "$(basename "${sdists[0]}")" > PYTHON-DISTS-SHA256SUMS)
-          python -m twine check "${wheels[0]}" "${sdists[0]}"
+          mapfile -t wheels < <(find dist/python -maxdepth 1 -type f -name '*.whl' -printf '%f\n' | sort)
+          mapfile -t sdists < <(find dist/python -maxdepth 1 -type f -name '*.tar.gz' -printf '%f\n' | sort)
+          test "${#wheels[@]}" -eq 1 && test "${wheels[0]}" = "$WHEEL_NAME"
+          test "${#sdists[@]}" -eq 1 && test "${sdists[0]}" = "$SDIST_NAME"
+          test -f "dist/python/$WHEEL_NAME" && test -f "dist/python/$SDIST_NAME"
+          (cd dist/python && sha256sum "$WHEEL_NAME" "$SDIST_NAME" > PYTHON-DISTS-SHA256SUMS)
+          python -m twine check "dist/python/$WHEEL_NAME" "dist/python/$SDIST_NAME"
 
-      - name: Create GitHub Release with all assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag }}
-          PRERELEASE: ${{ inputs.prerelease }}
-        run: |
-          set -euo pipefail
-          prerelease_flag=()
-          if [ "$PRERELEASE" = "true" ]; then prerelease_flag+=(--prerelease); fi
-          archive="$(python - <<'PY'
-          import json
-          from pathlib import Path
-          print(json.loads(Path('dist/alpha/bundle-report.json').read_text())['archive'])
-          PY
-          )"
-          wheel=(dist/python/*.whl); sdist=(dist/python/*.tar.gz)
-          test "${#wheel[@]}" -eq 1; test "${#sdist[@]}" -eq 1
-          gh release create "$TAG" --target "$(git rev-parse HEAD)" "${prerelease_flag[@]}" \
-            --title "$TAG — AI Open Source Intelligence" --notes-file CHANGELOG.md \
-            "$archive" dist/alpha/SHA256SUMS dist/alpha/bundle-report.json \
-            "${wheel[0]}" "${sdist[0]}" dist/python/PYTHON-DISTS-SHA256SUMS
-
-      - name: Verify published Release identity and exact asset set
+      - name: Create or safely resume matching Draft Release
+        id: draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ inputs.commit }}
+          WHEEL_NAME: ${{ steps.identity.outputs.wheel_name }}
+          SDIST_NAME: ${{ steps.identity.outputs.sdist_name }}
         run: |
           set -euo pipefail
-          test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = false
+          archive_path="$(python -c 'import json; from pathlib import Path; print(json.loads(Path("dist/alpha/bundle-report.json").read_text())["archive"])')"
+          archive_name="$(basename "$archive_path")"
+          echo "archive_name=$archive_name" >> "$GITHUB_OUTPUT"
+          expected=("$archive_name" SHA256SUMS bundle-report.json "$WHEEL_NAME" "$SDIST_NAME" PYTHON-DISTS-SHA256SUMS)
+          if gh release view "$TAG" --json isDraft >/tmp/release.json 2>/dev/null; then
+            is_draft="$(jq -r '.isDraft' /tmp/release.json)"
+            test "$is_draft" = true || { echo "a published Release already exists" >&2; exit 1; }
+            test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/$TAG" --jq '.sha')" = "$COMMIT" || { echo "Draft tag points to a different commit" >&2; exit 1; }
+            mapfile -t actual < <(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)
+            mapfile -t sorted_expected < <(printf '%s\n' "${expected[@]}" | sort)
+            test "${#actual[@]}" -eq 6 && test "${actual[*]}" = "${sorted_expected[*]}" || { echo "Draft asset set is not exact; refusing overwrite" >&2; exit 1; }
+            rm -rf tmp/draft-assets && mkdir -p tmp/draft-assets
+            gh release download "$TAG" --dir tmp/draft-assets --pattern "$archive_name" --pattern SHA256SUMS --pattern bundle-report.json --pattern "$WHEEL_NAME" --pattern "$SDIST_NAME" --pattern PYTHON-DISTS-SHA256SUMS
+            for name in "${expected[@]}"; do
+              case "$name" in
+                "$archive_name"|SHA256SUMS|bundle-report.json) local_path="dist/alpha/$name" ;;
+                *) local_path="dist/python/$name" ;;
+              esac
+              cmp -s "$local_path" "tmp/draft-assets/$name" || { echo "Draft asset differs from deterministic build: $name" >&2; exit 1; }
+            done
+            (cd tmp/draft-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
+          else
+            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" >/dev/null 2>&1; then echo "tag exists without matching Draft Release" >&2; exit 1; fi
+            gh release create "$TAG" --draft --target "$COMMIT" \
+              --title "$TAG — AI Open Source Intelligence" --notes-file CHANGELOG.md \
+              "dist/alpha/$archive_name" dist/alpha/SHA256SUMS dist/alpha/bundle-report.json \
+              "dist/python/$WHEEL_NAME" "dist/python/$SDIST_NAME" dist/python/PYTHON-DISTS-SHA256SUMS
+          fi
+          test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = true
           test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/$TAG" --jq '.sha')" = "$COMMIT"
-          archive="$(python - <<'PY'
-          import json
-          from pathlib import Path
-          print(Path(json.loads(Path('dist/alpha/bundle-report.json').read_text())['archive']).name)
-          PY
-          )"
-          wheel="$(basename dist/python/*.whl)"; sdist="$(basename dist/python/*.tar.gz)"
-          expected=$(printf '%s\n' "$archive" SHA256SUMS bundle-report.json "$wheel" "$sdist" PYTHON-DISTS-SHA256SUMS | sort)
-          actual="$(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)"
-          test "$expected" = "$actual" || { echo "Release asset set mismatch" >&2; diff -u <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") || true; exit 1; }
-
-      - name: Upload validated Python assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: pypi-release-assets
-          path: |
-            dist/python/*.whl
-            dist/python/*.tar.gz
-            dist/python/PYTHON-DISTS-SHA256SUMS
-          if-no-files-found: error
-          retention-days: 14
+          mapfile -t actual < <(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)
+          mapfile -t sorted_expected < <(printf '%s\n' "${expected[@]}" | sort)
+          test "${#actual[@]}" -eq 6 && test "${actual[*]}" = "${sorted_expected[*]}"
+          rm -rf tmp/staged-assets && mkdir -p tmp/staged-assets
+          gh release download "$TAG" --dir tmp/staged-assets --pattern "$archive_name" --pattern SHA256SUMS --pattern bundle-report.json --pattern "$WHEEL_NAME" --pattern "$SDIST_NAME" --pattern PYTHON-DISTS-SHA256SUMS
+          (cd tmp/staged-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
 
   pypi-validate:
-    name: Validate Release artifacts for PyPI
-    needs: build-and-create
+    name: Validate Draft Release artifacts for PyPI
+    needs: build-and-stage-draft
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      wheel_sha: ${{ steps.check.outputs.wheel_sha }}
+      sdist_sha: ${{ steps.check.outputs.sdist_sha }}
+      version: ${{ needs.build-and-stage-draft.outputs.version }}
+      wheel_name: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
+      sdist_name: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-          ref: ${{ inputs.commit }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Download exact Release artifacts
+      - name: Download exact Draft Release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
-          VERSION: ${{ needs.build-and-create.outputs.version }}
+          WHEEL_NAME: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
         run: |
           set -euo pipefail
           mkdir -p tmp/release-assets
-          names="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$TAG" --jq '.assets[].name')"
-          wheel_name="$(printf '%s\n' "$names" | grep -E '^aiworkstation_open_source_intelligence-'"$VERSION"'-[^/]+\.whl$' || true)"
-          sdist_name="aiworkstation_open_source_intelligence-${VERSION}.tar.gz"
-          test "$(printf '%s\n' "$wheel_name" | sed '/^$/d' | wc -l)" -eq 1
-          printf '%s\n' "$names" | grep -Fxq "$sdist_name"
-          printf '%s\n' "$names" | grep -Fxq PYTHON-DISTS-SHA256SUMS
-          gh release download "$TAG" --dir tmp/release-assets --pattern "$wheel_name" --pattern "$sdist_name" --pattern PYTHON-DISTS-SHA256SUMS
-          test "$(find tmp/release-assets -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
-          test "$(find tmp/release-assets -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 1
-          test "$(find tmp/release-assets -maxdepth 1 -name 'PYTHON-DISTS-SHA256SUMS' | wc -l)" -eq 1
+          gh release download "$TAG" --dir tmp/release-assets --pattern "$WHEEL_NAME" --pattern "$SDIST_NAME" --pattern PYTHON-DISTS-SHA256SUMS
+          test "$(find tmp/release-assets -maxdepth 1 -type f -name "$WHEEL_NAME" | wc -l)" -eq 1
+          test "$(find tmp/release-assets -maxdepth 1 -type f -name "$SDIST_NAME" | wc -l)" -eq 1
+          test "$(find tmp/release-assets -maxdepth 1 -type f -name PYTHON-DISTS-SHA256SUMS | wc -l)" -eq 1
       - name: Verify checksums, metadata, and clean wheel install
+        id: check
         env:
-          VERSION: ${{ needs.build-and-create.outputs.version }}
+          VERSION: ${{ needs.build-and-stage-draft.outputs.version }}
+          WHEEL_NAME: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
         run: |
           set -euo pipefail
           (cd tmp/release-assets && sha256sum --check PYTHON-DISTS-SHA256SUMS)
           python -m pip install twine
-          python -m twine check tmp/release-assets/*.whl tmp/release-assets/*.tar.gz
-          venv="$(mktemp -d)"; python -m venv "$venv"; wheel_path="$(find tmp/release-assets -maxdepth 1 -name '*.whl' -print -quit)"; "$venv/bin/pip" install 'mcp>=2,<3' "$wheel_path"
+          python -m twine check "tmp/release-assets/$WHEEL_NAME" "tmp/release-assets/$SDIST_NAME"
+          venv="$(mktemp -d)"; python -m venv "$venv"; "$venv/bin/pip" install 'mcp>=2,<3' "tmp/release-assets/$WHEEL_NAME"
           env -u PYTHONPATH VERSION="$VERSION" "$venv/bin/python" - <<'PY'
-          import asyncio
-          import importlib.metadata
-          import os
+          import asyncio, importlib.metadata, os
           from mcp import Client
           import aiworkstation_osi
           from aiworkstation_osi.contracts import TOOL_NAMES
@@ -205,10 +201,11 @@ jobs:
               async with Client(build_mcp_server()) as client:
                   tools = (await client.list_tools()).tools
                   assert {tool.name for tool in tools} == set(TOOL_NAMES)
-                  assert len(tools) == 9
-                  assert all(tool.annotations and tool.annotations.read_only_hint for tool in tools)
+                  assert len(tools) == 9 and all(tool.annotations and tool.annotations.read_only_hint and not tool.annotations.destructive_hint for tool in tools)
           asyncio.run(check())
           PY
+          echo "wheel_sha=$(sha256sum "tmp/release-assets/$WHEEL_NAME" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sdist_sha=$(sha256sum "tmp/release-assets/$SDIST_NAME" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: pypi-validated-assets
@@ -216,41 +213,111 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  pypi-publish:
-    name: Publish exact artifacts to PyPI
+  pypi-publish-and-verify:
+    name: Publish and verify exact PyPI files
     needs: pypi-validate
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
+    outputs:
+      wheel_sha: ${{ steps.verify.outputs.wheel_sha }}
+      sdist_sha: ${{ steps.verify.outputs.sdist_sha }}
+      wheel_name: ${{ needs.pypi-validate.outputs.wheel_name }}
+      sdist_name: ${{ needs.pypi-validate.outputs.sdist_name }}
     steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: actions/download-artifact@v4
         with:
           name: pypi-validated-assets
           path: dist
-      - name: Keep checksum out of PyPI upload payload
+      - name: Plan safe partial upload from PyPI state
+        id: plan
+        env:
+          VERSION: ${{ needs.pypi-validate.outputs.version }}
+          WHEEL_NAME: ${{ needs.pypi-validate.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.pypi-validate.outputs.sdist_name }}
         run: |
           set -euo pipefail
-          test "$(find dist -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
-          test "$(find dist -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 1
-          test "$(find dist -maxdepth 1 -name 'PYTHON-DISTS-SHA256SUMS' | wc -l)" -eq 1
-          mv dist/PYTHON-DISTS-SHA256SUMS /tmp/PYTHON-DISTS-SHA256SUMS
-      - name: Publish with PyPI Trusted Publishing
+          mkdir -p dist/upload
+          python - <<'PY'
+          import hashlib, json, os, shutil, urllib.error, urllib.request
+          from pathlib import Path
+          version=os.environ['VERSION']; expected=[os.environ['WHEEL_NAME'], os.environ['SDIST_NAME']]
+          root=Path('dist'); hashes={}
+          for line in (root/'PYTHON-DISTS-SHA256SUMS').read_text().splitlines():
+              digest, name=line.split(); hashes[name]=digest
+          if set(hashes) != set(expected): raise SystemExit('Release checksum file must contain exactly wheel and sdist')
+          for name in expected:
+              if not (root/name).is_file(): raise SystemExit(f'missing validated artifact: {name}')
+          try:
+              with urllib.request.urlopen(f'https://pypi.org/pypi/aiworkstation-open-source-intelligence/{version}/json', timeout=15) as response:
+                  files=json.load(response)['urls']
+          except urllib.error.HTTPError as exc:
+              if exc.code != 404: raise
+              files=[]
+          actual={item['filename']: item['digests']['sha256'] for item in files}
+          if any(name not in expected for name in actual): raise SystemExit('PyPI contains unexpected files for this version')
+          missing=[]
+          for name in expected:
+              if name in actual:
+                  if actual[name] != hashes[name]: raise SystemExit(f'PyPI hash mismatch: {name}')
+              else:
+                  missing.append(name); shutil.copy2(root/name, Path('dist/upload')/name)
+          Path('dist/upload-needed').write_text('true' if missing else 'false')
+          PY
+          echo "upload_needed=$(cat dist/upload-needed)" >> "$GITHUB_OUTPUT"
+      - name: Publish missing files with PyPI Trusted Publishing
+        if: steps.plan.outputs.upload_needed == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/upload
+      - name: Verify PyPI publication and exact hashes
+        id: verify
+        env:
+          VERSION: ${{ needs.pypi-validate.outputs.version }}
+          WHEEL_NAME: ${{ needs.pypi-validate.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.pypi-validate.outputs.sdist_name }}
+          EXPECTED_WHEEL_SHA: ${{ needs.pypi-validate.outputs.wheel_sha }}
+          EXPECTED_SDIST_SHA: ${{ needs.pypi-validate.outputs.sdist_sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os, time, urllib.error, urllib.request
+          version=os.environ['VERSION']; expected={
+              os.environ['WHEEL_NAME']: os.environ['EXPECTED_WHEEL_SHA'],
+              os.environ['SDIST_NAME']: os.environ['EXPECTED_SDIST_SHA'],
+          }
+          for attempt in range(12):
+              try:
+                  with urllib.request.urlopen(f'https://pypi.org/pypi/aiworkstation-open-source-intelligence/{version}/json', timeout=15) as response: files=json.load(response)['urls']
+                  actual={item['filename']: item['digests']['sha256'] for item in files}
+                  if set(actual) == set(expected) and all(actual[n] == h for n,h in expected.items()): break
+              except (urllib.error.HTTPError, urllib.error.URLError): pass
+              time.sleep(5)
+          else: raise SystemExit('PyPI verification did not converge')
+          print(json.dumps(actual, sort_keys=True))
+          PY
+          echo "wheel_sha=$EXPECTED_WHEEL_SHA" >> "$GITHUB_OUTPUT"
+          echo "sdist_sha=$EXPECTED_SDIST_SHA" >> "$GITHUB_OUTPUT"
 
-  ghcr-publish:
-    name: Publish exact commit to GHCR
-    needs: build-and-create
+  ghcr-publish-and-verify:
+    name: Publish and verify exact GHCR image
+    needs: build-and-stage-draft
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    outputs:
+      digest: ${{ steps.verify.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ inputs.commit }}
-      - name: Verify commit and Release tag identity
+      - name: Verify release identity
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
@@ -265,19 +332,82 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push commit-addressed image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/${{ github.repository }}/sha-${{ inputs.commit }}
-          labels: org.opencontainers.image.revision=${{ inputs.commit }}
-          build-args: OSI_IMAGE_COMMIT=${{ inputs.commit }}
+      - name: Build existing or push new commit-addressed image
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/sha-${{ inputs.commit }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          if docker pull "$IMAGE" >/dev/null 2>/tmp/image-pull-error; then
+            docker image inspect "$IMAGE" > /tmp/existing-image.json
+            COMMIT="$COMMIT" python - <<'PY'
+          import json, os
+          data=json.load(open('/tmp/existing-image.json'))[0]
+          labels=data.get('Config',{}).get('Labels') or {}
+          env=dict(item.split('=',1) for item in data.get('Config',{}).get('Env') or [] if '=' in item)
+          assert labels.get('org.opencontainers.image.revision') == os.environ['COMMIT']
+          assert env.get('OSI_IMAGE_COMMIT') == os.environ['COMMIT']
+          PY
+          else
+            grep -Eiq 'manifest unknown|not found|does not exist' /tmp/image-pull-error || { cat /tmp/image-pull-error >&2; echo "cannot prove that the commit-addressed image tag is absent" >&2; exit 1; }
+            docker buildx build --push --tag "$IMAGE" --label "org.opencontainers.image.revision=$COMMIT" --build-arg "OSI_IMAGE_COMMIT=$COMMIT" .
+          fi
+      - name: Inspect pushed image identity and digest
+        id: verify
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/sha-${{ inputs.commit }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE" >/dev/null
+          docker image inspect "$IMAGE" > /tmp/image-inspect.json
+          python - <<'PY'
+          import json, os
+          data=json.load(open('/tmp/image-inspect.json'))[0]
+          labels=data.get('Config',{}).get('Labels') or {}
+          env=dict(item.split('=',1) for item in data.get('Config',{}).get('Env') or [] if '=' in item)
+          commit=os.environ['COMMIT']
+          assert labels.get('org.opencontainers.image.revision') == commit
+          assert env.get('OSI_IMAGE_COMMIT') == commit
+          repository=os.environ['IMAGE'].rsplit(':',1)[0]
+          repo_digest=next((d for d in data.get('RepoDigests',[]) if d.startswith(repository+'@')), '')
+          assert repo_digest
+          print(f'digest={repo_digest}')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output: output.write(f'digest={repo_digest}\n')
+          PY
 
-  promotion-complete:
-    name: Promotion complete
-    needs: [pypi-publish, ghcr-publish]
+  promotion-complete-and-publish-release:
+    name: Verify promotion and publish Release
+    needs: [build-and-stage-draft, pypi-publish-and-verify, ghcr-publish-and-verify]
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      contents: write
     steps:
-      - run: echo "GitHub Release, PyPI, and GHCR promotion completed successfully."
+      - name: Publish verified Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          WHEEL_NAME: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
+        run: |
+          set -euo pipefail
+          test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = true
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/$TAG" --jq '.sha')" = "$COMMIT"
+          prerelease_args=(--draft=false)
+          if [ "$PRERELEASE" = true ]; then prerelease_args+=(--prerelease); else prerelease_args+=(--prerelease=false); fi
+          gh release edit "$TAG" "${prerelease_args[@]}"
+          test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = false
+          test "$(gh release view "$TAG" --json isPrerelease --jq '.isPrerelease')" = "$PRERELEASE"
+          names="$(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)"
+          expected="$(printf '%s\n' "$WHEEL_NAME" "$SDIST_NAME" PYTHON-DISTS-SHA256SUMS SHA256SUMS bundle-report.json "${{ needs.build-and-stage-draft.outputs.archive_name }}" | sort)"
+          test "$names" = "$expected"
+          test -n "${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}" && test -n "${{ needs.pypi-publish-and-verify.outputs.sdist_sha }}"
+          test -n "${{ needs.ghcr-publish-and-verify.outputs.digest }}"
+          rm -rf /tmp/final-release-assets && mkdir -p /tmp/final-release-assets
+          gh release download "$TAG" --dir /tmp/final-release-assets --pattern "${{ needs.build-and-stage-draft.outputs.archive_name }}" --pattern "$WHEEL_NAME" --pattern "$SDIST_NAME" --pattern PYTHON-DISTS-SHA256SUMS --pattern SHA256SUMS
+          (cd /tmp/final-release-assets && sha256sum --check PYTHON-DISTS-SHA256SUMS && sha256sum --check SHA256SUMS)
+          echo "PyPI verified ${{ needs.pypi-publish-and-verify.outputs.wheel_name }}=${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}"
+          echo "PyPI verified ${{ needs.pypi-publish-and-verify.outputs.sdist_name }}=${{ needs.pypi-publish-and-verify.outputs.sdist_sha }}"
+          echo "GHCR verified RepoDigest=${{ needs.ghcr-publish-and-verify.outputs.digest }}"
