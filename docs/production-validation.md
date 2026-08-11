@@ -1,8 +1,8 @@
-# M1 Production Validation Runbook
+# Production Validation Runbook
 
 This runbook validates the public AI Workstation Radar contract, local Skills and
-MCP behavior, and the guarded Streamable HTTP deployment before invited hosted
-alpha testing. All Radar validation is anonymous and read-only.
+MCP behavior, and an exact production Hosted MCP candidate. All current Radar
+validation is anonymous and read-only.
 
 ## Preconditions
 
@@ -31,8 +31,9 @@ osi-validate-plugin --root .
 osi-readiness --root . --output tmp/readiness.json
 ```
 
-A code-complete tree should report `code_ready=true` while live and hosted alpha
-states remain false until their evidence is supplied.
+A code-complete tree should report `code_ready=true`. Candidate-bound live and
+Hosted states remain false until their evidence is supplied for that exact
+source commit.
 
 Smoke-test installed commands:
 
@@ -212,7 +213,7 @@ osi-readiness \
 These flags are operator attestations, not automatically discovered proof. Use
 real evidence only.
 
-## 7. Deploy a guarded private hosted MCP endpoint
+## 7. Deploy the guarded public data-only Hosted MCP
 
 Read [`hosted-mcp.md`](hosted-mcp.md). A local/container configuration can be
 checked without opening a socket:
@@ -221,28 +222,29 @@ checked without opening a socket:
 osi-mcp-http --check-config
 ```
 
-Build the container:
+Build the exact candidate container:
 
 ```bash
 docker build --build-arg OSI_IMAGE_COMMIT="$(git rev-parse HEAD)" -t aiworkstation-osi-mcp:0.3.0 .
-docker compose -f compose.hosted.example.yml config
-docker compose -f compose.hosted.example.yml up --build
+docker compose -f compose.public-hosted.example.yml config
 ```
 
-The example maps the container to host loopback only. Put an authenticated TLS
-reverse proxy in front, or keep it on a trusted private network. The public-bind
-acknowledgement in the application is not authentication.
+The public example maps the container to host loopback only. Production uses a
+TLS/Nginx gateway with strict Host/path policy plus request-body, short-window,
+sustained-window and connection controls. The current service is anonymous only
+because it exposes public read-only data; future private/member data requires a
+new authorization design.
 
-For a real remote endpoint, require a credential-free HTTPS MCP URL and run:
+For the production endpoint, use the credential-free HTTPS MCP URL and run:
 
 ```bash
-osi-remote-smoke --url https://YOUR-MCP-HOST/mcp
+osi-remote-smoke --url https://mcp.aiworkstation.cn/mcp
 osi-remote-smoke \
-  --url https://YOUR-MCP-HOST/mcp \
+  --url https://mcp.aiworkstation.cn/mcp \
   --invoke-search \
   --locale en
 osi-remote-smoke \
-  --url https://YOUR-MCP-HOST/mcp \
+  --url https://mcp.aiworkstation.cn/mcp \
   --invoke-search \
   --locale zh
 ```
@@ -250,10 +252,10 @@ osi-remote-smoke \
 Do not use a URL containing tokens, usernames, passwords, query parameters or
 fragments.
 
-## 8. Validate hosted private-alpha readiness
+## 8. Validate candidate-bound Hosted readiness
 
 After the hosted endpoint has actually passed remote MCP smoke tests and the
-operator has confirmed gateway/private-network protection:
+operator has confirmed gateway protection:
 
 ```bash
 osi-readiness \
@@ -267,14 +269,15 @@ osi-readiness \
   --live-validation-run-id REAL_RUN_ID \
   --reviewer "REAL_REVIEWER" \
   --remote-mcp-tested \
-  --remote-mcp-url https://YOUR-MCP-HOST/mcp \
+  --remote-mcp-url https://mcp.aiworkstation.cn/mcp \
   --hosted-gateway-protected \
   --require-hosted-alpha \
   --output tmp/hosted-alpha-readiness.json
 ```
 
-`hosted_private_alpha_ready=true` is suitable for an invited private cohort; it
-is not public-launch approval.
+`hosted_private_alpha_ready=true` is the historical machine field for this
+candidate gate. It does not prove public-directory approval, ongoing production
+health, external tester retention or incident readiness.
 
 ## 9. Decide whether an upstream Radar change is necessary
 
@@ -285,10 +288,10 @@ selector evidence state, explicit no-match reason or near-match blocker status.
 Document the smallest additive API change first; do not import private modules
 or modify `akaiagents` from this repository.
 
-## 10. Public launch remains a separate gate
+## 10. Public plugin distribution remains a separate gate
 
-Do not broaden hosted distribution until the publisher has made and implemented
-the decisions in [`public-launch-decisions.md`](public-launch-decisions.md),
-including software licensing, final legal/support URLs, per-user authorization,
-revocation, quotas, rate limiting, abuse controls, production logging/retention
-and platform registration/review.
+The runtime endpoint can be production-ready while the combined plugin remains
+unlisted. Before public-directory submission, complete the remaining decisions
+in [`public-launch-decisions.md`](public-launch-decisions.md): publisher and
+policy review, monitoring baseline, fresh-install acceptance, domain scan,
+platform review and staged rollout.

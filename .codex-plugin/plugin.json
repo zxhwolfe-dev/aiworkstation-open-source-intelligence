@@ -33,7 +33,7 @@
     "websiteURL": "https://aiworkstation.cn/githubai/",
     "supportURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/SUPPORT.md",
     "privacyPolicyURL": "https://useaistation.com/githubai/privacy/",
-    "termsOfServiceURL": "https://useaistation.com/githubai/terms/",
+    "termsOfServiceURL": "https://useaistation.com/terms/",
     "defaultPrompt": [
       "Show me the current AI Open Source Radar and help me browse its rankings, collections, categories, use cases, and Skills.",
       "Find a self-hosted RAG platform with Docker and a Web UI. Keep hard requirements separate from preferences.",

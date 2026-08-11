@@ -1,21 +1,25 @@
 # Security and Privacy Boundary
 
-## M1 Alpha posture
+## Current v0.3 posture
 
-M1 Alpha is read-only. It includes:
+The product is read-only and data-only. It includes:
 
 - an offline deterministic mock provider;
 - an opt-in public AI Workstation HTTP provider;
 - local stdio MCP;
-- guarded stateless Streamable HTTP MCP for local/private-alpha deployment;
+- guarded stateless Streamable HTTP MCP for local/self-hosted deployment;
+- a public production Hosted MCP behind TLS, Host/path policy and anonymous
+  abuse controls;
 - contract probe, capture, validation and replay utilities;
-- a Skills-only plugin and deterministic alpha package;
-- a non-root container and host-loopback Compose example;
+- one unified Skill and a deterministic Skill package;
+- a non-root, read-only container and host-loopback public Compose example;
 - a remote read-only MCP compatibility smoke client.
 
-It does not include native end-user authentication, billing, collection writes,
-repository mutation, third-party code execution, production quota/abuse systems
-or approval for direct unauthenticated Internet exposure.
+It does not include user accounts, OAuth, billing, collection writes,
+repository mutation, third-party code execution or AI Workstation server-side
+model execution. The anonymous Hosted service is intentionally limited to nine
+public Radar data/evidence tools; private/member data would require a new
+identity and privacy design.
 
 ## Trust boundaries
 
@@ -74,7 +78,7 @@ or MCP transport.
 
 ### stdio
 
-`osi-mcp` runs locally and exposes exactly six annotated read-only tools. It does
+`osi-mcp` runs locally and exposes exactly nine annotated read-only tools. It does
 not open a listening network socket.
 
 ### Streamable HTTP
@@ -88,15 +92,16 @@ Binding to a non-loopback host is rejected unless:
 - the Radar base origin is allow-listed HTTPS without embedded credentials,
   query, fragment or non-standard public port.
 
-The acknowledgement only permits a private/reverse-proxy deployment. It does not
-create a user identity, validate tokens or make the endpoint suitable for direct
-public exposure. `OSI_MCP_HTTP_ASSUME_PUBLIC_AUTH=true` is explicitly rejected so
-an environment flag cannot be mistaken for real authentication.
+The acknowledgement only permits the bind. It does not create a user identity,
+validate tokens or provide gateway controls. `OSI_MCP_HTTP_ASSUME_PUBLIC_AUTH=true`
+is explicitly rejected so an environment flag cannot be mistaken for real
+authentication.
 
-For non-local deployments, protect the service with a trusted private network or
-an authenticated TLS reverse proxy and implement request-size limits, rate
-limits, timeouts, concurrency budgets and abuse blocking at the gateway until
-native authorization exists.
+For non-local deployments, use a trusted network or a TLS reverse proxy with
+request-size limits, rate limits, timeouts, concurrency budgets, Host policy and
+abuse blocking. Authentication is required when the operator exposes private,
+member-specific or write-capable data; the current public AI Workstation Hosted
+service exposes only anonymous public read-only data.
 
 ## Container controls
 
@@ -111,7 +116,9 @@ The provided image and Compose example:
 - do not bake credentials or a public-bind acknowledgement into the image.
 
 These settings are defense in depth, not a substitute for host patching,
-container-runtime security, TLS or authorization.
+container-runtime security or TLS. Authorization requirements depend on the
+data and action boundary; the current production service is intentionally
+anonymous and data-only.
 
 ## Remote MCP smoke controls
 
@@ -120,8 +127,8 @@ HTTPS for non-local endpoints and rejects URLs containing usernames, passwords,
 query strings or fragments. The default operation lists tools and validates
 annotations; `--invoke-search` performs one explicit read-only search.
 
-The smoke result demonstrates protocol compatibility, not authorization quality,
-penetration-test coverage or public-launch readiness.
+The smoke result demonstrates protocol compatibility and tool metadata, not
+penetration-test coverage, ongoing service health or public-directory approval.
 
 ## Network and workflow controls
 
@@ -149,9 +156,9 @@ The validator independently scans key names and contract invariants; provider
 replay then exercises the hardened production adapter offline. A validator pass
 does not replace human review before distribution.
 
-## Alpha-package controls
+## Skill-package controls
 
-The deterministic Skills-only builder:
+The deterministic one-Skill builder:
 
 - uses an explicit file allowlist;
 - rejects symlinks, non-UTF-8 files, oversized files and credential-like text;
@@ -193,19 +200,31 @@ License output is technical evidence, not legal advice.
 - Commercial-use decisions must be checked against the actual license and, when
   appropriate, qualified legal advice.
 
-## Public hosted-service gate
+## Public Hosted MCP controls and remaining gates
 
-A guarded private hosted-alpha transport now exists, but broad public hosting
-still requires explicit design and validation of:
+The production endpoint is anonymous, read-only and data-only. Its verified
+gateway/runtime controls include:
 
-- publisher identity and final support/legal URLs;
-- native per-user authentication/authorization and token revocation;
-- quotas, rate limiting, concurrency and abuse controls;
-- host/origin validation at the public gateway;
-- log fields, retention, deletion and data-request procedures;
-- incident response and key rotation;
-- production isolation, monitoring, alerting and rollback;
-- final platform registration/review.
+- TLS and HTTP-to-HTTPS redirect;
+- dedicated Host/path policy and invalid-Host rejection;
+- body, short-window, sustained-window and connection limits;
+- host-loopback-only container exposure;
+- exact source/image/runtime identity;
+- read-only filesystem and container hardening;
+- bilingual nine-tool smoke and real-search validation.
+
+Remaining distribution and operational gates are:
+
+- final publisher review of service-specific Privacy/Terms/support/retention
+  copy;
+- baseline error, latency and 429 monitoring plus real-user threshold tuning;
+- incident/rollback ownership for future deployments;
+- external fresh-install and return-use evidence;
+- publisher verification and final platform registration/review.
+
+Per-user OAuth is not a missing control for the current public-data-only
+contract. It becomes mandatory if a later version introduces private/member
+data, user-scoped state, writes or server-side model entitlements.
 
 These are tracked in `docs/public-launch-decisions.md` and must not be replaced
 with placeholder claims simply to make a release gate pass.

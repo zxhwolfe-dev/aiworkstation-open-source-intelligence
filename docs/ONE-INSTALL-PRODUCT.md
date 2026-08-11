@@ -18,6 +18,11 @@ AI Open Source Radar public data
 
 The user should not need to know which MCP tool is being called or choose between research/comparison/stack-planning Skills.
 
+This is the target public-directory experience. Before the combined plugin is
+approved, the repository Skill and production Hosted MCP are installed/connected
+as two explicit steps documented in [`QUICKSTART.md`](QUICKSTART.md). Do not
+advertise one-click public installation before platform approval.
+
 ## One unified Skill
 
 The only active product Skill is:

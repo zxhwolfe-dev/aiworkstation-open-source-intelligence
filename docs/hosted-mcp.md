@@ -1,19 +1,86 @@
-# Guarded Streamable HTTP Deployment
+# Streamable HTTP and Hosted MCP Deployment
 
-The repository can run the six read-only tools over Streamable HTTP for local,
-private-network and reverse-proxy alpha testing. This is a deployment surface,
-not a claim that the endpoint is safe to expose directly to the public Internet.
+This document covers local/self-hosted Streamable HTTP and the production
+anonymous data-only Hosted MCP.
 
-The current MCP Python SDK v2 uses Streamable HTTP as its production-oriented
-HTTP transport and supports stateless JSON responses. This project also enables
-the SDK's transport-security host/origin checks explicitly for non-loopback
-binds.
+## Production service
 
-## Security model
+Canonical endpoint:
 
-### Local mode
+```text
+https://mcp.aiworkstation.cn/mcp
+```
 
-Defaults:
+Current contract:
+
+```text
+anonymous
+read-only / non-destructive / idempotent
+9 public Radar data/evidence tools
+no OAuth or bearer token
+no Premium, checkout, credits or server-model tool
+```
+
+The host model performs reasoning. AI Workstation serves public Radar
+data/evidence, and requirement selection keeps `use_model=false`.
+
+The `v0.3.0` production deployment was verified on 2026-08-11 with:
+
+```text
+source/runtime commit:
+7b92e463a1da567afd5d1310601afdf1c6674646
+
+GHCR digest:
+sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849
+```
+
+The deployed container reported healthy with zero restarts at validation time.
+English and Chinese remote smoke tests, nine-tool discovery, a real search,
+runtime/OCI identity, gateway policy, Host rejection and loopback isolation all
+passed. This is a deployment record, not a perpetual uptime guarantee.
+
+## Production topology
+
+```text
+MCP client
+    |
+    | HTTPS
+    v
+Nginx: TLS + Host/path policy + abuse controls
+    |
+    | host loopback only
+    v
+127.0.0.1:8001 -> Hosted MCP container:8000
+    |
+    v
+public AI Open Source Radar APIs
+```
+
+The dedicated hostname proxies only `/mcp`; unrelated paths return `404`.
+HTTP redirects to HTTPS, invalid Host values are rejected, and the container
+port is not published on a public interface.
+
+Current anonymous gateway controls:
+
+```text
+short window: 60 requests/minute/IP, burst 30
+sustained:    10 requests/minute/IP, burst 300
+connections:  10/IP
+body size:    256 KB
+```
+
+The gateway policy response identifies itself as:
+
+```text
+X-OSI-Hosted-Gateway-Policy: tls-ip-rate-limited
+```
+
+These controls fit the current public, read-only, no-account product. If a
+future release adds private data, member features or server inference, it must
+introduce a separately reviewed identity, authorization, quota and privacy
+design rather than silently changing this endpoint's semantics.
+
+## Local Streamable HTTP defaults
 
 ```text
 OSI_MCP_HTTP_HOST=127.0.0.1
@@ -22,69 +89,10 @@ OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES=262144
 OSI_PROVIDER=mock
 ```
 
-This opens a loopback-only MCP endpoint and performs no live Radar reads unless
-`OSI_PROVIDER=http` is selected explicitly. Local mode leaves the SDK's secure
-localhost transport-security defaults intact.
+This opens a loopback-only endpoint and performs no live Radar reads unless
+`OSI_PROVIDER=http` is selected explicitly.
 
-### Non-loopback mode
-
-Binding to `0.0.0.0`, a LAN address or a non-loopback hostname is rejected unless
-all of these are configured:
-
-```text
-OSI_PROVIDER=http
-OSI_MCP_HTTP_PUBLIC_BIND_ACK=reverse-proxy-or-private-network
-AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn
-OSI_MCP_HTTP_ALLOWED_HOSTS=mcp.example.com,mcp.example.com:*
-```
-
-The live Radar origin must be allow-listed HTTPS with no embedded credentials,
-query, fragment, path or non-standard public port.
-
-`OSI_MCP_HTTP_ALLOWED_HOSTS` is passed to the MCP SDK as explicit
-DNS-rebinding/Host-header protection. Entries are exact `host[:port]` values or
-`host:*` patterns. Include only Host values the trusted proxy/client is expected
-to send.
-
-For browser-based MCP clients, also define exact HTTPS origins:
-
-```text
-OSI_MCP_HTTP_ALLOWED_ORIGINS=https://app.example.com
-```
-
-An empty origin list is appropriate for non-browser clients. If browsers are
-supported, the gateway/application CORS policy must match the same narrow origin
-set.
-
-The public-bind acknowledgement is deliberately named to make the boundary
-explicit: it is **not authentication**. A non-loopback endpoint must still be
-protected by a trusted private network or authenticated TLS reverse proxy.
-`OSI_MCP_HTTP_ASSUME_PUBLIC_AUTH=true` is rejected.
-
-## Request-body cap
-
-The MCP SDK has its own HTTP body limit, and this project sets a smaller alpha
-default because the nine tools accept compact structured requests:
-
-```text
-OSI_MCP_HTTP_MAX_REQUEST_BODY_BYTES=262144
-```
-
-The configured value must remain between 16 KiB and 1 MiB. This is defense in
-depth; the gateway should impose its own request/header limits too.
-
-## Validate configuration without opening a socket
-
-```bash
-osi-mcp-http --check-config
-```
-
-Local output includes the bind, provider, body cap and whether explicit hosted
-allowlists are present. A non-loopback configuration fails before the server is
-built if the acknowledgement, live provider, Radar origin or Host allowlist is
-missing/invalid.
-
-## Run locally
+Run locally:
 
 ```bash
 python -m pip install -e ".[mcp]"
@@ -97,116 +105,109 @@ Connect to:
 http://127.0.0.1:8000/mcp
 ```
 
-Run the real MCP compatibility smoke test:
+## Non-loopback self-hosted mode
 
-```bash
-osi-remote-smoke --url http://127.0.0.1:8000/mcp
+Binding to `0.0.0.0`, a LAN address or a non-loopback hostname is rejected
+unless all of these are configured:
+
+```text
+OSI_PROVIDER=http
+OSI_MCP_HTTP_PUBLIC_BIND_ACK=reverse-proxy-or-private-network
+AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn
+OSI_MCP_HTTP_ALLOWED_HOSTS=mcp.example.com,mcp.example.com:*
 ```
 
-Add one read-only tool call:
+The live Radar origin must be allow-listed HTTPS with no embedded credentials,
+query, fragment, path or non-standard public port.
+
+`OSI_MCP_HTTP_ALLOWED_HOSTS` is explicit DNS-rebinding/Host-header protection.
+For browser clients, also set exact HTTPS origins with
+`OSI_MCP_HTTP_ALLOWED_ORIGINS`. Keep the origin list empty for non-browser-only
+deployments.
+
+The public-bind acknowledgement is an operator assertion, not authentication.
+Self-hosted operators remain responsible for TLS, network access, rate limits,
+logging, incident response and local policy.
+
+## Validate configuration without opening a socket
+
+```bash
+osi-mcp-http --check-config
+```
+
+A non-loopback configuration fails before server construction if the
+acknowledgement, provider, Radar origin or Host allowlist is missing or invalid.
+
+The request-body value must remain between 16 KiB and 1 MiB. A reverse proxy
+should impose its own request/header limits as defense in depth.
+
+## Container build and production candidate identity
+
+Build an exact candidate image:
+
+```bash
+docker build \
+  --build-arg OSI_IMAGE_COMMIT="$(git rev-parse HEAD)" \
+  -t aiworkstation-osi-mcp:0.3.0 .
+```
+
+Validate the public-hosted example:
+
+```bash
+docker compose -f compose.public-hosted.example.yml config
+```
+
+Production must set the same exact 40-character commit for
+`OSI_IMAGE_COMMIT` and `OSI_RELEASE_COMMIT`. The image runs as non-root with a
+read-only filesystem, bounded tmpfs, dropped capabilities and
+`no-new-privileges`.
+
+Do not expose the container directly to the Internet or bake credentials into
+the image.
+
+## Remote validation
+
+The read-only smoke client requires HTTPS for non-local endpoints and rejects
+URLs containing usernames, passwords, query strings or fragments.
 
 ```bash
 osi-remote-smoke \
-  --url http://127.0.0.1:8000/mcp \
+  --url https://mcp.aiworkstation.cn/mcp
+
+osi-remote-smoke \
+  --url https://mcp.aiworkstation.cn/mcp \
   --invoke-search \
   --locale en
-```
 
-The smoke client requires HTTPS for non-local endpoints and rejects credentials,
-query strings and fragments embedded in endpoint URLs.
-
-## Container build
-
-```bash
-docker build --build-arg OSI_IMAGE_COMMIT="$(git rev-parse HEAD)" -t aiworkstation-osi-mcp:0.3.0 .
-docker compose -f compose.hosted.example.yml config
-docker compose -f compose.hosted.example.yml up --build
-```
-
-The image:
-
-- runs as a non-root user;
-- contains the runtime Python package and MCP dependency only;
-- has a cheap TCP health check;
-- does not bake credentials or public-bind acknowledgement into the image.
-
-The Compose example:
-
-- binds the process to container `0.0.0.0:8000` but maps only host
-  `127.0.0.1:8000`;
-- explicitly allows only `127.0.0.1:8000` and `localhost:8000` Host headers;
-- leaves browser origins empty;
-- uses a read-only filesystem, bounded tmpfs, `no-new-privileges`, dropped
-  capabilities and resource limits.
-
-For a same-host reverse proxy that preserves a public Host header, replace or
-extend `OSI_MCP_HTTP_ALLOWED_HOSTS` with the exact public MCP hostname before
-starting the service. Do not expose the container port on all host interfaces
-merely for convenience.
-
-## Reverse-proxy requirements before Internet exposure
-
-The proxy/gateway must provide at minimum:
-
-1. TLS termination with a valid public certificate.
-2. Authentication before MCP requests reach the application.
-3. Per-principal and per-IP rate limiting.
-4. Request-body/header size limits.
-5. Connection and upstream timeouts suitable for MCP.
-6. A strict Host policy that agrees with `OSI_MCP_HTTP_ALLOWED_HOSTS`.
-7. Logging that excludes authorization credentials and complete prompts.
-8. An abuse-blocking path that can disable a principal without redeployment.
-9. A defined maximum concurrency and upstream request budget.
-10. A cheap health/readiness strategy that does not invoke an expensive Radar
-    search.
-
-If browser clients are introduced, configure CORS narrowly and mirror the
-allowed browser origins in `OSI_MCP_HTTP_ALLOWED_ORIGINS`.
-
-## Native MCP authorization
-
-The MCP SDK provides resource-server authorization primitives, but this
-repository intentionally does not yet ship an authorization server, token
-verifier or protected-resource metadata. Those features depend on the intended
-account, identity and commercial model.
-
-For a broad public ChatGPT/plugin or hosted MCP service, prefer per-user OAuth-
-style authorization over a shared static token so identity, revocation, scopes
-and future quotas can be enforced correctly.
-
-## Remote validation sequence
-
-After deployment behind the protected gateway/private network:
-
-```bash
-osi-remote-smoke --url https://YOUR-MCP-HOST/mcp
 osi-remote-smoke \
-  --url https://YOUR-MCP-HOST/mcp \
-  --invoke-search \
-  --locale en
-osi-remote-smoke \
-  --url https://YOUR-MCP-HOST/mcp \
+  --url https://mcp.aiworkstation.cn/mcp \
   --invoke-search \
   --locale zh
 ```
 
-Record the deployed commit, endpoint and gateway configuration in the release
-evidence, then use `osi-readiness --require-hosted-alpha` with the real
-attestations.
+A production acceptance must also verify:
 
-## What remains before broad public hosting
+- exact `serverInfo.version` commit;
+- OCI revision, `OSI_IMAGE_COMMIT` and `OSI_RELEASE_COMMIT` equality;
+- exactly nine tools and correct annotations;
+- no Premium/OAuth/server-model tool;
+- gateway header, HTTPS redirect and non-MCP `404` behavior;
+- public port isolation and invalid Host rejection;
+- container health/restart count and rollback readiness.
 
-The repository now provides the read-only transport, DNS-rebinding protection,
-request caps, container scaffold and compatibility tests. A public service still
-requires operator/product work:
+`osi-readiness --require-hosted-alpha` retains its historical field name. Its
+output is candidate-bound evidence; it does not replace platform review,
+real-user Alpha results, operational monitoring or incident ownership.
 
-- final MCP hostname, DNS and TLS;
-- per-user OAuth/identity and revocation;
-- quotas, rate limits, concurrency and abuse controls;
-- production logging/metrics and retention;
-- secret management and key rotation;
-- deployment rollback/incident policy;
-- final privacy, terms, support and software-license decisions;
-- live platform registration/review and compatibility testing.
+## Current remaining release work
 
-Until those exist, the hosted server remains a private-alpha capability.
+Runtime deployment is complete. Remaining work is product/distribution work:
+
+- align service-specific Privacy/Terms/support copy with actual Hosted data
+  handling;
+- establish an error/latency/429 monitoring baseline and review anonymous abuse
+  thresholds with real traffic;
+- complete fresh-install Skill + Hosted MCP acceptance with external testers;
+- verify publisher identity and submit the combined public plugin;
+- retain an explicit rollback owner and procedure for every future runtime
+  deployment.

@@ -1,8 +1,9 @@
-"""Evidence-first Hosted Private Alpha readiness for the public data-only MCP.
+"""Evidence-first readiness for the public data-only Hosted MCP.
 
 The wrapper extends the External Alpha evidence chain with a candidate-bound
 anonymous nine-tool remote MCP smoke report. Manual booleans cannot replace the
-remote deployment/gateway evidence.
+remote deployment/gateway evidence. The ``hosted_private_alpha_ready`` output
+key is retained for artifact-schema compatibility with earlier releases.
 """
 
 from __future__ import annotations

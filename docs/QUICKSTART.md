@@ -1,35 +1,87 @@
 # Quickstart
 
-AI Workstation Open Source Intelligence now has one user-facing Skill and nine read-only MCP tools.
+AI Workstation Open Source Intelligence `v0.3.0` has one user-facing Skill and
+nine anonymous, read-only Hosted MCP tools.
 
-## 1. Install the unified Skill
+The public plugin-directory submission is not yet approved. Until it is, Skill
+installation and Hosted MCP connection are two explicit steps. The MCP endpoint
+can also be used on its own in ChatGPT Developer mode or any compatible MCP
+host.
+
+## Fastest live-data path: ChatGPT web
+
+ChatGPT Developer mode is intended for developers testing remote MCP servers.
+It is currently available to eligible Pro, Plus, Business, Enterprise and
+Education accounts on the web.
+
+1. In ChatGPT, open **Settings -> Security and login** and enable
+   **Developer mode**.
+2. Open [ChatGPT Plugins](https://chatgpt.com/plugins).
+3. Select the plus button and create a developer-mode app.
+4. Enter:
+
+   ```text
+   Name: AI Open Source Intelligence
+   MCP URL: https://mcp.aiworkstation.cn/mcp
+   Authentication: No Authentication
+   ```
+
+5. In a new conversation, choose **Developer mode** from the plus menu and
+   select the app.
+6. Start with one of the prompts below.
+
+Developer-mode apps appear under **Drafts**. Refresh the app from its details
+page whenever the server's tools or descriptions change. See the official
+[ChatGPT Developer mode documentation](https://developers.openai.com/api/docs/guides/developer-mode).
+
+This path connects the live tools; it does not install the repository Skill.
+The future reviewed public plugin will combine the Skill and Hosted MCP in one
+directory installation.
+
+## Full Skill workflow in Codex / ChatGPT desktop
+
+Add the versioned repository marketplace:
 
 ```bash
-git clone https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence.git
-cd aiworkstation-open-source-intelligence
-codex plugin marketplace add "$PWD"
+codex plugin marketplace add \
+  zxhwolfe-dev/aiworkstation-open-source-intelligence \
+  --ref v0.3.0
 codex plugin marketplace list
 ```
 
-The active product Skill is:
+Open the Plugins Directory, select the added marketplace, and install
+**AI Open Source Intelligence**. The active product Skill is:
 
 ```text
 ai-open-source-intelligence
 ```
 
-It handles Radar browsing, project discovery, fact/license verification, comparisons, alternatives and candidate stack planning. The user does not choose separate research/comparison/stack Skills.
+Then add the production Hosted MCP to `~/.codex/config.toml`:
 
-If live MCP tools are unavailable, the Skill may still interpret requirements and provide a verification/architecture plan, but it must not invent current project facts or fall back to an AI Workstation server-side model.
+```toml
+[mcp_servers.ai_open_source_intelligence]
+url = "https://mcp.aiworkstation.cn/mcp"
+enabled = true
+required = false
+default_tools_approval_mode = "auto"
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+```
 
-## 2. Use the Hosted MCP
+Restart the client and confirm the connection with `codex mcp list` or `/mcp`
+in the Codex TUI. Codex CLI, the Codex IDE extension and the ChatGPT desktop app
+on the same Codex host share this configuration. See the official
+[Codex MCP documentation](https://developers.openai.com/codex/mcp).
 
-Canonical endpoint:
+## Nine Hosted tools
+
+The production endpoint is:
 
 ```text
 https://mcp.aiworkstation.cn/mcp
 ```
 
-The Hosted product exposes exactly nine anonymous, read-only data/evidence tools:
+It exposes exactly:
 
 ```text
 search_ai_projects
@@ -43,25 +95,32 @@ browse_radar_projects
 browse_radar_skills
 ```
 
-The host model (ChatGPT/Codex/etc.) performs reasoning and final synthesis. AI Workstation supplies public Radar data only; the current product has no server-model/Premium tool.
+The host model performs reasoning and final synthesis. AI Workstation supplies
+public Radar data/evidence only; the current product has no server-model or
+Premium tool.
 
-## 3. Local MCP development
+## Python / CLI installation
 
-Create an isolated environment:
+Use the published package for scripting, local MCP hosting or integration
+development:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e ".[mcp]"
+python -m pip install \
+  "aiworkstation-open-source-intelligence[mcp]==0.3.0"
 ```
 
-Start with deterministic offline data:
+Inspect or call the deterministic offline provider:
 
 ```bash
-OSI_PROVIDER=mock osi-mcp
+OSI_PROVIDER=mock osi-m0 provider-info
+OSI_PROVIDER=mock osi-m0 list-tools
+OSI_PROVIDER=mock osi-m0 invoke search_ai_projects \
+  --arguments '{"query":"Find a self-hosted RAG project with Docker and a Web UI.","locale":"en"}'
 ```
 
-Then enable the read-only public Radar provider:
+Start a local stdio MCP server against live public Radar data:
 
 ```bash
 OSI_PROVIDER=http \
@@ -69,31 +128,40 @@ AIWORKSTATION_RADAR_BASE_URL=https://aiworkstation.cn \
 osi-mcp
 ```
 
-Requirement-based selector requests keep AI Workstation model execution disabled with `use_model=false`.
+Requirement-based selector requests keep AI Workstation model execution
+disabled with `use_model=false`.
 
-## 4. CLI for scripting
+## Repository development
+
+For editable development from a reviewed checkout:
 
 ```bash
-osi-m0 provider-info
-osi-m0 list-tools
-osi-m0 invoke search_ai_projects \
-  --arguments '{"query":"Find a self-hosted RAG project with Docker and a Web UI.","locale":"en"}'
+git clone https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence.git
+cd aiworkstation-open-source-intelligence
+git checkout v0.3.0
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[mcp]"
+python -m unittest discover -s tests -v
+osi-validate-plugin --root .
 ```
 
-Enable live Radar data by setting `OSI_PROVIDER=http` and `AIWORKSTATION_RADAR_BASE_URL` as shown above.
+Use [`codex-setup.md`](codex-setup.md) for the complete Hosted and local stdio
+configuration.
 
 ## Recommended first prompts
 
 - Show me the current AI Open Source Radar and its useful categories or rankings.
-- Find a self-hosted RAG platform with Docker and a Web UI.
+- Find a self-hosted RAG platform with Docker and a Web UI. Treat those as hard requirements and low-code as a preference.
 - Compare Dify and RAGFlow for an enterprise knowledge base.
 - Check whether `infiniflow/ragflow` has directly verifiable license evidence.
 - Find alternatives to a named project while keeping private deployment as a hard requirement.
 - Design an open-source stack for internal document question answering and identify the biggest compatibility unknown.
+- Find a project that is cloud-only, fully offline and requires no local installation; return an explicit no-match if the constraints conflict.
 
-## Result model
+## Result and safety model
 
-Every tool response separates:
+Every successful tool response separates:
 
 ```text
 data
@@ -103,16 +171,8 @@ unknowns
 risks
 ```
 
-Each MCP result also includes canonical publisher/navigation links under:
-
-```text
-data.official_resources
-```
-
-Do not treat those publisher links, or every other value in `data`, as a verified research fact.
-
-## Safety
-
 - Do not submit passwords, API keys, private source code, customer records or confidential documents.
 - The tools are read-only and never install or execute third-party repository code.
-- The current Skill/MCP path must not call AI Workstation's server-side model.
+- Missing or ambiguous license evidence is not permission and is not legal advice.
+- Hard requirements are not silently weakened to manufacture a match.
+- The current Skill/MCP path does not call an AI Workstation server-side model.

@@ -1,7 +1,8 @@
-"""Produce a deterministic release-readiness report for the M1 alpha.
+"""Produce a deterministic candidate-bound release-readiness report.
 
-The report distinguishes repository/code readiness, Skills-only external-alpha
-readiness, hosted private-alpha readiness, and broad public-launch readiness. It
+The report distinguishes repository/code readiness, Skill-package External
+Alpha readiness, Hosted deployment readiness, and public distribution
+readiness. Historical output keys are retained for artifact compatibility. It
 never contacts AI Workstation and never claims that CI, Codex, remote MCP tests,
 or human review occurred without explicit evidence supplied by the operator.
 """

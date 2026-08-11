@@ -1,5 +1,7 @@
 # Privacy
 
+_Last updated: 2026-08-11_
+
 ## Current 0.3 product
 
 AI Workstation Open Source Intelligence exposes one Skill and nine anonymous,
@@ -16,11 +18,20 @@ Operational telemetry records tool name, outcome, duration, safe counts, error
 code, and a one-way request-ID fingerprint. It must not record raw queries,
 constraints, project payloads, authorization headers, cookies, or credentials.
 
+The MCP service receives only the fields sent to a selected tool. It does not
+receive a user's complete ChatGPT/Codex conversation history unless the host
+explicitly places that text into a declared tool argument.
+
 The public gateway may process IP addresses for TLS, connection control, abuse
 prevention, and ordinary access logging. Retention and deletion for the hosted
 service follow the policy published on the product website. Local stdio mode
 does not send telemetry to AI Workstation unless the user explicitly selects the
 live HTTP provider.
+
+Public policy pages:
+
+- Privacy: https://useaistation.com/githubai/privacy/
+- Terms: https://useaistation.com/terms/
 
 Tool results contain public source URLs and observation timestamps. They keep
 source-backed facts separate from recommendations, unknowns, and risks.

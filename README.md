@@ -152,6 +152,25 @@ The gateway uses two per-IP request windows plus a connection cap:
 
 This is intentionally request-based rather than token-based because the nine data tools do not consume AI Workstation model tokens.
 
+## Use it now
+
+The combined public plugin is still pending directory review. Today:
+
+- ChatGPT web users can register `https://mcp.aiworkstation.cn/mcp` as a
+  **No Authentication** developer-mode app;
+- Codex users can install the versioned Skill marketplace and add the Hosted
+  MCP URL to `~/.codex/config.toml`;
+- Python users can install the released CLI/MCP package with:
+
+```bash
+python -m pip install \
+  "aiworkstation-open-source-intelligence[mcp]==0.3.0"
+```
+
+See the [Quickstart](docs/QUICKSTART.md) for exact ChatGPT, Codex and Python
+steps. Skill installation and MCP connection remain separate until the reviewed
+public plugin is approved.
+
 ## Local development
 
 ```bash

@@ -172,7 +172,7 @@ Benefits:
 - stronger field-level provenance for license/deployment facts;
 - easier compatibility for non-GitHub evidence sources later.
 
-This is **not required to continue M1 Alpha** because the current public
+This is **not required for the current v0.3 product** because the public
 transparency is sufficient for conservative License verification. If implemented,
 it should be an additive public-contract change in `akaiagents`; this repository
 must not import its private evidence artifacts to obtain the missing fields.

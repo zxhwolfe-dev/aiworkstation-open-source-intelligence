@@ -6,6 +6,9 @@ AI Open Source Intelligence 0.3 由一个统一 Skill 和九个匿名、只读�
 
 当前版本没有 OAuth、会员、支付、Credits、Checkout、Premium 工具或 AI Workstation 服务器模型调用，也不存在可重新开启这些能力的环境变量。
 
+“一次安装”是公共插件目录审核通过后的目标体验。当前 Alpha 阶段仍需按
+[`QUICKSTART.md`](QUICKSTART.md) 分别安装统一 Skill、连接生产 Hosted MCP；在平台批准前不要宣传成普通用户一键安装。
+
 ## 九个工具
 
 `search_ai_projects`、`get_project_facts`、`get_license_evidence`、`compare_ai_projects`、`find_alternatives`、`compose_ai_stack`、`get_radar_overview`、`browse_radar_projects`、`browse_radar_skills`。

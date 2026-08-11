@@ -18,9 +18,11 @@ Research, compare, verify, and select open-source AI projects with evidence-back
 
 Research, compare, verify licenses, find alternatives, and design candidate AI stacks with explicit facts, unknowns, and risks.
 
-Primary CTA: `View on GitHub`
+Primary CTA: `Connect in ChatGPT (Developer mode)`
 
 Secondary CTA: `Read the Quickstart`
+
+Developer note: `View on GitHub`
 
 ### Core capabilities
 
@@ -55,14 +57,16 @@ General AI models can reason about software, but project status and evidence cha
 
 ### Distribution
 
-**Skills-only** — portable research/comparison workflows for ChatGPT/Codex-style plugin use.  
-**Local MCP** — six read-only tools backed by the public AI Workstation Radar API.  
-**CLI** — structured invocation for scripts and automation.  
-**Hosted MCP** — private-alpha capable; broad public multi-user hosting is a later release stage.
+**Unified Skill** — one portable research, comparison and stack-planning workflow.
+**Hosted MCP** — nine anonymous read-only Radar tools at `https://mcp.aiworkstation.cn/mcp`.
+**Local MCP / CLI** — published Python package for development, scripts and self-hosted integration.
+**Public plugin** — combined one-install directory listing is pending platform review.
 
 ### Important boundary
 
-The Skills-only package does not directly access the live AI Workstation database. Current verified project data requires the companion MCP connection.
+The Skill package does not directly access the live AI Workstation database.
+Current verified project data requires the companion Hosted or local MCP
+connection. Before public plugin approval, those are two explicit setup steps.
 
 ### Open source
 
@@ -84,8 +88,10 @@ AI Open Source Intelligence — 开源 AI 项目研究、对比与技术选型
 
 发现项目、核验事实与许可证、比较方案、寻找替代项目，并设计候选 AI 技术栈。
 
-主按钮：`GitHub`  
+主按钮：`在 ChatGPT Developer mode 中连接`
 副按钮：`快速开始`
+
+开发者入口：`GitHub`
 
 ### 核心能力
 
@@ -120,14 +126,14 @@ AI Open Source Intelligence — 开源 AI 项目研究、对比与技术选型
 
 ### 使用方式
 
-**Skills-only** — 适合安装到 ChatGPT/Codex 风格的插件环境，提供研究和选型方法。  
-**本地 MCP** — 六个只读工具，可读取 AI Workstation 公共 Radar 数据。  
-**CLI** — 适合脚本与自动化。  
-**Hosted MCP** — 当前适合私有 Alpha，公共多用户托管是后续阶段。
+**统一 Skill** — 一个研究、对比和技术栈规划工作流。
+**Hosted MCP** — `https://mcp.aiworkstation.cn/mcp` 提供 9 个匿名只读 Radar 工具。
+**本地 MCP / CLI** — 已发布 Python 包，适合开发、脚本和自托管集成。
+**公共插件** — Skill + Hosted MCP 的一次安装目录版本仍在等待平台审核。
 
 ### 重要边界
 
-只安装 Skills **不会直接读取 AI Workstation 线上数据库**。要使用当前可核验的项目数据，需要连接 companion MCP。
+只安装 Skill **不会直接读取 AI Workstation 线上数据库**。要使用当前可核验的项目数据，需要连接 Hosted 或本地 MCP；公共插件审核通过前，这仍是两个明确步骤。
 
 ### 开源范围
 

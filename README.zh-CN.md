@@ -154,6 +154,24 @@ https://mcp.aiworkstation.cn/mcp
 
 这里按“请求次数”限制，而不是按网站 10 万/100 万 Token 限制，因为这 9 个数据工具不消耗 AI Workstation 模型 Token。
 
+## 现在如何使用
+
+整合后的公共插件仍在等待目录提交/审核。当前可用方式：
+
+- ChatGPT 网页端：在 Developer mode 中把
+  `https://mcp.aiworkstation.cn/mcp` 注册为 **No Authentication** 应用；
+- Codex：安装固定在 `v0.3.0` 的 Skill Marketplace，并在
+  `~/.codex/config.toml` 中添加 Hosted MCP；
+- Python/CLI：安装已经发布的包：
+
+```bash
+python -m pip install \
+  "aiworkstation-open-source-intelligence[mcp]==0.3.0"
+```
+
+具体步骤见[快速开始](docs/QUICKSTART.md)。在公共插件审核通过前，安装 Skill
+与连接 Hosted MCP 仍是两个明确步骤。
+
 ## 本地开发
 
 ```bash

@@ -1,4 +1,4 @@
-"""Machine-verifiable evidence for anonymous public Hosted Private Alpha."""
+"""Machine-verifiable evidence for the anonymous public Hosted MCP."""
 
 from __future__ import annotations
 

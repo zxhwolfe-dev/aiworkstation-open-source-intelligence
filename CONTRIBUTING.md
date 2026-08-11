@@ -9,7 +9,7 @@ This repository is the public distribution and integration layer. The private AI
 Please keep contributions within the public product boundary:
 
 - Skills and their evaluation cases;
-- six read-only tool contracts and adapters;
+- nine read-only tool contracts and adapters;
 - public Radar contract handling;
 - evidence, license, snapshot, privacy, and safety boundaries;
 - MCP transports and packaging;
@@ -40,7 +40,7 @@ Changes must preserve the core product contract:
 6. comparison data must not mix incompatible snapshots;
 7. third-party repository code is never installed or executed by research tools;
 8. public-contract captures must remain sanitized;
-9. the six public product tools remain read-only unless a future major release explicitly changes the product boundary.
+9. the nine public product tools remain read-only unless a future major release explicitly changes the product boundary.
 
 ## Pull requests
 

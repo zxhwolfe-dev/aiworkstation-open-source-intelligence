@@ -1,5 +1,11 @@
 # Hosted Private Alpha Runbook
 
+> Historical runbook: this records the pre-`v0.3.0` private-alpha gate. The
+> current anonymous public-data production deployment is documented in
+> [`hosted-mcp.md`](hosted-mcp.md) and
+> [`production-validation.md`](production-validation.md). Do not use this file
+> as current user-facing installation or launch status.
+
 This runbook applies to the current **data-only** AI Open Source Intelligence product.
 
 Canonical endpoint:

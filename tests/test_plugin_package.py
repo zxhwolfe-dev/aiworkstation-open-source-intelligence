@@ -92,7 +92,7 @@ class PluginPackageTests(unittest.TestCase):
         self.assertEqual(interface["websiteURL"], "https://aiworkstation.cn/githubai/")
         self.assertEqual(self.manifest["homepage"], "https://aiworkstation.cn/githubai/")
         self.assertEqual(interface["privacyPolicyURL"], "https://useaistation.com/githubai/privacy/")
-        self.assertEqual(interface["termsOfServiceURL"], "https://useaistation.com/githubai/terms/")
+        self.assertEqual(interface["termsOfServiceURL"], "https://useaistation.com/terms/")
         self.assertIn("github.com", interface["supportURL"])
         self.assertNotIn("mcpServers", self.manifest)
         self.assertNotIn("apps", self.manifest)

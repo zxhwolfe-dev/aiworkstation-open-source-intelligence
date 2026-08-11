@@ -171,4 +171,4 @@ environment for production release control.
 - update the product website with the release link;
 - share one concrete use case rather than a generic “we launched an MCP” announcement;
 - monitor Issue templates for installation/evidence regressions;
-- do not describe the hosted MCP as public-production-ready until its separate gates pass.
+- describe Hosted status from exact deployment evidence, not package publication alone; for `v0.3.0`, production deployment and post-cutover validation completed separately on 2026-08-11.

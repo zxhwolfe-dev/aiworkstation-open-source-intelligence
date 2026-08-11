@@ -43,6 +43,6 @@ Do not report exploitable security issues in a public issue. Follow
 
 ## Service-level expectations
 
-There is no guaranteed response or resolution time during alpha. A formal
-support channel and service-level policy will be published before any paid or
-broad public hosted offering.
+There is no guaranteed response or resolution time during Alpha. The production
+Hosted MCP is provided on an as-available basis; a formal support channel and
+service-level policy must be published before any paid or SLA-backed offering.

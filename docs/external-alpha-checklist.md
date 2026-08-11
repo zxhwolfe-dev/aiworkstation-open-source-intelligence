@@ -4,6 +4,19 @@ Use this checklist before inviting anyone outside the core development workflow.
 
 The preferred machine-evidence flow is documented in [`evidence-readiness.md`](evidence-readiness.md).
 
+## Current v0.3.0 baseline
+
+```text
+Release: v0.3.0
+Commit: 7b92e463a1da567afd5d1310601afdf1c6674646
+Hosted MCP: https://mcp.aiworkstation.cn/mcp
+Image digest: sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849
+Product surface: one Skill + nine anonymous read-only data/evidence tools
+```
+
+The release/publishing/deployment evidence is complete. Tester completion and
+return-use fields remain open and must be updated from real cohort activity.
+
 ## Source and build identity
 
 - [ ] `main` is the intended release source of truth.
@@ -70,7 +83,7 @@ The preferred machine-evidence flow is documented in [`evidence-readiness.md`](e
 
 ## Distribution package
 
-- [ ] Skills-only plugin package validates locally.
+- [ ] Unified one-Skill plugin package validates in a clean installation.
 - [ ] Package does not claim a live MCP connection when none is bundled.
 - [ ] Apache-2.0 `LICENSE` is included.
 - [ ] `TERMS.md`, privacy, support and security docs are included.
@@ -89,7 +102,7 @@ The preferred machine-evidence flow is documented in [`evidence-readiness.md`](e
 - [ ] Critical findings have a private escalation path.
 - [ ] A person is assigned to triage feedback.
 
-## Public Skills release preparation
+## Public plugin release preparation
 
 - [x] Public repository license selected: Apache-2.0.
 - [x] Public repository privacy statement published.
@@ -104,16 +117,14 @@ The preferred machine-evidence flow is documented in [`evidence-readiness.md`](e
 - [ ] Cohort feedback complete and release candidate revalidated.
 - [ ] Platform submission reviewed/approved.
 
-## Hosted public MCP — separate gate
+## Hosted public MCP and platform gate
 
-The following do not block the first Skills-only public package, but they block a broad hosted MCP release:
-
-- [ ] Canonical public MCP hostname and deployment owner finalized.
-- [ ] Service-specific privacy/terms/retention policy finalized.
-- [ ] Identity/authentication and revocation finalized as required by product scope.
-- [ ] Production quotas, rate limiting and abuse controls delivered.
-- [ ] Monitoring/incident response delivered.
-- [ ] Remote bilingual MCP validation passed.
+- [x] Canonical public MCP hostname and production image finalized.
+- [x] Current anonymous/public-data scope explicitly requires no user authentication.
+- [x] Production request, body, connection and Host/path controls delivered.
+- [x] Remote bilingual MCP validation and exact identity passed.
+- [ ] Publisher signs off on service-specific privacy/terms/retention wording.
+- [ ] Production error/latency/429 baseline and incident owner recorded.
 - [ ] Platform connection/domain review completed.
 
 ## Release decision
@@ -132,4 +143,4 @@ Tester count:
 Known limitations:
 ```
 
-A failed candidate-binding check, live contract, six-tool Codex acceptance, evidence/license/security boundary, or artifact sanitization gate is always a no-go condition.
+A failed candidate-binding check, live contract, nine-tool Codex acceptance, evidence/license/security boundary, or artifact sanitization gate is always a no-go condition.

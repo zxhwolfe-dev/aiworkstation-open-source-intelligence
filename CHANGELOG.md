@@ -2,6 +2,20 @@
 
 All notable pre-release changes are recorded here. Dates refer to repository changes, not public availability.
 
+## [Unreleased]
+
+### Fixed
+
+- Aligned active onboarding, architecture, security, deployment and Alpha docs
+  with the released one-Skill, nine-tool `v0.3.0` product and its production
+  Hosted deployment.
+- Added current ChatGPT Developer mode, Codex Hosted MCP and PyPI installation
+  paths without claiming public plugin-directory approval.
+- Replaced the plugin Terms URL that returned `404` and added regression checks
+  for pre-`v0.3.0` tool-count copy.
+- Corrected the `osi-m0 list-tools` help text and Codex allowlist example from
+  six tools to nine.
+
 ## [0.3.0] - 2026-08-10
 
 ### Changed
