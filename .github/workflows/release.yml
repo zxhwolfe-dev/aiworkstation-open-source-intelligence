@@ -223,7 +223,7 @@ jobs:
           rm -rf tmp/staged-assets && mkdir -p tmp/staged-assets
           jq -r '.assets[] | [.name, .id] | @tsv' tmp/draft.json | while IFS=$'\t' read -r name asset_id; do
             retry_gh_api_to_file "tmp/staged-assets/$name" "Draft Release asset $name" \
-              -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id"
+              -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/assets/$asset_id"
           done
           PYTHONPATH=src python - "$archive_name" "$WHEEL_NAME" "$SDIST_NAME" <<'PY'
           import sys
@@ -312,7 +312,7 @@ jobs:
               print(f"{name}\t{assets[name]}")
           PY
           while IFS=$'\t' read -r name asset_id; do
-            gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID/assets/$asset_id" > "tmp/release-assets/$name"
+            gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/assets/$asset_id" > "tmp/release-assets/$name"
           done < tmp/release-assets.tsv
           test "$(find tmp/release-assets -maxdepth 1 -type f -name "$WHEEL_NAME" | wc -l)" -eq 1
           test "$(find tmp/release-assets -maxdepth 1 -type f -name "$SDIST_NAME" | wc -l)" -eq 1
@@ -755,7 +755,7 @@ jobs:
           PY
           rm -rf /tmp/final-release-assets && mkdir -p /tmp/final-release-assets
           jq -r '.assets[] | [.name, .id] | @tsv' /tmp/final-release-before.json | while IFS=$'\t' read -r name asset_id; do
-            gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID/assets/$asset_id" > "/tmp/final-release-assets/$name"
+            gh api -H 'Accept: application/octet-stream' "repos/${GITHUB_REPOSITORY}/releases/assets/$asset_id" > "/tmp/final-release-assets/$name"
           done
           PYTHONPATH=src ARCHIVE_NAME="${expected[0]}" VERSION="$VERSION" WHEEL_NAME="$WHEEL_NAME" SDIST_NAME="$SDIST_NAME" python - <<'PY'
           import os
