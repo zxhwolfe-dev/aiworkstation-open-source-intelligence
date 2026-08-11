@@ -303,10 +303,21 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertLess(prebuild, build)
         self.assertIn("merge_release_states([os.environ['INITIAL_STATE'], os.environ['JOB_START_STATE'], os.environ['PRIOR_STATE'], current])", content)
 
-    def test_pypi_publish_checkout_has_minimal_read_permission(self) -> None:
+    def test_private_draft_consumers_have_required_contents_permission(self) -> None:
         content = self._workflow("release.yml")
-        pypi_job = content.split("  pypi-publish-and-verify:\n", 1)[1].split("  ghcr-publish-and-verify:\n", 1)[0]
-        self.assertIn("    permissions:\n      contents: read\n      id-token: write\n", pypi_job)
+        jobs = (
+            ("pypi-validate", "pypi-publish-and-verify"),
+            ("pypi-publish-and-verify", "ghcr-publish-and-verify"),
+            ("ghcr-publish-and-verify", "promotion-complete-and-publish-release"),
+        )
+        for job_name, next_job in jobs:
+            job = content.split(f"  {job_name}:\n", 1)[1].split(f"  {next_job}:\n", 1)[0]
+            self.assertIn("    permissions:\n      contents: write\n", job)
+            self.assertNotIn("      contents: read\n", job)
+        pypi_publish = content.split("  pypi-publish-and-verify:\n", 1)[1].split(
+            "  ghcr-publish-and-verify:\n", 1
+        )[0]
+        self.assertIn("      id-token: write\n", pypi_publish)
 
     def test_promotion_graph_has_no_release_event_fanout(self) -> None:
         content = self._workflow("release.yml")
