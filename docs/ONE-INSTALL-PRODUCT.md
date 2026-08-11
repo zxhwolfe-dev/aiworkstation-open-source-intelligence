@@ -36,7 +36,7 @@ It internally routes:
 - alternatives;
 - candidate stack planning.
 
-It preserves hard/preferred/negative requirements, evidence boundaries, unknowns and risks across all of those task types.
+It preserves hard/preferred/negative requirements, evidence boundaries, unknowns and risks across all of those task types. Unsupported hard (`required`) constraints fail explicitly with a public blocker instead of being silently weakened.
 
 ## Nine internal Radar tools
 

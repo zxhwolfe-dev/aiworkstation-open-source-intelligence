@@ -25,7 +25,7 @@ AI Open Source Intelligence 0.3 由一个统一 Skill 和九个匿名、只读�
 [{"id":"deployment","value":"self-hosted","polarity":"required"}]
 ```
 
-`polarity` 只能是 `required`、`preferred` 或 `excluded`。无法解析的条件进入 unknowns，不冒充约束。旧参数 `source_mode` 已删除。
+`polarity` 只能是 `required`、`preferred` 或 `excluded`。无法支持的 `required` 条件会明确失败并列出阻断原因，避免系统假装满足用户的硬要求；非硬条件不会冒充硬约束。旧参数 `source_mode` 已删除。
 
 ## 只读与执行效果
 

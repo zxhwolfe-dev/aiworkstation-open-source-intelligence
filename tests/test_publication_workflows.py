@@ -12,9 +12,11 @@ class PublicationWorkflowTests(unittest.TestCase):
 
     def test_pypi_promotes_successful_release_artifact_with_oidc(self) -> None:
         content = self._workflow("publish-pypi.yml")
-        self.assertIn("workflow_run:", content)
-        self.assertIn("workflows: [github-release]", content)
-        self.assertIn("head_sha", content)
+        self.assertIn("release:", content)
+        self.assertIn("types: [published]", content)
+        self.assertIn("PYTHON-DISTS-SHA256SUMS", content)
+        self.assertIn("gh release download", content)
+        self.assertIn("sha256sum --check", content)
         self.assertIn("id-token: write", content)
         self.assertIn("environment: pypi", content)
         self.assertIn("pypa/gh-action-pypi-publish", content)
@@ -35,9 +37,11 @@ class PublicationWorkflowTests(unittest.TestCase):
 
     def test_ghcr_promotes_the_successful_release_sha(self) -> None:
         content = self._workflow("publish-ghcr.yml")
-        self.assertIn("workflow_run:", content)
-        self.assertIn("workflows: [github-release]", content)
-        self.assertIn("OSI_IMAGE_COMMIT=${{ github.event.workflow_run.head_sha }}", content)
+        self.assertIn("release:", content)
+        self.assertIn("types: [published]", content)
+        self.assertIn("Resolve release commit", content)
+        self.assertIn("sha-${{ steps.identity.outputs.commit }}", content)
+        self.assertIn("OSI_IMAGE_COMMIT=${{ steps.identity.outputs.commit }}", content)
         self.assertIn("packages: write", content)
         self.assertIn("docker/build-push-action", content)
         self.assertIn("ghcr.io/${{ github.repository }}", content)

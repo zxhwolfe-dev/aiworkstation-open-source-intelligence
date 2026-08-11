@@ -91,9 +91,9 @@
       "tool": "search_ai_projects",
       "arguments": {
         "query": "找支持 Docker 和 Web 界面的文档问答项目，不要求免编程。",
-        "constraints": [{"id":"docker","value":true,"polarity":"required"},{"id":"web_ui","value":true,"polarity":"required"},{"id":"no_code","value":true,"polarity":"excluded"}]
+        "constraints": [{"id":"docker","value":true,"polarity":"required"},{"id":"web_ui","value":true,"polarity":"required"},{"id":"no_code","value":true,"polarity":"preferred"}]
       },
-      "expects": {"negation_preserved": "no_code"}
+      "expects": {"preference_preserved": "no_code"}
     },
     {
       "id": "zh-facts-explicit-project",

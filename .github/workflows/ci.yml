@@ -29,13 +29,14 @@ jobs:
           cache: pip
 
       - name: Install package with MCP runtime
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[mcp]" && python -m pip install ruff pyright pip-audit
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[mcp]" && python -m pip install build ruff pyright pip-audit
 
       - name: Lint core sources
         run: ruff check src
 
       - name: Type-check core sources
         if: matrix.python-version == '3.12'
+        # Incrementally expanded while legacy Any-heavy evidence tooling is typed.
         run: pyright src/aiworkstation_osi/_version.py src/aiworkstation_osi/contracts.py src/aiworkstation_osi/errors.py src/aiworkstation_osi/selector_task_transport.py
 
       - name: Audit runtime dependencies
@@ -121,6 +122,42 @@ jobs:
                   f"invalid alpha archive: missing={missing} "
                   f"legacy_skills={legacy_skills} forbidden={forbidden}"
               )
+          PY
+
+      - name: Build and clean-install wheel smoke
+        if: matrix.python-version == '3.12'
+        run: |
+          set -euo pipefail
+          python -m build --wheel --outdir tmp/wheel-smoke
+          wheel_env="$(mktemp -d)"
+          python -m venv "$wheel_env"
+          "$wheel_env/bin/python" -m pip install --upgrade pip
+          "$wheel_env/bin/python" -m pip install "tmp/wheel-smoke/"*.whl "mcp>=2,<3"
+          WHEEL_ENV="$wheel_env" PYTHONPATH='' python - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          env = os.environ.copy()
+          wheel_python = str(Path(env["WHEEL_ENV"]) / "bin" / "python")
+          code = """
+          import asyncio
+          import aiworkstation_osi
+          from aiworkstation_osi.mcp_server import build_mcp_server
+          from mcp import Client
+
+          assert aiworkstation_osi.__version__ == "0.3.0"
+
+          async def check():
+              async with Client(build_mcp_server()) as client:
+                  tools = await client.list_tools()
+                  assert len(tools.tools) == 9
+                  assert {tool.name for tool in tools.tools} == set(aiworkstation_osi.TOOL_NAMES)
+
+          asyncio.run(check())
+          """
+          subprocess.run([wheel_python, "-c", code], check=True, env=env)
           PY
 
       - name: Smoke test local commands
