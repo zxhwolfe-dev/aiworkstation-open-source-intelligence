@@ -32,6 +32,8 @@ jobs:
       wheel_name: ${{ steps.identity.outputs.wheel_name }}
       sdist_name: ${{ steps.identity.outputs.sdist_name }}
       archive_name: ${{ steps.draft.outputs.archive_name }}
+      release_id: ${{ steps.draft.outputs.release_id }}
+      release_state: ${{ steps.draft.outputs.release_state }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,7 +56,7 @@ jobs:
           [[ "$COMMIT" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "commit must be a full 40-character SHA" >&2; exit 1; }
           test "$(git rev-parse HEAD)" = "$(git rev-parse "$COMMIT^{commit}")" || { echo "checkout did not resolve to requested commit" >&2; exit 1; }
           git fetch origin main --no-tags --depth=1
-          git merge-base --is-ancestor "$COMMIT" FETCH_HEAD || { echo "commit is not reachable from origin/main" >&2; exit 1; }
+          test "$COMMIT" = "$(git rev-parse FETCH_HEAD)" || { echo "input commit must equal current origin/main" >&2; exit 1; }
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "tag must look like v0.3.0" >&2; exit 1; }
           version="$(PYTHONPATH=src python -c 'import aiworkstation_osi; print(aiworkstation_osi.__version__)')"
           plugin_version="$(python -c 'import json; from pathlib import Path; print(json.loads(Path(".codex-plugin/plugin.json").read_text(encoding="utf-8"))["version"])')"
@@ -114,38 +116,71 @@ jobs:
           archive_name="$(basename "$archive_path")"
           echo "archive_name=$archive_name" >> "$GITHUB_OUTPUT"
           expected=("$archive_name" SHA256SUMS bundle-report.json "$WHEEL_NAME" "$SDIST_NAME" PYTHON-DISTS-SHA256SUMS)
-          if gh release view "$TAG" --json isDraft >/tmp/release.json 2>/dev/null; then
-            is_draft="$(jq -r '.isDraft' /tmp/release.json)"
-            test "$is_draft" = true || { echo "a published Release already exists" >&2; exit 1; }
-            test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/$TAG" --jq '.sha')" = "$COMMIT" || { echo "Draft tag points to a different commit" >&2; exit 1; }
-            mapfile -t actual < <(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)
-            mapfile -t sorted_expected < <(printf '%s\n' "${expected[@]}" | sort)
-            test "${#actual[@]}" -eq 6 && test "${actual[*]}" = "${sorted_expected[*]}" || { echo "Draft asset set is not exact; refusing overwrite" >&2; exit 1; }
-            rm -rf tmp/draft-assets && mkdir -p tmp/draft-assets
-            gh release download "$TAG" --dir tmp/draft-assets --pattern "$archive_name" --pattern SHA256SUMS --pattern bundle-report.json --pattern "$WHEEL_NAME" --pattern "$SDIST_NAME" --pattern PYTHON-DISTS-SHA256SUMS
-            for name in "${expected[@]}"; do
-              case "$name" in
-                "$archive_name"|SHA256SUMS|bundle-report.json) local_path="dist/alpha/$name" ;;
-                *) local_path="dist/python/$name" ;;
-              esac
-              cmp -s "$local_path" "tmp/draft-assets/$name" || { echo "Draft asset differs from deterministic build: $name" >&2; exit 1; }
-            done
-            (cd tmp/draft-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
-          else
-            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" >/dev/null 2>&1; then echo "tag exists without matching Draft Release" >&2; exit 1; fi
+          mkdir -p tmp
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > tmp/releases.json
+          python - "$TAG" "$COMMIT" "${expected[@]}" <<'PY' > tmp/release-id-state
+          import json, sys
+          from aiworkstation_osi.release_promotion import flatten_releases, locate_draft, locate_release
+          releases=flatten_releases(json.load(open('tmp/releases.json')))
+          has_draft=any(item.get('tag_name') == sys.argv[1] and item.get('draft') is True for item in releases)
+          identity=(locate_draft if has_draft else locate_release)(releases, tag=sys.argv[1], commit=sys.argv[2], expected_assets=sys.argv[3:])
+          print(f"{identity.release_id}\t{'draft' if identity.draft else 'public'}" if identity else '')
+          PY
+          release_record="$(cat tmp/release-id-state)"
+          if [ -z "$release_record" ]; then
+            tag_response="$(gh api --include "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" 2>/tmp/tag-error || true)"
+            tag_status="$(printf '%s\n' "$tag_response" | awk 'toupper($1) ~ /^HTTP/ {code=$2} END {print code}')"
+            case "$tag_status" in
+              404) ;;
+              200|201) echo "tag exists without matching Draft Release" >&2; exit 1 ;;
+              *) cat /tmp/tag-error >&2; echo "cannot establish that tag ref is absent" >&2; exit 1 ;;
+            esac
             gh release create "$TAG" --draft --target "$COMMIT" \
               --title "$TAG — AI Open Source Intelligence" --notes-file CHANGELOG.md \
               "dist/alpha/$archive_name" dist/alpha/SHA256SUMS dist/alpha/bundle-report.json \
               "dist/python/$WHEEL_NAME" "dist/python/$SDIST_NAME" dist/python/PYTHON-DISTS-SHA256SUMS
+            gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > tmp/releases-after-create.json
+            python - "$TAG" "$COMMIT" "${expected[@]}" <<'PY' > tmp/release-id-state
+          import json, sys
+          from aiworkstation_osi.release_promotion import flatten_releases, locate_draft
+          identity=locate_draft(flatten_releases(json.load(open('tmp/releases-after-create.json'))), tag=sys.argv[1], commit=sys.argv[2], expected_assets=sys.argv[3:])
+          if identity is None: raise SystemExit('created Draft Release could not be located')
+          print(f"{identity.release_id}\t{'draft' if identity.draft else 'public'}")
+          PY
+            release_record="$(cat tmp/release-id-state)"
           fi
-          test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = true
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/$TAG" --jq '.sha')" = "$COMMIT"
-          mapfile -t actual < <(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)
-          mapfile -t sorted_expected < <(printf '%s\n' "${expected[@]}" | sort)
-          test "${#actual[@]}" -eq 6 && test "${actual[*]}" = "${sorted_expected[*]}"
-          rm -rf tmp/staged-assets && mkdir -p tmp/staged-assets
-          gh release download "$TAG" --dir tmp/staged-assets --pattern "$archive_name" --pattern SHA256SUMS --pattern bundle-report.json --pattern "$WHEEL_NAME" --pattern "$SDIST_NAME" --pattern PYTHON-DISTS-SHA256SUMS
-          (cd tmp/staged-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
+          release_id="${release_record%%$'\t'*}"
+          discovered_state="${release_record#*$'\t'}"
+          test -n "$release_id" && { test "$discovered_state" = draft || test "$discovered_state" = public; }
+          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/$release_id" > tmp/draft.json
+          RELEASE_JSON=tmp/draft.json TAG="$TAG" COMMIT="$COMMIT" python - "${expected[@]}" <<'PY' > tmp/release-state
+          import json, os, sys
+          from aiworkstation_osi.release_promotion import validate_release
+          identity=validate_release(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=sys.argv[1:])
+          print('draft' if identity.draft else 'public')
+          PY
+          release_state="$(cat tmp/release-state)"
+          echo "release_state=$release_state" >> "$GITHUB_OUTPUT"
+          if [ "$release_state" = public ]; then
+            echo "a published Release already exists; final promotion will verify and resume it" >&2
+          fi
+          test "$(jq -r '.target_commitish' tmp/draft.json)" = "$COMMIT"
+          if [ "$release_state" = draft ]; then
+            tag_response="$(gh api --include "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" 2>/tmp/tag-error || true)"
+            tag_status="$(printf '%s\n' "$tag_response" | awk 'toupper($1) ~ /^HTTP/ {code=$2} END {print code}')"
+            case "$tag_status" in
+              404) ;;
+              200|201) echo "tag ref exists before Draft promotion; refusing to continue" >&2; exit 1 ;;
+              *) cat /tmp/tag-error >&2; echo "cannot establish that tag ref is absent" >&2; exit 1 ;;
+            esac
+            rm -rf tmp/staged-assets && mkdir -p tmp/staged-assets
+            jq -r '.assets[] | [.name, .id] | @tsv' tmp/draft.json | while IFS=$'\t' read -r name asset_id; do
+              gh api -H 'Accept: application/octet-stream' --output "tmp/staged-assets/$name" "repos/${GITHUB_REPOSITORY}/releases/$release_id/assets/$asset_id"
+            done
+            (cd tmp/staged-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
+            cmp -s "dist/alpha/$archive_name" "tmp/staged-assets/$archive_name" || { echo "Draft Skills archive differs from deterministic build" >&2; exit 1; }
+          fi
 
   pypi-validate:
     name: Validate Draft Release artifacts for PyPI
@@ -159,7 +194,12 @@ jobs:
       version: ${{ needs.build-and-stage-draft.outputs.version }}
       wheel_name: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
       sdist_name: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
+      release_id: ${{ needs.build-and-stage-draft.outputs.release_id }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.commit }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -167,12 +207,26 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+          RELEASE_ID: ${{ needs.build-and-stage-draft.outputs.release_id }}
+          ARCHIVE_NAME: ${{ needs.build-and-stage-draft.outputs.archive_name }}
           WHEEL_NAME: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
           SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
         run: |
           set -euo pipefail
           mkdir -p tmp/release-assets
-          gh release download "$TAG" --dir tmp/release-assets --pattern "$WHEEL_NAME" --pattern "$SDIST_NAME" --pattern PYTHON-DISTS-SHA256SUMS
+          gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > tmp/release.json
+          PYTHONPATH=src python - "$RELEASE_ID" "$ARCHIVE_NAME" "$WHEEL_NAME" "$SDIST_NAME" <<'PY'
+          import json, os, subprocess, sys
+          from aiworkstation_osi.release_promotion import validate_release
+          release=json.load(open('tmp/release.json'))
+          archive_name, wheel_name, sdist_name = sys.argv[2:]
+          identity=validate_release(release, tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=[archive_name, 'SHA256SUMS', 'bundle-report.json', wheel_name, sdist_name, 'PYTHON-DISTS-SHA256SUMS'])
+          assets=identity.asset_ids
+          for name in [wheel_name, sdist_name, 'PYTHON-DISTS-SHA256SUMS']:
+              path='tmp/release-assets/'+name
+              subprocess.run(['gh','api','-H','Accept: application/octet-stream','--output',path,f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/{sys.argv[1]}/assets/{assets[name]}"], check=True)
+          PY
           test "$(find tmp/release-assets -maxdepth 1 -type f -name "$WHEEL_NAME" | wc -l)" -eq 1
           test "$(find tmp/release-assets -maxdepth 1 -type f -name "$SDIST_NAME" | wc -l)" -eq 1
           test "$(find tmp/release-assets -maxdepth 1 -type f -name PYTHON-DISTS-SHA256SUMS | wc -l)" -eq 1
@@ -320,12 +374,15 @@ jobs:
       - name: Verify release identity
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.build-and-stage-draft.outputs.release_id }}
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ inputs.commit }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$COMMIT"
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/$TAG" --jq '.sha')" = "$COMMIT"
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID")"
+          test "$(jq -r '.tag_name' <<<"$release_json")" = "$TAG"
+          test "$(jq -r '.target_commitish' <<<"$release_json")" = "$COMMIT"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -383,31 +440,81 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.commit }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Publish verified Draft Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ inputs.commit }}
           PRERELEASE: ${{ inputs.prerelease }}
-          WHEEL_NAME: ${{ needs.build-and-stage-draft.outputs.wheel_name }}
-          SDIST_NAME: ${{ needs.build-and-stage-draft.outputs.sdist_name }}
+          RELEASE_ID: ${{ needs.build-and-stage-draft.outputs.release_id }}
+          WHEEL_NAME: ${{ needs.pypi-publish-and-verify.outputs.wheel_name }}
+          SDIST_NAME: ${{ needs.pypi-publish-and-verify.outputs.sdist_name }}
         run: |
           set -euo pipefail
-          test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = true
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/$TAG" --jq '.sha')" = "$COMMIT"
-          prerelease_args=(--draft=false)
-          if [ "$PRERELEASE" = true ]; then prerelease_args+=(--prerelease); else prerelease_args+=(--prerelease=false); fi
-          gh release edit "$TAG" "${prerelease_args[@]}"
-          test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = false
-          test "$(gh release view "$TAG" --json isPrerelease --jq '.isPrerelease')" = "$PRERELEASE"
-          names="$(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)"
-          expected="$(printf '%s\n' "$WHEEL_NAME" "$SDIST_NAME" PYTHON-DISTS-SHA256SUMS SHA256SUMS bundle-report.json "${{ needs.build-and-stage-draft.outputs.archive_name }}" | sort)"
-          test "$names" = "$expected"
+          expected=("${{ needs.build-and-stage-draft.outputs.archive_name }}" SHA256SUMS bundle-report.json "$WHEEL_NAME" "$SDIST_NAME" PYTHON-DISTS-SHA256SUMS)
+          gh api "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" > /tmp/final-release-before.json
+          RELEASE_JSON=/tmp/final-release-before.json TAG="$TAG" COMMIT="$COMMIT" PRERELEASE="$PRERELEASE" RELEASE_ID="$RELEASE_ID" PYTHONPATH=src python - "${expected[@]}" <<'PY'
+          import json, os, sys
+          from aiworkstation_osi.release_promotion import promotion_decision
+          payload=json.load(open(os.environ['RELEASE_JSON']))
+          if os.environ['PRERELEASE'] not in {'true','false'}: raise SystemExit('prerelease input is invalid')
+          decision=promotion_decision(payload, tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=sys.argv[1:], release_id=int(os.environ['RELEASE_ID']), prerelease=os.environ['PRERELEASE']=='true')
+          print(decision)
+          PY
+          decision="$(RELEASE_JSON=/tmp/final-release-before.json TAG="$TAG" COMMIT="$COMMIT" PRERELEASE="$PRERELEASE" RELEASE_ID="$RELEASE_ID" PYTHONPATH=src python - "${expected[@]}" <<'PY'
+          import json, os, sys
+          from aiworkstation_osi.release_promotion import promotion_decision
+          print(promotion_decision(json.load(open(os.environ['RELEASE_JSON'])), tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=sys.argv[1:], release_id=int(os.environ['RELEASE_ID']), prerelease=os.environ['PRERELEASE']=='true'))
+          PY
+          )"
           test -n "${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}" && test -n "${{ needs.pypi-publish-and-verify.outputs.sdist_sha }}"
           test -n "${{ needs.ghcr-publish-and-verify.outputs.digest }}"
           rm -rf /tmp/final-release-assets && mkdir -p /tmp/final-release-assets
-          gh release download "$TAG" --dir /tmp/final-release-assets --pattern "${{ needs.build-and-stage-draft.outputs.archive_name }}" --pattern "$WHEEL_NAME" --pattern "$SDIST_NAME" --pattern PYTHON-DISTS-SHA256SUMS --pattern SHA256SUMS
-          (cd /tmp/final-release-assets && sha256sum --check PYTHON-DISTS-SHA256SUMS && sha256sum --check SHA256SUMS)
+          jq -r '.assets[] | [.name, .id] | @tsv' /tmp/final-release-before.json | while IFS=$'\t' read -r name asset_id; do
+            gh api -H 'Accept: application/octet-stream' --output "/tmp/final-release-assets/$name" "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID/assets/$asset_id"
+          done
+          (cd /tmp/final-release-assets && sha256sum --check SHA256SUMS && sha256sum --check PYTHON-DISTS-SHA256SUMS)
+          test "$(sha256sum "/tmp/final-release-assets/$WHEEL_NAME" | cut -d' ' -f1)" = "${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}"
+          test "$(sha256sum "/tmp/final-release-assets/$SDIST_NAME" | cut -d' ' -f1)" = "${{ needs.pypi-publish-and-verify.outputs.sdist_sha }}"
+          if [ "$decision" = publish ]; then
+            test "$(jq -r '.draft' /tmp/final-release-before.json)" = true
+            tag_response="$(gh api --include "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG" 2>/tmp/tag-error || true)"
+            tag_status="$(printf '%s\n' "$tag_response" | awk 'toupper($1) ~ /^HTTP/ {code=$2} END {print code}')"
+            case "$tag_status" in
+              404) ;;
+              200|201) echo "tag ref exists before promotion" >&2; exit 1 ;;
+              *) cat /tmp/tag-error >&2; echo "cannot establish that tag ref is absent" >&2; exit 1 ;;
+            esac
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID" -f draft=false -F prerelease="$PRERELEASE" >/tmp/final-release-after.json
+          else
+            cp /tmp/final-release-before.json /tmp/final-release-after.json
+          fi
+          RELEASE_JSON=/tmp/final-release-after.json TAG="$TAG" COMMIT="$COMMIT" PRERELEASE="$PRERELEASE" RELEASE_ID="$RELEASE_ID" PYTHONPATH=src python - "${expected[@]}" <<'PY'
+          import json, os, sys
+          from aiworkstation_osi.release_promotion import validate_release
+          payload=json.load(open(os.environ['RELEASE_JSON']))
+          validate_release(payload, tag=os.environ['TAG'], commit=os.environ['COMMIT'], expected_assets=sys.argv[1:], release_id=int(os.environ['RELEASE_ID']), draft=False, prerelease=os.environ['PRERELEASE']=='true')
+          if payload.get('draft') is not False: raise SystemExit('release remained Draft after promotion')
+          PY
+          tag_json="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$TAG")"
+          tag_type="$(jq -r '.object.type' <<<"$tag_json")"
+          tag_object="$(jq -r '.object.sha' <<<"$tag_json")"
+          if [ "$tag_type" = tag ]; then
+            tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$tag_object" --jq '.object.sha')"
+          else
+            tag_sha="$tag_object"
+          fi
+          test "$tag_sha" = "$COMMIT" || { echo "published tag ref does not resolve to input commit" >&2; exit 1; }
+          names="$(jq -r '.assets[].name' /tmp/final-release-after.json | sort)"
+          expected_text="$(printf '%s\n' "${expected[@]}" | sort)"
+          test "$names" = "$expected_text"
           echo "PyPI verified ${{ needs.pypi-publish-and-verify.outputs.wheel_name }}=${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}"
           echo "PyPI verified ${{ needs.pypi-publish-and-verify.outputs.sdist_name }}=${{ needs.pypi-publish-and-verify.outputs.sdist_sha }}"
           echo "GHCR verified RepoDigest=${{ needs.ghcr-publish-and-verify.outputs.digest }}"

@@ -17,7 +17,7 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("pypi-publish-and-verify:", content)
         self.assertIn("needs: build-and-stage-draft", content)
         self.assertIn("PYTHON-DISTS-SHA256SUMS", content)
-        self.assertIn("gh release download", content)
+        self.assertIn("os.environ['GITHUB_REPOSITORY']}/releases/{sys.argv[1]}/assets/{assets[name]}", content)
         self.assertIn("sha256sum --check", content)
         self.assertIn("id-token: write", content)
         self.assertIn("environment: pypi", content)
@@ -28,6 +28,7 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("urllib.request.urlopen(f'https://pypi.org/pypi/aiworkstation-open-source-intelligence/{version}/json", content)
         self.assertIn("PyPI hash mismatch", content)
         self.assertIn("PyPI verification did not converge", content)
+        self.assertIn("asset_ids", content)
 
     def test_github_release_is_manual_and_version_bound(self) -> None:
         content = self._workflow("release.yml")
@@ -42,15 +43,23 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("osi-build-alpha", content)
         self.assertIn("gh release create", content)
         self.assertIn("gh release create \"$TAG\" --draft", content)
-        self.assertIn("gh release edit \"$TAG\" \"${prerelease_args[@]}\"", content)
+        self.assertIn("gh api -X PATCH \"repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID\"", content)
         self.assertIn("Create or safely resume matching Draft Release", content)
         self.assertIn("a published Release already exists", content)
-        self.assertIn("Draft tag points to a different commit", content)
-        self.assertIn("Draft asset differs from deterministic build", content)
+        self.assertIn("tag ref exists before Draft promotion", content)
+        self.assertIn("Draft Skills archive differs from deterministic build", content)
         self.assertIn("sha256sum --check SHA256SUMS", content)
         self.assertIn("sha256sum --check PYTHON-DISTS-SHA256SUMS", content)
         self.assertIn("tag exists without matching Draft Release", content)
         self.assertNotIn("--clobber", content)
+        self.assertNotIn('commits/$TAG', content)
+        self.assertIn("target_commitish", content)
+        self.assertIn("release_id", content)
+        self.assertIn("locate_draft", content)
+        self.assertIn('test "$COMMIT" = "$(git rev-parse FETCH_HEAD)"', content)
+        self.assertIn('gh api -H \'Accept: application/octet-stream\' --output "tmp/staged-assets/$name"', content)
+        self.assertLess(content.index("test -n \"${{ needs.pypi-publish-and-verify.outputs.wheel_sha }}\""), content.index("-f draft=false"))
+        self.assertLess(content.index("-f draft=false"), content.index("published tag ref does not resolve to input"))
 
     def test_release_contains_gated_ghcr_commit_promotion(self) -> None:
         content = self._workflow("release.yml")
@@ -62,13 +71,18 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("docker buildx build --push", content)
         self.assertIn("docker image inspect", content)
         self.assertIn("RepoDigests", content)
+        self.assertNotIn('commits/$TAG', content)
         self.assertIn("ghcr.io/${{ github.repository }}", content)
+        self.assertIn("release_id", content)
+        self.assertIn("target_commitish", content)
 
     def test_promotion_graph_has_no_release_event_fanout(self) -> None:
         content = self._workflow("release.yml")
         self.assertIn("promotion-complete-and-publish-release:", content)
         self.assertIn("needs: [build-and-stage-draft, pypi-publish-and-verify, ghcr-publish-and-verify]", content)
         self.assertNotIn("types: [published]", content)
+        self.assertIn("promotion_decision", content)
+        self.assertIn("published tag ref does not resolve to input commit", content)
 
     def test_release_uses_explicit_tools_and_exact_artifact_paths(self) -> None:
         content = self._workflow("release.yml")
@@ -77,6 +91,10 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn('test "${#wheels[@]}" -eq 1', content)
         self.assertIn('test "${wheels[0]}" = "$WHEEL_NAME"', content)
         self.assertNotIn('wheels=(dist/python/*.whl)', content)
+        self.assertIn('find dist/python -maxdepth 1 -type f -name', content)
+        self.assertNotIn('cmp -s "$local_path"', content)
+        self.assertIn('python - "${expected[@]}"', content)
+        self.assertIn('sha256sum "/tmp/final-release-assets/$WHEEL_NAME"', content)
 
     def test_old_release_workflows_are_removed(self) -> None:
         self.assertFalse((self.ROOT / ".github/workflows/publish-pypi.yml").exists())
@@ -94,6 +112,7 @@ class PublicationWorkflowTests(unittest.TestCase):
             "Draft Release",
             "filename and SHA256",
             "required reviewer",
+            "refs/tags/<tag>",
         ):
             self.assertIn(value, content)
 

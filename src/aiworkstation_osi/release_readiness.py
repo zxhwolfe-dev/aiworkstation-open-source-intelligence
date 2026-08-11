@@ -62,6 +62,7 @@ REQUIRED_REPOSITORY_PATHS = (
     "evals/cases.json",
     "evals/plugin-cases.json",
     "src/aiworkstation_osi/endpoint_policy.py",
+    "src/aiworkstation_osi/release_promotion.py",
     "src/aiworkstation_osi/http_server.py",
     "src/aiworkstation_osi/remote_smoke.py",
     "tests/test_http_server.py",

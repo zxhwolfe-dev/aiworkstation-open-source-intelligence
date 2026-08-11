@@ -105,6 +105,14 @@ The Release remains Draft while PyPI and GHCR are validated. It is made public
 only by the final promotion job after both downstream promotions succeed and
 the tag, prerelease flag, and six-asset set are checked again.
 
+Draft identity is read from the authenticated Releases API (`release_id`,
+`target_commitish`, and asset IDs); the Draft path does not assume that a
+`refs/tags/<tag>` ref already exists. It fails closed if the API proves that a
+tag already exists before promotion, and resolves the published tag to the
+commit again after the Release is made public. A rerun may safely accept an already-public Release
+only when its release ID, target commit, prerelease state, assets, PyPI hashes,
+and GHCR digest all match.
+
 If a run fails, rerun the failed jobs in the same workflow run first. Do not
 create another tag or delete/overwrite Draft assets. Existing PyPI files may be
 reused only when their filename and SHA256 exactly match the Release checksum;
