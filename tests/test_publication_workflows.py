@@ -34,7 +34,11 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("needs: build-and-stage-draft", content)
         self.assertIn("PYTHON-DISTS-SHA256SUMS", content)
         self.assertIn('print(f"{name}\\t{assets[name]}")', content)
-        self.assertIn('"repos/${GITHUB_REPOSITORY}/releases/$RELEASE_ID/assets/$asset_id" > "tmp/release-assets/$name"', content)
+        asset_endpoint = '"repos/${GITHUB_REPOSITORY}/releases/assets/$asset_id"'
+        self.assertEqual(content.count(asset_endpoint), 3)
+        self.assertIn(f'{asset_endpoint} > "tmp/release-assets/$name"', content)
+        self.assertNotIn("releases/$RELEASE_ID/assets/$asset_id", content)
+        self.assertNotIn("releases/$release_id/assets/$asset_id", content)
         self.assertIn("sha256sum --check", content)
         self.assertIn("id-token: write", content)
         self.assertIn("environment: pypi", content)
