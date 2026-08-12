@@ -108,6 +108,18 @@ class PluginPackageTests(unittest.TestCase):
         self.assertEqual(interface["logo"], "./assets/plugin-icon.svg")
         self.assertTrue((self.ROOT / "assets" / "plugin-icon.svg").is_file())
 
+    def test_social_preview_is_a_reviewed_github_sized_png(self) -> None:
+        import struct
+
+        preview = self.ROOT / "assets" / "social-preview.png"
+        self.assertTrue(preview.is_file())
+        data = preview.read_bytes()
+        self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(data[12:16], b"IHDR")
+        width, height, bit_depth, color_type = struct.unpack(">IIBB", data[16:26])
+        self.assertEqual((width, height), (1280, 640))
+        self.assertEqual((bit_depth, color_type), (8, 2))
+
     def test_plugin_bundles_the_reviewed_hosted_mcp_connection(self) -> None:
         self.assertEqual(
             self.mcp,

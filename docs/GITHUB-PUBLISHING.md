@@ -63,7 +63,10 @@ Create a 1280×640 social-preview image with:
 - visual language: clean developer tool / radar / open-source network, not surveillance or hacker imagery;
 - avoid GitHub mascot/trademark misuse.
 
-Upload it in repository Settings → General → Social preview.
+The reviewed candidate is [`assets/social-preview.png`](../assets/social-preview.png).
+It is committed for review but must still be uploaded manually in repository
+Settings → General → Social preview. Uploading it is separate from publishing
+the immutable `v0.3.0` runtime or the not-yet-published `v0.3.1` package.
 
 ## README language surface
 

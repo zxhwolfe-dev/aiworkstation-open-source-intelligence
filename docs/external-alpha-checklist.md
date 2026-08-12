@@ -117,7 +117,8 @@ the implementation milestone and does not authorize publication by itself.
 - [x] OpenAI With-MCP submission copy and 5+3 review cases prepared.
 - [x] GitHub/PyPI/GHCR publishing workflows prepared.
 - [ ] Publisher/developer identity verification complete on target platform.
-- [ ] Final logo/social preview uploaded.
+- [ ] Final logo/social preview uploaded (reviewed candidate:
+  `assets/social-preview.png`; GitHub upload is still pending).
 - [ ] Cohort feedback complete and release candidate revalidated.
 - [ ] Platform submission reviewed/approved.
 

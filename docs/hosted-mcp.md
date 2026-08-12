@@ -90,11 +90,12 @@ container restarts. It is evidence that monitoring works, not evidence that the
 anonymous thresholds are correctly tuned for real users.
 
 The public Compose configuration bounds privacy-minimized application telemetry
-to five 10 MiB Docker `json-file` logs. Apply this as a configuration-only
-container recreation after the change reaches `main`, while retaining the exact
-verified image digest and rollback record. These limits prevent an idle or
-degraded service from consuming unbounded host storage; they do not replace the
-Nginx service metrics or an incident owner.
+to five 10 MiB Docker `json-file` logs. This limit was applied on 2026-08-12 as
+a configuration-only container recreation while retaining the exact verified
+image digest and rollback record; post-recreation English and Chinese smoke
+both passed. These limits prevent an idle or degraded service from consuming
+unbounded host storage; they do not replace the Nginx service metrics or an
+incident owner.
 
 These controls fit the current public, read-only, no-account product. If a
 future release adds private data, member features or server inference, it must
