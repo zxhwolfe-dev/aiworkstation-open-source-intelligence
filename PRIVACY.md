@@ -19,9 +19,9 @@ error code, and a one-way request-ID fingerprint. It does not record raw
 queries, constraints, project payloads, authorization headers, cookies, or
 credentials. The application does not create a database of MCP inputs or
 results. The reviewed production Compose configuration bounds future container
-recreations to five 10 MiB log files; the current v0.3.0 container must retain
-its existing host-level operational controls until that configuration is
-applied and verified.
+recreations to five 10 MiB log files. The current v0.3.0 container still uses
+the host's existing Docker logging configuration; this candidate limit is not
+active until it is applied and verified.
 
 The MCP service receives only the fields sent to a selected tool. It does not
 receive a user's complete ChatGPT/Codex conversation history unless the host
