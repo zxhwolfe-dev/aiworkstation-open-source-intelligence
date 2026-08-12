@@ -58,7 +58,7 @@ REQUIRED_REPOSITORY_PATHS = (
     "docs/external-alpha-checklist.md",
     "docs/hosted-mcp.md",
     "docs/public-launch-decisions.md",
-    "product-skills/ai-open-source-intelligence/SKILL.md",
+    "skills/ai-open-source-intelligence/SKILL.md",
     "schemas/tool-manifest.json",
     "schemas/tool-result.schema.json",
     "evals/cases.json",

@@ -106,7 +106,7 @@ jobs:
               "BUNDLE-MANIFEST.json",
               ".codex-plugin/plugin.json",
               ".agents/plugins/marketplace.json",
-              "product-skills/ai-open-source-intelligence/SKILL.md",
+              "skills/ai-open-source-intelligence/SKILL.md",
               "SECURITY.md",
               "PRIVACY.md",
               "SUPPORT.md",

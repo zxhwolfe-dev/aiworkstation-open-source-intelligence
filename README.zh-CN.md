@@ -43,7 +43,7 @@ ai-open-source-intelligence
 唯一正式 Skill 来自：
 
 ```text
-product-skills/ai-open-source-intelligence/SKILL.md
+skills/ai-open-source-intelligence/SKILL.md
 ```
 
 之前拆开的“项目研究 / 项目对比 / 技术栈规划”三个 Skill 文件已从当前产品和分发包中彻底移除。

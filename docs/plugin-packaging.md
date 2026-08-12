@@ -1,7 +1,7 @@
 # Plugin packaging and distribution
 
 The current repository package contains exactly one active Skill,
-`product-skills/ai-open-source-intelligence/SKILL.md`, plus `.mcp.json`, which
+`skills/ai-open-source-intelligence/SKILL.md`, plus `.mcp.json`, which
 connects the installed Plugin to the production nine-tool Hosted MCP. The
 remote MCP runtime remains independently deployed and is not embedded in the
 archive.
@@ -12,7 +12,10 @@ or replacing `v0.3.0`.
 
 Package identity is read from `.codex-plugin/plugin.json`; its version must equal
 the Python runtime, wheel metadata and Changelog. The repository marketplace
-entry is local, available, and declares no installation authentication.
+entry is local, available, and uses the supported `ON_INSTALL` installation
+lifecycle policy. This marketplace policy is not an MCP authentication mode:
+the production Hosted MCP remains anonymous and the platform submission uses
+**No Authentication**.
 
 Validate and build:
 

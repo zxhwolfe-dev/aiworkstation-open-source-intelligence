@@ -77,14 +77,10 @@ class PluginValidationTests(unittest.TestCase):
             (root / ".mcp.json").write_text(
                 json.dumps(
                     {
-                        "mcp_servers": {
+                        "mcpServers": {
                             "ai_open_source_intelligence": {
+                                "type": "http",
                                 "url": "https://example.com/mcp",
-                                "enabled": True,
-                                "required": False,
-                                "default_tools_approval_mode": "auto",
-                                "startup_timeout_sec": 20,
-                                "tool_timeout_sec": 60,
                             }
                         }
                     }
@@ -96,6 +92,38 @@ class PluginValidationTests(unittest.TestCase):
         self.assertFalse(report["local_skills_ready"])
         self.assertFalse(report["mcp_configuration_bundled"])
         self.assertIn("Hosted MCP URL", " ".join(report["errors"]))
+
+    def test_unsupported_interface_and_mcp_shapes_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._write_minimal_package(
+                root,
+                manifest_overrides={"mcpServers": "./.mcp.json"},
+            )
+            manifest_path = root / ".codex-plugin" / "plugin.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["interface"]["supportURL"] = "https://example.com/support"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            (root / ".mcp.json").write_text(
+                json.dumps(
+                    {
+                        "mcpServers": {
+                            "ai_open_source_intelligence": {
+                                "type": "http",
+                                "url": "https://mcp.aiworkstation.cn/mcp",
+                            }
+                        },
+                        "mcp_servers": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            report = validate_plugin_package(root)
+
+        rendered = " ".join(report["errors"])
+        self.assertFalse(report["local_skills_ready"])
+        self.assertIn("unsupported fields: supportURL", rendered)
+        self.assertIn("only the mcpServers object", rendered)
 
     def test_skill_frontmatter_name_must_match_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

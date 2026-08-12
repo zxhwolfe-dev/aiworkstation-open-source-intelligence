@@ -18,7 +18,7 @@
     "agents",
     "mcp"
   ],
-  "skills": "./product-skills/",
+  "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "AI Open Source Intelligence",
@@ -32,7 +32,6 @@
       "Compare"
     ],
     "websiteURL": "https://aiworkstation.cn/githubai/",
-    "supportURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/SUPPORT.md",
     "privacyPolicyURL": "https://useaistation.com/githubai/privacy/",
     "termsOfServiceURL": "https://useaistation.com/terms/",
     "defaultPrompt": [

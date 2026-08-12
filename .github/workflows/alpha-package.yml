@@ -81,7 +81,7 @@ jobs:
               "schemas/tool-manifest.json",
               "schemas/tool-result.schema.json",
               "schemas/error.schema.json",
-          "product-skills/ai-open-source-intelligence/SKILL.md",
+              "skills/ai-open-source-intelligence/SKILL.md",
               "SECURITY.md",
               "PRIVACY.md",
               "SUPPORT.md",

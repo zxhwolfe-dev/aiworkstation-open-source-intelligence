@@ -103,7 +103,7 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assertIn("README.md", required["details"]["missing"])
         self.assertIn("Dockerfile", required["details"]["missing"])
         self.assertIn(
-            "product-skills/ai-open-source-intelligence/SKILL.md",
+            "skills/ai-open-source-intelligence/SKILL.md",
             required["details"]["missing"],
         )
 

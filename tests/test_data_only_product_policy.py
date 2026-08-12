@@ -58,8 +58,8 @@ class DataOnlyProductPolicyTests(unittest.TestCase):
         plugin = json.loads(
             (self.ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(plugin["skills"], "./product-skills/")
-        active = sorted((self.ROOT / "product-skills").glob("*/SKILL.md"))
+        self.assertEqual(plugin["skills"], "./skills/")
+        active = sorted((self.ROOT / "skills").glob("*/SKILL.md"))
         self.assertEqual(
             [path.parent.name for path in active],
             ["ai-open-source-intelligence"],
@@ -69,10 +69,14 @@ class DataOnlyProductPolicyTests(unittest.TestCase):
         self.assertIn("never invoke `deep_research_ai_projects`", content)
 
     def test_legacy_split_skill_paths_are_removed(self) -> None:
-        legacy = self.ROOT / "skills"
-        self.assertFalse((legacy / "open-source-project-research" / "SKILL.md").exists())
-        self.assertFalse((legacy / "open-source-project-comparison" / "SKILL.md").exists())
-        self.assertFalse((legacy / "open-source-stack-planner" / "SKILL.md").exists())
+        skills = self.ROOT / "skills"
+        self.assertFalse((skills / "open-source-project-research" / "SKILL.md").exists())
+        self.assertFalse((skills / "open-source-project-comparison" / "SKILL.md").exists())
+        self.assertFalse((skills / "open-source-stack-planner" / "SKILL.md").exists())
+        self.assertEqual(
+            list((self.ROOT / "product-skills").glob("*/SKILL.md")),
+            [],
+        )
 
     def test_public_compose_contains_no_oauth_or_server_model_secrets(self) -> None:
         compose = (self.ROOT / "compose.public-hosted.example.yml").read_text(encoding="utf-8")

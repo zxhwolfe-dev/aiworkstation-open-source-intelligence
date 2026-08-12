@@ -123,19 +123,19 @@ def collect_bundle_files(root: Path) -> list[tuple[str, bytes]]:
             raise ValueError(f"unsupported Skill bundle file type: {relative}")
         collected[relative] = data
 
-    expected_skills = {"product-skills/ai-open-source-intelligence/SKILL.md"}
+    expected_skills = {"skills/ai-open-source-intelligence/SKILL.md"}
     active_skill_docs = {
         path
         for path in collected
-        if path.startswith("product-skills/") and path.endswith("/SKILL.md")
+        if path.startswith("skills/") and path.endswith("/SKILL.md")
     }
     if active_skill_docs != expected_skills:
         raise ValueError(
             "public bundle must contain exactly the unified active Skill; found: "
             + ", ".join(sorted(active_skill_docs))
         )
-    if any(path.startswith("skills/") for path in collected):
-        raise ValueError("legacy split Skill paths must not be present in the public bundle")
+    if any(path.startswith("product-skills/") for path in collected):
+        raise ValueError("non-standard product-skills paths must not be present in the public bundle")
     return sorted(collected.items())
 
 

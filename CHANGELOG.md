@@ -18,6 +18,10 @@ All notable pre-release changes are recorded here. Dates refer to repository cha
 
 ### Fixed
 
+- Aligned the complete Plugin with the canonical Codex ingestion contract by
+  using the standard `skills/` root and the `.mcp.json` `mcpServers` shape,
+  removing an unsupported interface field, and separating marketplace
+  installation policy from the anonymous Hosted MCP authentication mode.
 - Aligned active onboarding, architecture, security, deployment and Alpha docs
   with the released one-Skill, nine-tool `v0.3.0` product and its production
   Hosted deployment.

@@ -43,7 +43,7 @@ class AlphaPackageWorkflowTests(unittest.TestCase):
     def test_checksum_and_required_skill_checks_are_present(self) -> None:
         self.assertIn("sha256sum --check SHA256SUMS", self.content)
         for path in (
-            "product-skills/ai-open-source-intelligence/SKILL.md",
+            "skills/ai-open-source-intelligence/SKILL.md",
             "docs/alpha-tester-guide.md",
             "SECURITY.md",
             "PRIVACY.md",

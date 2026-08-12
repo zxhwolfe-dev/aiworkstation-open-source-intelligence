@@ -28,8 +28,11 @@ REQUIRED_INTERFACE_FIELDS = {
     "composerIcon",
     "logo",
 }
+ALLOWED_INTERFACE_FIELDS = REQUIRED_INTERFACE_FIELDS | {
+    "privacyPolicyURL",
+    "termsOfServiceURL",
+}
 PUBLIC_INTERFACE_URL_FIELDS = (
-    "supportURL",
     "privacyPolicyURL",
     "termsOfServiceURL",
 )
@@ -37,12 +40,8 @@ REQUIRED_MARKETPLACE_POLICY_FIELDS = {"installation", "authentication"}
 HOSTED_MCP_NAME = "ai_open_source_intelligence"
 HOSTED_MCP_URL = "https://mcp.aiworkstation.cn/mcp"
 HOSTED_MCP_FIELDS = {
+    "type",
     "url",
-    "enabled",
-    "required",
-    "default_tools_approval_mode",
-    "startup_timeout_sec",
-    "tool_timeout_sec",
 }
 
 
@@ -163,9 +162,11 @@ def _validate_hosted_mcp_config(root: Path, errors: list[str]) -> bool:
     payload = _load_object(root / ".mcp.json", errors)
     if not payload:
         return False
-    servers = payload.get("mcp_servers")
+    if set(payload) != {"mcpServers"}:
+        errors.append(".mcp.json must contain only the mcpServers object")
+    servers = payload.get("mcpServers")
     if not isinstance(servers, Mapping):
-        errors.append(".mcp.json must contain an mcp_servers object")
+        errors.append(".mcp.json must contain an mcpServers object")
         return False
     if set(servers) != {HOSTED_MCP_NAME}:
         errors.append(
@@ -178,18 +179,10 @@ def _validate_hosted_mcp_config(root: Path, errors: list[str]) -> bool:
         return False
     if set(server) != HOSTED_MCP_FIELDS:
         errors.append("Hosted MCP configuration fields do not match the reviewed surface")
+    if server.get("type") != "http":
+        errors.append("Hosted MCP type must be http")
     if server.get("url") != HOSTED_MCP_URL:
         errors.append(f"Hosted MCP URL must be {HOSTED_MCP_URL}")
-    if server.get("enabled") is not True:
-        errors.append("bundled Hosted MCP must be enabled")
-    if server.get("required") is not False:
-        errors.append("bundled Hosted MCP must remain non-required for fail-open startup")
-    if server.get("default_tools_approval_mode") != "auto":
-        errors.append("read-only Hosted MCP tools must use auto approval mode")
-    if server.get("startup_timeout_sec") != 20:
-        errors.append("Hosted MCP startup timeout must remain 20 seconds")
-    if server.get("tool_timeout_sec") != 60:
-        errors.append("Hosted MCP tool timeout must remain 60 seconds")
     forbidden = {"command", "args", "env", "headers", "bearer_token_env_var"}
     if forbidden.intersection(server):
         errors.append("public Hosted MCP configuration must not carry commands or credentials")
@@ -265,6 +258,14 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
             interface_mapping: Mapping[str, Any] = {}
         else:
             interface_mapping = interface
+            unsupported_interface_fields = sorted(
+                set(interface_mapping) - ALLOWED_INTERFACE_FIELDS
+            )
+            if unsupported_interface_fields:
+                errors.append(
+                    "plugin interface contains unsupported fields: "
+                    + ", ".join(unsupported_interface_fields)
+                )
             missing_interface = sorted(REQUIRED_INTERFACE_FIELDS - set(interface))
             if missing_interface:
                 errors.append(f"plugin interface is missing fields: {missing_interface}")
@@ -396,7 +397,7 @@ def validate_plugin_package(root: Path) -> dict[str, Any]:
                         "NOT_AVAILABLE",
                     }:
                         errors.append("marketplace installation policy is invalid")
-                    if policy.get("authentication") not in {"NONE", "ON_INSTALL"}:
+                    if policy.get("authentication") not in {"ON_INSTALL", "ON_USE"}:
                         errors.append("marketplace authentication policy is invalid")
                 if not str(entry.get("category") or "").strip():
                     errors.append("marketplace category is required")

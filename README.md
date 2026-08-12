@@ -43,7 +43,7 @@ It handles:
 The only product Skill is packaged from:
 
 ```text
-product-skills/ai-open-source-intelligence/SKILL.md
+skills/ai-open-source-intelligence/SKILL.md
 ```
 
 The previous split research/comparison/stack Skill files are removed from the current product and distribution bundle.

@@ -1,12 +1,8 @@
 {
-  "mcp_servers": {
+  "mcpServers": {
     "ai_open_source_intelligence": {
-      "url": "https://mcp.aiworkstation.cn/mcp",
-      "enabled": true,
-      "required": false,
-      "default_tools_approval_mode": "auto",
-      "startup_timeout_sec": 20,
-      "tool_timeout_sec": 60
+      "type": "http",
+      "url": "https://mcp.aiworkstation.cn/mcp"
     }
   }
 }
