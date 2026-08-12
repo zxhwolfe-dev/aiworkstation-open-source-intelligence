@@ -93,7 +93,17 @@ class CurrentDocumentationTests(unittest.TestCase):
         self.assertIn("HTTP 5xx:  0", baseline)
         self.assertIn("availability objective", baseline)
         self.assertIn("real-user traffic", baseline)
+        self.assertIn("max-size 10m, max-file 5", baseline)
+        self.assertIn("5/5` in English and `5/5` in", baseline)
         self.assertIn("Assign a named incident and rollback owner", baseline)
+
+    def test_candidate_docs_record_pr26_without_treating_merge_as_release_authority(self) -> None:
+        checklist = (self.ROOT / "docs/external-alpha-checklist.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("6f53bb68536add061afde8ccd8ee5b7b1eb31671", checklist)
+        self.assertIn("full `origin/main` SHA", checklist)
+        self.assertIn("does not authorize publication", checklist)
 
     def test_website_copy_contains_service_specific_privacy_fields(self) -> None:
         website = (self.ROOT / "docs/WEBSITE-LAUNCH-COPY.md").read_text(

@@ -9,7 +9,7 @@ The preferred machine-evidence flow is documented in [`evidence-readiness.md`](e
 ```text
 Production release: v0.3.0
 Production commit: 7b92e463a1da567afd5d1310601afdf1c6674646
-Complete Plugin candidate: v0.3.1 (record the final PR #26 merge SHA before release)
+Complete Plugin implementation: v0.3.1, PR #26 merge 6f53bb68536add061afde8ccd8ee5b7b1eb31671
 Hosted MCP: https://mcp.aiworkstation.cn/mcp
 Image digest: sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849
 Product surface: one Skill + nine anonymous read-only data/evidence tools
@@ -17,6 +17,9 @@ Product surface: one Skill + nine anonymous read-only data/evidence tools
 
 The release/publishing/deployment evidence is complete. Tester completion and
 return-use fields remain open and must be updated from real cohort activity.
+The release workflow must still use the full `origin/main` SHA current at the
+time all human and platform gates are complete; the PR #26 merge SHA records
+the implementation milestone and does not authorize publication by itself.
 
 ## Source and build identity
 

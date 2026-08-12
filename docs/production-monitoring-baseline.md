@@ -14,6 +14,7 @@ GHCR digest: sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5ae
 Container health: healthy
 Container restart count: 0
 Public upstream binding: 127.0.0.1:8001
+Docker log driver: json-file, max-size 10m, max-file 5
 Rollback snapshot: /opt/aiworkstation-osi/.deploy-backups/20260811T143404Z
 ```
 
@@ -60,8 +61,12 @@ rate limits.
   tuning thresholds.
 - Keep the exact production image and rollback snapshot through the initial
   observation period.
-- Apply the candidate Docker `json-file` limit (`10 MiB` times five files) only
-  after the configuration change reaches `main`, using the same production
-  image digest and a configuration-only container recreation.
+- The Docker `json-file` limit (`10 MiB` times five files) was applied on
+  2026-08-12 with a configuration-only container recreation. The production
+  image digest and runtime commit remained unchanged, container health returned
+  `healthy`, and the restart count was `0` after recreation.
+- Post-recreation hosted-public smoke passed `5/5` in English and `5/5` in
+  Chinese, including exact nine-tool discovery, strict read-only annotations,
+  real search, gateway policy, and server version
+  `0.3.0+git.7b92e463a1da567afd5d1310601afdf1c6674646`.
 - Assign a named incident and rollback owner before inviting the wider cohort.
-

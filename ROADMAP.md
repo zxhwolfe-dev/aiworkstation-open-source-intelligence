@@ -38,10 +38,14 @@ Image:  sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849
 - [x] Document ChatGPT Developer mode, Codex Hosted MCP and PyPI installation
 - [x] Replace the broken plugin Terms URL
 - [x] Prepare the `v0.3.1` complete Plugin with bundled Hosted MCP configuration
+- [x] Merge the complete-Plugin candidate through PR #26 at
+  `6f53bb68536add061afde8ccd8ee5b7b1eb31671`
 - [x] Align directory copy, starter prompts and required square Plugin assets
 - [ ] Run a clean external installation of the exact `v0.3.1` candidate
 - [ ] Run Wave A with three invited testers
 - [x] Record the first privacy-minimized production error, latency and 429 baseline
+- [x] Apply bounded Docker log rotation without changing the deployed `v0.3.0`
+  image or runtime identity
 - [ ] Review anonymous thresholds after real-user traffic
 - [ ] Keep the production rollback snapshot/image until the observation window closes
 
