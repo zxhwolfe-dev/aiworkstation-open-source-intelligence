@@ -73,11 +73,12 @@ Upload it in repository Settings → General → Social preview.
 
 Keep the language switch at the top of both files.
 
-## First GitHub Release
+## Historical v0.3.0 Release
 
 Use the guarded `github-release` workflow after the final release candidate passes CI/live/Codex validation. This single workflow builds and creates the GitHub Release, validates and promotes the exact wheel/sdist to PyPI with Trusted Publishing, and builds the exact commit-addressed image in GHCR. The former split release-event workflows are retired; no `release: published` fan-out is used.
 
-Recommended first release:
+The first production Hosted runtime and historical Skills-only archive are
+already published. Do not rebuild, overwrite or move this release:
 
 ```text
 Tag: v0.3.0
@@ -164,6 +165,29 @@ environment for production release control.
 - [ ] Social preview uploaded
 - [ ] release notes match actual functionality
 - [ ] release is marked pre-release
+
+## Next complete-Plugin patch release
+
+The repository now contains a complete one-Skill + Hosted MCP Plugin candidate
+with version `0.3.1`. It is a new package identity because the published
+`v0.3.0` archive is immutable; it must never be rebuilt in place.
+
+Do not run this workflow until PR #26 is merged to `main`, the live policy copy
+has been approved by the publisher, and the required Alpha/platform gates are
+complete. Then dispatch the guarded `github-release` workflow with:
+
+```text
+Tag: v0.3.1
+Commit: the full 40-character SHA of the merged `main` candidate
+Title: v0.3.1 — AI Open Source Intelligence complete Plugin
+Pre-release: Yes (the product remains Alpha)
+```
+
+The workflow must build the exact commit, create the GitHub Release and all
+assets, promote the same wheel/sdist to PyPI with Trusted Publishing, and push
+the exact commit-addressed GHCR image. Publishing the complete Plugin does not
+require redeploying the already verified v0.3.0 Hosted runtime. A runtime
+change requires a separate candidate-bound deployment and rollback review.
 
 ## After publishing
 
