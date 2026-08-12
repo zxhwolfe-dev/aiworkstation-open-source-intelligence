@@ -40,6 +40,7 @@ class AlphaBundleTests(unittest.TestCase):
             self.assertIn("SUPPORT.md", names)
             self.assertIn("docs/QUICKSTART.md", names)
             self.assertIn("docs/FAQ.md", names)
+            self.assertIn("docs/production-monitoring-baseline.md", names)
             self.assertIn("skills/ai-open-source-intelligence/SKILL.md", names)
             self.assertIn("docs/alpha-tester-guide.md", names)
             self.assertIn("schemas/tool-result.schema.json", names)

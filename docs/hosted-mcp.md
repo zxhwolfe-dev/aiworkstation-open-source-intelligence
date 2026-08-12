@@ -83,6 +83,12 @@ logrotate policy rotates logs daily and retains 14 rotations. Operators should
 review status counts, p50/p95 latency, `429`, `5xx`, upstream failures and
 container restart count at least daily during External Alpha.
 
+The first validation-traffic baseline is recorded in
+[`production-monitoring-baseline.md`](production-monitoring-baseline.md). Its
+small sample had no `429`, no `5xx`, no Nginx error-log records and zero
+container restarts. It is evidence that monitoring works, not evidence that the
+anonymous thresholds are correctly tuned for real users.
+
 The public Compose configuration bounds privacy-minimized application telemetry
 to five 10 MiB Docker `json-file` logs. Apply this as a configuration-only
 container recreation after the change reaches `main`, while retaining the exact

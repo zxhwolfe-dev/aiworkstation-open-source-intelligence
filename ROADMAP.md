@@ -41,7 +41,7 @@ Image:  sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849
 - [x] Align directory copy, starter prompts and required square Plugin assets
 - [ ] Run a clean external installation of the exact `v0.3.1` candidate
 - [ ] Run Wave A with three invited testers
-- [ ] Record production error, latency and 429 baseline
+- [x] Record the first privacy-minimized production error, latency and 429 baseline
 - [ ] Review anonymous thresholds after real-user traffic
 - [ ] Keep the production rollback snapshot/image until the observation window closes
 
@@ -75,6 +75,10 @@ Image:  sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849
 - [ ] Maintain an explicit deployment and rollback owner
 - [ ] Publish incident/support status updates when user impact is material
 - [ ] Use real activation and return-use metrics instead of GitHub stars alone
+
+The initial validation-traffic baseline is recorded in
+[`docs/production-monitoring-baseline.md`](docs/production-monitoring-baseline.md).
+It is not a substitute for real-user observation or a named incident owner.
 
 ## Future product expansion
 

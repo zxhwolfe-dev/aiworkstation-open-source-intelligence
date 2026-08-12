@@ -72,6 +72,30 @@ connection. Before public plugin approval, those are two explicit setup steps.
 
 The public integration/plugin repository is Apache-2.0. Private AI Workstation databases, unpublished datasets, private backend systems, hosted infrastructure, and trademarks are not licensed merely because the public repository is open source.
 
+### Hosted MCP privacy disclosure
+
+The anonymous Hosted MCP receives only the fields submitted to a selected
+tool: project queries or identifiers, typed constraints, locale, browsing
+filters, and an optional caller-generated request ID. It does not receive the
+complete ChatGPT or Codex conversation unless the host places that text in a
+declared tool argument. Do not submit credentials, private source code, or
+confidential documents.
+
+The application does not create a database of MCP inputs or results. Its
+privacy-safe operational telemetry excludes raw queries, constraints, result
+payloads, credentials, cookies, and authorization headers. The public gateway
+processes IP addresses in memory for TLS and abuse prevention. Its dedicated
+access log stores only timestamp, HTTP status, total duration, and upstream
+duration; it omits IP address, URI/query, referrer, User-Agent, and request
+body. Security and error logs may contain network metadata including IP
+addresses. Nginx logs rotate daily and retain 14 rotations.
+
+For a privacy or deletion request concerning identifiable gateway log data,
+email `zxhwolfe@gmail.com` with the relevant IP address and a narrow timestamp
+range. Requests are processed where the record can be located, subject to
+security, recovery, and legal retention needs. Do not send prompt text or
+credentials in the request.
+
 ## 简体中文
 
 ### SEO 标题
@@ -138,3 +162,11 @@ AI Open Source Intelligence — 开源 AI 项目研究、对比与技术选型
 ### 开源范围
 
 公开插件/集成仓库采用 Apache-2.0；AI Workstation 私有数据库、未公开数据集、私有后台、托管基础设施和商标不因此自动开源。
+
+### Hosted MCP 隐私说明
+
+匿名 Hosted MCP 只接收用户提交给所选工具的字段：项目查询或标识符、结构化约束、语言、浏览筛选条件，以及可选的调用方 request ID。除非宿主主动把对话文本放入工具参数，否则服务不会收到完整的 ChatGPT 或 Codex 对话。请勿提交凭证、私有源代码或机密文档。
+
+应用不会建立 MCP 输入或结果数据库。隐私化运行遥测不记录原始查询、约束、结果内容、凭证、Cookie 或 Authorization header。公网网关为 TLS 和防滥用在内存中处理 IP；专用 access log 只记录时间、HTTP 状态、总耗时和上游耗时，不记录 IP、URI/query、referrer、User-Agent 或 request body。安全和错误日志可能包含 IP 等网络元数据。Nginx 日志每日轮转，保留 14 个轮转文件。
+
+如需对可识别的网关日志数据提出隐私或删除请求，请发送邮件至 `zxhwolfe@gmail.com`，提供相关 IP 和尽量精确的时间范围。运营方会在能够定位记录的情况下处理，并受安全、恢复和法律保留要求约束。请勿在请求中发送提示词或凭证。

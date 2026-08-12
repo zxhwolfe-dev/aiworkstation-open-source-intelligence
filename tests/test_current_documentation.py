@@ -80,6 +80,34 @@ class CurrentDocumentationTests(unittest.TestCase):
         self.assertIn("five 10 MiB", privacy)
         self.assertIn("privacy or deletion request", privacy)
 
+    def test_monitoring_baseline_is_identity_bound_and_does_not_overclaim(self) -> None:
+        baseline = (self.ROOT / "docs/production-monitoring-baseline.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("7b92e463a1da567afd5d1310601afdf1c6674646", baseline)
+        self.assertIn(
+            "sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849",
+            baseline,
+        )
+        self.assertIn("HTTP 429:  0", baseline)
+        self.assertIn("HTTP 5xx:  0", baseline)
+        self.assertIn("availability objective", baseline)
+        self.assertIn("real-user traffic", baseline)
+        self.assertIn("Assign a named incident and rollback owner", baseline)
+
+    def test_website_copy_contains_service_specific_privacy_fields(self) -> None:
+        website = (self.ROOT / "docs/WEBSITE-LAUNCH-COPY.md").read_text(
+            encoding="utf-8"
+        )
+        for expected in (
+            "project queries or identifiers",
+            "does not create a database of MCP inputs or results",
+            "omits IP address, URI/query",
+            "rotate daily and retain 14 rotations",
+            "zxhwolfe@gmail.com",
+        ):
+            self.assertIn(expected, website)
+
 
 if __name__ == "__main__":
     unittest.main()

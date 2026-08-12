@@ -33,6 +33,7 @@ REQUIRED_FILES = (
     "docs/FAQ.md",
     "docs/codex-setup.md",
     "docs/plugin-packaging.md",
+    "docs/production-monitoring-baseline.md",
     "docs/alpha-tester-guide.md",
     "docs/external-alpha-checklist.md",
     "schemas/tool-manifest.json",
