@@ -28,6 +28,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      - name: Install workflow CLI dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y jq
+
       - name: Install package with MCP runtime
         run: python -m pip install --upgrade pip && python -m pip install -e ".[mcp]" && python -m pip install build ruff pyright pip-audit
 
@@ -106,13 +109,13 @@ jobs:
               "BUNDLE-MANIFEST.json",
               ".codex-plugin/plugin.json",
               ".agents/plugins/marketplace.json",
-              "product-skills/ai-open-source-intelligence/SKILL.md",
+              "skills/ai-open-source-intelligence/SKILL.md",
               "SECURITY.md",
               "PRIVACY.md",
               "SUPPORT.md",
           }
           missing = sorted(required - names)
-          legacy_skills = sorted(name for name in names if name.startswith("skills/"))
+          legacy_skills = sorted(name for name in names if name.startswith("product-skills/"))
           forbidden = sorted(
               name for name in names
               if name.startswith("src/") or name == "pyproject.toml"
@@ -147,7 +150,7 @@ jobs:
           from aiworkstation_osi.mcp_server import build_mcp_server
           from mcp import Client
 
-          assert aiworkstation_osi.__version__ == "0.3.0"
+          assert aiworkstation_osi.__version__ == "0.3.1"
 
           async def check():
               async with Client(build_mcp_server()) as client:

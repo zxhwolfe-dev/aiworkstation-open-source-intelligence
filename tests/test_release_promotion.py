@@ -178,10 +178,11 @@ class ReleasePromotionTests(unittest.TestCase):
 
         files = {"README.md": b"readme", "config.json": b"{}"}
         embedded = {
-            "schema_version": "osi.alpha-bundle.v1",
+            "schema_version": "osi.alpha-bundle.v2",
             "name": "aiworkstation-open-source-intelligence",
             "version": "0.3.0",
-            "distribution_mode": "skills-only",
+            "distribution_mode": "skill-plus-hosted-mcp",
+            "hosted_mcp_config_bundled": True,
             "live_mcp_bundled": False,
             "files": [
                 {"path": name, "size": len(data), "sha256": __import__("hashlib").sha256(data).hexdigest()}
@@ -196,14 +197,15 @@ class ReleasePromotionTests(unittest.TestCase):
         archive = archive_io.getvalue()
         report = {
             "ok": True,
-            "schema_version": "osi.alpha-bundle.v1",
+            "schema_version": "osi.alpha-bundle.v2",
             "name": "aiworkstation-open-source-intelligence",
             "version": "0.3.0",
             "archive": "/different/runner/dist/skills.zip",
             "archive_sha256": __import__("hashlib").sha256(archive).hexdigest(),
             "checksum_file": "/different/runner/dist/SHA256SUMS",
             "file_count": 2,
-            "distribution_mode": "skills-only",
+            "distribution_mode": "skill-plus-hosted-mcp",
+            "hosted_mcp_config_bundled": True,
             "live_mcp_bundled": False,
         }
         content = json.dumps(report).encode()
@@ -259,8 +261,8 @@ class ReleasePromotionTests(unittest.TestCase):
 
         def make_archive(entries, *, manifest_overrides=None, duplicate_manifest=False):
             manifest = {
-                "schema_version": "osi.alpha-bundle.v1", "name": "aiworkstation-open-source-intelligence", "version": "0.3.0",
-                "distribution_mode": "skills-only", "live_mcp_bundled": False, "files": [
+                "schema_version": "osi.alpha-bundle.v2", "name": "aiworkstation-open-source-intelligence", "version": "0.3.0",
+                "distribution_mode": "skill-plus-hosted-mcp", "hosted_mcp_config_bundled": True, "live_mcp_bundled": False, "files": [
                     {"path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()} for name, data in entries.items()
                 ],
             }
@@ -273,7 +275,7 @@ class ReleasePromotionTests(unittest.TestCase):
             return stream.getvalue()
 
         def report(archive):
-            return json.dumps({"ok": True, "schema_version": "osi.alpha-bundle.v1", "name": "aiworkstation-open-source-intelligence", "version": "0.3.0", "archive": "/runner/skills.zip", "archive_sha256": hashlib.sha256(archive).hexdigest(), "checksum_file": "/runner/SHA256SUMS", "file_count": 1, "distribution_mode": "skills-only", "live_mcp_bundled": False}).encode()
+            return json.dumps({"ok": True, "schema_version": "osi.alpha-bundle.v2", "name": "aiworkstation-open-source-intelligence", "version": "0.3.0", "archive": "/runner/skills.zip", "archive_sha256": hashlib.sha256(archive).hexdigest(), "checksum_file": "/runner/SHA256SUMS", "file_count": 1, "distribution_mode": "skill-plus-hosted-mcp", "hosted_mcp_config_bundled": True, "live_mcp_bundled": False}).encode()
 
         valid = make_archive({"nested/readme.md": b"ok"})
         valid_report = json.loads(report(valid))

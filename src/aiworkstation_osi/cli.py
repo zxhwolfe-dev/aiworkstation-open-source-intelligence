@@ -15,7 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="osi-m0")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("list-tools", help="List the six read-only tools")
+    subparsers.add_parser("list-tools", help="List the nine read-only tools")
     subparsers.add_parser("provider-info", help="Show the selected provider without exposing secrets")
 
     invoke_parser = subparsers.add_parser("invoke", help="Invoke a tool using a JSON object")

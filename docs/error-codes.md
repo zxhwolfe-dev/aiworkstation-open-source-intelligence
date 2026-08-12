@@ -16,12 +16,12 @@ business semantics.
 }
 ```
 
-## M0 codes
+## Current codes
 
 | Code | Meaning | Retryable | Caller action |
 | --- | --- | ---: | --- |
 | `INVALID_INPUT` | Required fields, types, lengths or cardinalities are invalid. | No | Correct the request. |
-| `UNKNOWN_TOOL` | The requested tool is not in the six-tool M0 manifest. | No | Use a declared tool name. |
+| `UNKNOWN_TOOL` | The requested tool is not in the current nine-tool manifest. | No | Use a declared tool name. |
 | `PROVIDER_UNAVAILABLE` | The injected project-intelligence provider failed or timed out. | Yes | Retry with backoff; do not invent results. |
 | `UPSTREAM_CONTRACT_ERROR` | The provider returned data that does not satisfy the adapter contract. | No | Quarantine the response and investigate the adapter. |
 

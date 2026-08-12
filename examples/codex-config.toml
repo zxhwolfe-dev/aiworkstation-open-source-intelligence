@@ -16,6 +16,9 @@ enabled_tools = [
   "compare_ai_projects",
   "find_alternatives",
   "compose_ai_stack",
+  "get_radar_overview",
+  "browse_radar_projects",
+  "browse_radar_skills",
 ]
 
 [mcp_servers.ai_open_source_intelligence.env]

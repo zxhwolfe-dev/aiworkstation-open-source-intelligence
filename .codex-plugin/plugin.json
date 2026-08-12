@@ -1,6 +1,6 @@
 {
   "name": "aiworkstation-open-source-intelligence",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "One unified evidence-backed Skill plus live AI Workstation Radar MCP tools for discovering, verifying, comparing and selecting open-source AI projects and planning candidate AI stacks.",
   "license": "Apache-2.0",
   "author": {
@@ -18,10 +18,11 @@
     "agents",
     "mcp"
   ],
-  "skills": "./product-skills/",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "AI Open Source Intelligence",
-    "shortDescription": "One Skill for evidence-backed open-source AI research and selection",
+    "shortDescription": "Open-source AI research",
     "longDescription": "Use one unified Skill to browse AI Open Source Radar, find projects from requirements, verify project and license evidence, compare alternatives, and plan candidate open-source AI stacks. The host model performs the reasoning; the public AI Workstation MCP path supplies read-only Radar data and must not invoke AI Workstation server-side models.",
     "developerName": "AI Workstation",
     "category": "Developer Tools",
@@ -31,16 +32,15 @@
       "Compare"
     ],
     "websiteURL": "https://aiworkstation.cn/githubai/",
-    "supportURL": "https://github.com/zxhwolfe-dev/aiworkstation-open-source-intelligence/blob/main/SUPPORT.md",
     "privacyPolicyURL": "https://useaistation.com/githubai/privacy/",
-    "termsOfServiceURL": "https://useaistation.com/githubai/terms/",
+    "termsOfServiceURL": "https://useaistation.com/terms/",
     "defaultPrompt": [
-      "Show me the current AI Open Source Radar and help me browse its rankings, collections, categories, use cases, and Skills.",
+      "Browse the current AI Open Source Radar and show the most relevant projects for my use case.",
       "Find a self-hosted RAG platform with Docker and a Web UI. Keep hard requirements separate from preferences.",
-      "Compare Dify and RAGFlow for an enterprise knowledge-base use case, clearly separating verified facts from assumptions and unknowns.",
-      "Check what evidence I need before relying on an open-source AI project's license for commercial adoption.",
-      "Design a self-hosted open-source AI stack for internal document question answering and mark every unverified compatibility or license condition."
+      "Compare Dify and RAGFlow for an enterprise knowledge base, separating evidence, assumptions, unknowns, and risks."
     ],
-    "brandColor": "#24292F"
+    "brandColor": "#24292F",
+    "composerIcon": "./assets/plugin-icon.svg",
+    "logo": "./assets/plugin-icon.svg"
   }
 }

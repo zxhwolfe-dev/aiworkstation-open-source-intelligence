@@ -17,6 +17,12 @@ limit_req_zone $binary_remote_addr zone=osi_mcp_public:10m rate=60r/m;
 limit_req_zone $binary_remote_addr zone=osi_mcp_sustained:10m rate=10r/m;
 limit_conn_zone $binary_remote_addr zone=osi_mcp_conn:10m;
 
+# Privacy-minimized service metrics. Deliberately omit client IP, query string,
+# referrer, User-Agent and request body. The standard /etc/logrotate.d/nginx
+# policy rotates this dedicated log with the other Nginx logs.
+log_format osi_mcp_metrics '$time_iso8601 status=$status '
+                           'rt=$request_time urt=$upstream_response_time';
+
 server {
     listen 80;
     listen [::]:80;
@@ -36,6 +42,9 @@ server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
     server_name mcp.aiworkstation.cn;
+
+    access_log /var/log/nginx/osi-mcp.access.log osi_mcp_metrics;
+    error_log /var/log/nginx/osi-mcp.error.log warn;
 
     ssl_certificate /etc/letsencrypt/live/mcp.aiworkstation.cn/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/mcp.aiworkstation.cn/privkey.pem;

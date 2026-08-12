@@ -43,7 +43,7 @@ It handles:
 The only product Skill is packaged from:
 
 ```text
-product-skills/ai-open-source-intelligence/SKILL.md
+skills/ai-open-source-intelligence/SKILL.md
 ```
 
 The previous split research/comparison/stack Skill files are removed from the current product and distribution bundle.
@@ -151,6 +151,28 @@ The gateway uses two per-IP request windows plus a connection cap:
 - unrelated paths on the dedicated MCP hostname return `404`.
 
 This is intentionally request-based rather than token-based because the nine data tools do not consume AI Workstation model tokens.
+
+## Use it now
+
+The repository Plugin now packages the unified Skill and the production Hosted
+MCP configuration together. After this change reaches `main`, Codex and the
+ChatGPT desktop Codex host can install both from one marketplace entry. The
+public ChatGPT directory listing is still pending review. Today:
+
+- Codex / ChatGPT desktop users can install the complete repository Plugin;
+- ChatGPT web users can register `https://mcp.aiworkstation.cn/mcp` as a
+  **No Authentication** developer-mode app while the public listing is pending;
+- after `v0.3.1` is published, Python users can install the matching CLI/MCP
+  package with:
+
+```bash
+python -m pip install \
+  "aiworkstation-open-source-intelligence[mcp]==0.3.1"
+```
+
+See the [Quickstart](docs/QUICKSTART.md) for exact ChatGPT, Codex and Python
+steps. The immutable `v0.3.0` archive remains the earlier Skills-only artifact;
+the complete Plugin uses the `v0.3.1` patch identity rather than replacing it.
 
 ## Local development
 

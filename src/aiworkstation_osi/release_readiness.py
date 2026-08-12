@@ -1,7 +1,8 @@
-"""Produce a deterministic release-readiness report for the M1 alpha.
+"""Produce a deterministic candidate-bound release-readiness report.
 
-The report distinguishes repository/code readiness, Skills-only external-alpha
-readiness, hosted private-alpha readiness, and broad public-launch readiness. It
+The report distinguishes repository/code readiness, complete-Plugin External
+Alpha readiness, Hosted deployment readiness, and public distribution
+readiness. Historical output keys are retained for artifact compatibility. It
 never contacts AI Workstation and never claims that CI, Codex, remote MCP tests,
 or human review occurred without explicit evidence supplied by the operator.
 """
@@ -24,6 +25,7 @@ READINESS_SCHEMA_VERSION = "osi.release-readiness.v2"
 
 REQUIRED_REPOSITORY_PATHS = (
     ".codex-plugin/plugin.json",
+    ".mcp.json",
     ".agents/plugins/marketplace.json",
     ".github/workflows/ci.yml",
     ".github/workflows/live-contract-validation.yml",
@@ -56,7 +58,7 @@ REQUIRED_REPOSITORY_PATHS = (
     "docs/external-alpha-checklist.md",
     "docs/hosted-mcp.md",
     "docs/public-launch-decisions.md",
-    "product-skills/ai-open-source-intelligence/SKILL.md",
+    "skills/ai-open-source-intelligence/SKILL.md",
     "schemas/tool-manifest.json",
     "schemas/tool-result.schema.json",
     "evals/cases.json",
@@ -236,6 +238,7 @@ def evaluate_release_readiness(
     except Exception as exc:
         plugin_report = {
             "local_skills_ready": False,
+            "mcp_configuration_bundled": False,
             "public_submission_ready": False,
             "errors": [str(exc)],
             "warnings": [],
@@ -245,14 +248,14 @@ def evaluate_release_readiness(
         _check(
             "plugin-package",
             plugin_ready,
-            "Single-Skill plugin package passes the offline validator.",
+            "One-Skill plus Hosted MCP plugin package passes the offline validator.",
             errors=plugin_report.get("errors") or [],
             warnings=plugin_report.get("warnings") or [],
             public_submission_ready=bool(plugin_report.get("public_submission_ready")),
         )
     )
     if not plugin_ready:
-        code_blockers.append("single-Skill plugin package validation failed")
+        code_blockers.append("complete plugin package validation failed")
     warnings.extend(str(value) for value in plugin_report.get("warnings") or [])
 
     try:
@@ -288,13 +291,15 @@ def evaluate_release_readiness(
             bundle_ok = (
                 first_bytes == second_bytes
                 and first.get("archive_sha256") == second.get("archive_sha256")
-                and first.get("distribution_mode") == "skills-only"
+                and first.get("distribution_mode") == "skill-plus-hosted-mcp"
+                and first.get("hosted_mcp_config_bundled") is True
                 and first.get("live_mcp_bundled") is False
             )
             bundle_details = {
                 "archive_sha256": first.get("archive_sha256"),
                 "file_count": first.get("file_count"),
                 "distribution_mode": first.get("distribution_mode"),
+                "hosted_mcp_config_bundled": first.get("hosted_mcp_config_bundled"),
                 "live_mcp_bundled": first.get("live_mcp_bundled"),
             }
     except (OSError, ValueError, json.JSONDecodeError) as exc:
@@ -304,7 +309,7 @@ def evaluate_release_readiness(
         _check(
             "deterministic-alpha-bundle",
             bundle_ok,
-            "Two single-Skill alpha builds from the same tree are byte-identical and safely scoped.",
+            "Two complete Plugin alpha builds from the same tree are byte-identical and safely scoped.",
             **bundle_details,
         )
     )
@@ -396,7 +401,7 @@ def evaluate_release_readiness(
         )
 
     if not external_alpha_ready:
-        hosted_alpha_blockers.append("Skills-only external-alpha gates are not complete")
+        hosted_alpha_blockers.append("complete-Plugin external-alpha gates are not complete")
 
     hosted_private_alpha_ready = external_alpha_ready and not hosted_alpha_blockers
 

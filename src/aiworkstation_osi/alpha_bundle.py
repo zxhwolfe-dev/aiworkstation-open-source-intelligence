@@ -1,4 +1,4 @@
-"""Build a deterministic, reviewable Skills-only external-alpha archive."""
+"""Build a deterministic, reviewable Skill-plus-Hosted-MCP plugin archive."""
 
 from __future__ import annotations
 
@@ -11,13 +11,15 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
 
-BUNDLE_SCHEMA_VERSION = "osi.alpha-bundle.v1"
+BUNDLE_SCHEMA_VERSION = "osi.alpha-bundle.v2"
 MAX_FILE_BYTES = 1_000_000
 FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 REQUIRED_FILES = (
     ".codex-plugin/plugin.json",
+    ".mcp.json",
     ".agents/plugins/marketplace.json",
+    "assets/plugin-icon.svg",
     "README.md",
     "README.zh-CN.md",
     "CHANGELOG.md",
@@ -31,6 +33,7 @@ REQUIRED_FILES = (
     "docs/FAQ.md",
     "docs/codex-setup.md",
     "docs/plugin-packaging.md",
+    "docs/production-monitoring-baseline.md",
     "docs/alpha-tester-guide.md",
     "docs/external-alpha-checklist.md",
     "schemas/tool-manifest.json",
@@ -101,7 +104,7 @@ def _plugin_metadata(root: Path) -> tuple[str, str, Path]:
 
 
 def collect_bundle_files(root: Path) -> list[tuple[str, bytes]]:
-    """Collect the reviewed single-Skill distribution surface."""
+    """Collect the reviewed one-Skill plus Hosted MCP distribution surface."""
 
     resolved_root = root.resolve()
     collected: dict[str, bytes] = {}
@@ -121,19 +124,19 @@ def collect_bundle_files(root: Path) -> list[tuple[str, bytes]]:
             raise ValueError(f"unsupported Skill bundle file type: {relative}")
         collected[relative] = data
 
-    expected_skills = {"product-skills/ai-open-source-intelligence/SKILL.md"}
+    expected_skills = {"skills/ai-open-source-intelligence/SKILL.md"}
     active_skill_docs = {
         path
         for path in collected
-        if path.startswith("product-skills/") and path.endswith("/SKILL.md")
+        if path.startswith("skills/") and path.endswith("/SKILL.md")
     }
     if active_skill_docs != expected_skills:
         raise ValueError(
             "public bundle must contain exactly the unified active Skill; found: "
             + ", ".join(sorted(active_skill_docs))
         )
-    if any(path.startswith("skills/") for path in collected):
-        raise ValueError("legacy split Skill paths must not be present in the public bundle")
+    if any(path.startswith("product-skills/") for path in collected):
+        raise ValueError("non-standard product-skills paths must not be present in the public bundle")
     return sorted(collected.items())
 
 
@@ -146,7 +149,7 @@ def _zip_info(path: str) -> zipfile.ZipInfo:
 
 
 def build_alpha_bundle(root: Path, output_dir: Path) -> dict[str, Any]:
-    """Build a reproducible Skills-only ZIP and external checksum file."""
+    """Build a reproducible complete Plugin ZIP and external checksum file."""
 
     resolved_root = root.resolve()
     name, version, _skills_root = _plugin_metadata(resolved_root)
@@ -155,7 +158,8 @@ def build_alpha_bundle(root: Path, output_dir: Path) -> dict[str, Any]:
         "schema_version": BUNDLE_SCHEMA_VERSION,
         "name": name,
         "version": version,
-        "distribution_mode": "skills-only",
+        "distribution_mode": "skill-plus-hosted-mcp",
+        "hosted_mcp_config_bundled": True,
         "live_mcp_bundled": False,
         "files": [
             {"path": path, "size": len(data), "sha256": _sha256(data)}
@@ -167,7 +171,7 @@ def build_alpha_bundle(root: Path, output_dir: Path) -> dict[str, Any]:
     ).encode("utf-8")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    archive = output_dir / f"{name}-skills-{version}.zip"
+    archive = output_dir / f"{name}-plugin-{version}.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
         bundle.writestr(_zip_info("BUNDLE-MANIFEST.json"), manifest_bytes)
         for path, data in files:
@@ -187,7 +191,8 @@ def build_alpha_bundle(root: Path, output_dir: Path) -> dict[str, Any]:
         "archive_sha256": archive_sha256,
         "checksum_file": str(checksum),
         "file_count": len(files),
-        "distribution_mode": "skills-only",
+        "distribution_mode": "skill-plus-hosted-mcp",
+        "hosted_mcp_config_bundled": True,
         "live_mcp_bundled": False,
     }
     (output_dir / "bundle-report.json").write_text(

@@ -9,11 +9,13 @@ from pathlib import Path
 class PluginPackageTests(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[1]
     MANIFEST_PATH = ROOT / ".codex-plugin" / "plugin.json"
+    MCP_PATH = ROOT / ".mcp.json"
     MARKETPLACE_PATH = ROOT / ".agents" / "plugins" / "marketplace.json"
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.manifest = json.loads(cls.MANIFEST_PATH.read_text(encoding="utf-8"))
+        cls.mcp = json.loads(cls.MCP_PATH.read_text(encoding="utf-8"))
         cls.marketplace = json.loads(cls.MARKETPLACE_PATH.read_text(encoding="utf-8"))
 
     def test_plugin_directory_contains_only_manifest(self) -> None:
@@ -34,12 +36,13 @@ class PluginPackageTests(unittest.TestCase):
             self.manifest["name"],
             "aiworkstation-open-source-intelligence",
         )
+        self.assertEqual(self.manifest["version"], "0.3.1")
         self.assertEqual(self.manifest["license"], "Apache-2.0")
         self.assertTrue((self.ROOT / "LICENSE").is_file())
 
     def test_manifest_packages_exactly_one_unified_skill(self) -> None:
         skills_path = self.manifest["skills"]
-        self.assertEqual(skills_path, "./product-skills/")
+        self.assertEqual(skills_path, "./skills/")
         skills_root = (self.ROOT / skills_path[2:]).resolve()
         self.assertTrue(skills_root.is_dir())
         self.assertTrue(skills_root.is_relative_to(self.ROOT.resolve()))
@@ -74,14 +77,19 @@ class PluginPackageTests(unittest.TestCase):
             "developerName",
             "category",
             "websiteURL",
-            "supportURL",
             "privacyPolicyURL",
             "termsOfServiceURL",
             "defaultPrompt",
             "brandColor",
+            "composerIcon",
+            "logo",
         ):
             self.assertTrue(interface[field], field)
-        self.assertGreaterEqual(len(interface["defaultPrompt"]), 5)
+        self.assertGreaterEqual(len(interface["defaultPrompt"]), 1)
+        self.assertLessEqual(len(interface["defaultPrompt"]), 3)
+        self.assertTrue(all(len(prompt) <= 128 for prompt in interface["defaultPrompt"]))
+        self.assertLessEqual(len(interface["displayName"]), 30)
+        self.assertLessEqual(len(interface["shortDescription"]), 30)
         self.assertIn("Read", interface["capabilities"])
         self.assertNotIn("Write", interface["capabilities"])
         self.assertIn("host model", interface["longDescription"].lower())
@@ -92,10 +100,26 @@ class PluginPackageTests(unittest.TestCase):
         self.assertEqual(interface["websiteURL"], "https://aiworkstation.cn/githubai/")
         self.assertEqual(self.manifest["homepage"], "https://aiworkstation.cn/githubai/")
         self.assertEqual(interface["privacyPolicyURL"], "https://useaistation.com/githubai/privacy/")
-        self.assertEqual(interface["termsOfServiceURL"], "https://useaistation.com/githubai/terms/")
-        self.assertIn("github.com", interface["supportURL"])
-        self.assertNotIn("mcpServers", self.manifest)
+        self.assertEqual(interface["termsOfServiceURL"], "https://useaistation.com/terms/")
+        self.assertNotIn("supportURL", interface)
+        self.assertEqual(self.manifest["mcpServers"], "./.mcp.json")
         self.assertNotIn("apps", self.manifest)
+        self.assertEqual(interface["composerIcon"], "./assets/plugin-icon.svg")
+        self.assertEqual(interface["logo"], "./assets/plugin-icon.svg")
+        self.assertTrue((self.ROOT / "assets" / "plugin-icon.svg").is_file())
+
+    def test_plugin_bundles_the_reviewed_hosted_mcp_connection(self) -> None:
+        self.assertEqual(
+            self.mcp,
+            {
+                "mcpServers": {
+                    "ai_open_source_intelligence": {
+                        "type": "http",
+                        "url": "https://mcp.aiworkstation.cn/mcp",
+                    }
+                }
+            },
+        )
 
     def test_repo_marketplace_points_to_plugin_root(self) -> None:
         self.assertEqual(self.marketplace["name"], "aiworkstation-local-plugins")
@@ -105,7 +129,7 @@ class PluginPackageTests(unittest.TestCase):
         self.assertEqual(entry["name"], self.manifest["name"])
         self.assertEqual(entry["source"], {"source": "local", "path": "./"})
         self.assertEqual(entry["policy"]["installation"], "AVAILABLE")
-        self.assertEqual(entry["policy"]["authentication"], "NONE")
+        self.assertEqual(entry["policy"]["authentication"], "ON_INSTALL")
         self.assertEqual(entry["category"], "Developer Tools")
 
 

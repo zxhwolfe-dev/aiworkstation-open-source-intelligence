@@ -1,88 +1,101 @@
 # Roadmap
 
-AI Workstation Open Source Intelligence is developed in staged release layers so evidence quality, product simplicity, privacy and distribution can mature independently.
+AI Workstation Open Source Intelligence is developed in staged release layers
+so evidence quality, product simplicity, privacy and distribution can mature
+independently.
 
-## Current product foundation
+## v0.3.0 released and deployed
 
 - [x] One unified user-facing Skill: `ai-open-source-intelligence`
 - [x] Nine read-only MCP data/evidence tools
-- [x] Offline mock provider
-- [x] Hardened public AI Open Source Radar provider
+- [x] Offline mock and hardened public Radar providers
 - [x] Requirement selector fixed to `use_model=false`
-- [x] AI Workstation server-model execution removed from the current Hosted product path
-- [x] OAuth/Premium runtime switch fails closed
-- [x] English and Chinese public-contract validation
-- [x] License-evidence and snapshot boundaries
-- [x] stdio MCP and guarded Streamable HTTP MCP
-- [x] Deterministic one-Skill distribution bundle
-- [x] Candidate-bound CI, Codex acceptance and release-readiness tooling
-- [x] Public Hosted MCP endpoint at `https://mcp.aiworkstation.cn/mcp`
-- [x] TLS, loopback-only upstream and candidate deployment identity
-- [x] Anonymous gateway request/connection abuse controls
-- [x] Canonical AI Workstation/Radar/repository links in MCP results
+- [x] AI Workstation server-model execution removed from the Hosted path
+- [x] OAuth/Premium runtime configuration fails closed
+- [x] English and Chinese contract/evaluation coverage
+- [x] License-evidence, hard-constraint and snapshot boundaries
+- [x] stdio and guarded Streamable HTTP MCP
+- [x] Deterministic one-Skill distribution archive
+- [x] Python package published to PyPI as `0.3.0`
+- [x] Exact commit-addressed image published to GHCR
+- [x] GitHub `v0.3.0` pre-release published
+- [x] Production Hosted MCP at `https://mcp.aiworkstation.cn/mcp`
+- [x] TLS, loopback-only upstream and exact deployment identity
+- [x] Anonymous request/body/connection abuse controls
+- [x] English and Chinese hosted-public remote smoke
+- [x] Exact nine-tool discovery, annotations and real search in production
 
-## Next: one-Skill data-only release validation
+Production identity:
 
-Every source candidate still needs its own evidence chain before production deployment.
+```text
+Commit: 7b92e463a1da567afd5d1310601afdf1c6674646
+Image:  sha256:ca97a9192fa0b6bdd9b62628acc48c74f7cb6b127ef88fcbacaaa6e6f5aed849
+```
 
-- [ ] Fresh candidate-bound Python 3.10/3.12 CI
-- [ ] Fresh EN/ZH live-contract validation
-- [ ] Fresh Radar browse validation
-- [ ] Fresh nine-tool Codex acceptance
-- [ ] Named human artifact review
-- [ ] Deploy exact candidate SHA
-- [ ] Candidate-bound `hosted-public` remote smoke
-- [ ] Confirm `server_model_enabled=false`, `oauth_enabled=false` and exactly nine tools remotely
-- [ ] Confirm new short+sustained anonymous abuse controls in production
-- [ ] Final Hosted readiness for the exact release candidate
+## Current stabilization work
 
-## Public distribution and platform launch
+- [x] Align active docs to one Skill, nine tools and deployed Hosted status
+- [x] Document ChatGPT Developer mode, Codex Hosted MCP and PyPI installation
+- [x] Replace the broken plugin Terms URL
+- [x] Prepare the `v0.3.1` complete Plugin with bundled Hosted MCP configuration
+- [x] Align directory copy, starter prompts and required square Plugin assets
+- [ ] Run a clean external installation of the exact `v0.3.1` candidate
+- [ ] Run Wave A with three invited testers
+- [x] Record the first privacy-minimized production error, latency and 429 baseline
+- [ ] Review anonymous thresholds after real-user traffic
+- [ ] Keep the production rollback snapshot/image until the observation window closes
 
-- [x] Apache-2.0 public repository license
-- [x] Public privacy, terms, support, security, contribution and conduct documents
-- [x] English and Simplified Chinese README surfaces
-- [x] One-Skill Quickstart and submission pack
-- [ ] Final logo/social-preview assets
-- [ ] Final service-specific privacy/retention review
-- [ ] Production error/latency/429 monitoring baseline
-- [ ] Real-user abuse-threshold tuning
-- [ ] Publisher/developer verification in target platforms
-- [ ] Register the real Hosted MCP connection identity
-- [ ] Fresh-install one-Skill + MCP acceptance
-- [ ] Platform/directory submission and staged rollout
-- [ ] Publish a GitHub pre-release/release from the accepted candidate
+## External Alpha
 
-## Developer distribution
+- [ ] Ten testers complete two sessions
+- [ ] At least five testers return for a second week
+- [ ] At least one Chinese and one English scenario complete across the cohort
+- [ ] No write action or third-party repository execution
+- [ ] No unsupported verified fact or unsafe license inference
+- [ ] No near match presented as a full match
+- [ ] Critical/High findings fixed or explicitly blocking the next release
 
-- [ ] Verify package name availability on PyPI
-- [ ] Configure PyPI Trusted Publishing
-- [ ] Publish wheel/sdist
-- [ ] Publish versioned container images to GHCR
-- [ ] Document one-command local MCP installation
+## Public plugin distribution
+
+- [x] Apache-2.0 repository and public support/security policies
+- [x] One-Skill submission pack with five positive and three-plus negative cases
+- [x] Production Universal MCP URL and accurate tool annotations
+- [x] Public website, Radar, support, privacy and working Terms URLs
+- [ ] Final logo and social-preview assets
+- [ ] Publisher/developer identity verification
+- [ ] Apps Management write access for the submitting organization
+- [ ] Publisher sign-off on service-specific privacy/retention and policy attestations
+- [ ] Clean combined Skill + MCP install acceptance
+- [ ] Portal domain challenge and MCP scan
+- [ ] Platform submission, review and staged rollout
+
+## Operations after directory submission
+
+- [ ] Monitor errors, latency, 429s, restarts and Radar upstream failures
+- [ ] Maintain an explicit deployment and rollback owner
+- [ ] Publish incident/support status updates when user impact is material
+- [ ] Use real activation and return-use metrics instead of GitHub stars alone
+
+The initial validation-traffic baseline is recorded in
+[`docs/production-monitoring-baseline.md`](docs/production-monitoring-baseline.md).
+It is not a substitute for real-user observation or a named incident owner.
 
 ## Future product expansion
 
-Potential work should be driven by real usage rather than feature count:
+Future work should be driven by real usage rather than feature count:
 
-- richer project/category exploration;
 - saved research and alerts;
 - evidence freshness and project-change views;
-- better cache efficiency for public Radar traffic;
-- adaptive anonymous abuse controls based on observed traffic;
+- report export and team workspaces;
+- better cache efficiency and adaptive abuse controls;
 - enterprise evaluation/report packs.
 
 ## Future member/server-model capability — separate version only
 
-The current product has no server-model/Premium route.
+The current product has no server-model/Premium route. Any later member-linked
+server inference must ship as a new reviewed version with explicit disclosure,
+secure member linking, existing AI Workstation quota accounting, privacy/cost
+review and a fresh candidate/evidence/deployment chain.
 
-If a later version introduces explicit AI Workstation server inference, it must be designed as a new reviewed product version and should:
-
-- safely link the caller to existing AI Workstation membership;
-- reuse existing AI Workstation model usage/quota accounting;
-- disclose server-side inference explicitly;
-- prove active/expired/disabled membership behavior;
-- receive a fresh privacy/cost/abuse/release evidence chain.
-
-Do not reintroduce a hidden OAuth/Premium switch or a second OSI credit database into the current data-only product.
-
-Write-capable tools and third-party repository execution remain outside the current product boundary.
+Write-capable tools, third-party repository execution and a hidden
+OAuth/Premium switch remain outside the current product boundary.

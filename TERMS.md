@@ -1,8 +1,8 @@
 # Terms of Use
 
-_Last updated: 2026-08-08_
+_Last updated: 2026-08-11_
 
-These terms apply to the public AI Workstation Open Source Intelligence repository, its distributed Skills package, and related pre-release documentation. A separately hosted AI Workstation service may publish service-specific terms that supersede this document for that hosted service.
+These terms apply to the public AI Workstation Open Source Intelligence repository, its distributed Skill and Python packages, and the anonymous read-only Hosted MCP at `https://mcp.aiworkstation.cn/mcp`. The public website terms at <https://useaistation.com/terms/> also apply to the hosted service; if a service-specific term conflicts with this repository document, the service-specific term governs that hosted use.
 
 ## 1. Open-source software
 
@@ -12,7 +12,7 @@ The Apache-2.0 license for this repository does **not** grant rights to private 
 
 ## 2. Pre-release status
 
-This project may be offered as alpha, beta, or other pre-release software. Pre-release features may change, become unavailable, or contain defects. There is no service-level commitment unless a separate written agreement says otherwise.
+This project and its Hosted MCP are currently offered as Alpha software. Features may change, become unavailable, be rate-limited, or contain defects. There is no service-level commitment unless a separate written agreement says otherwise.
 
 ## 3. Read-only research scope
 
@@ -45,7 +45,7 @@ The project may reference GitHub repositories, documentation sites, software pac
 
 ## 7. Privacy
 
-See [`PRIVACY.md`](PRIVACY.md) for the current repository and pre-release data-minimization statement. A public multi-user hosted service will publish service-specific privacy information before broad launch.
+See [`PRIVACY.md`](PRIVACY.md) and the public product privacy page at <https://useaistation.com/githubai/privacy/> for the current data-minimization statement. Do not submit credentials, confidential documents, private source code or other sensitive information to the anonymous Hosted MCP.
 
 ## 8. Security and support
 
@@ -57,4 +57,4 @@ The software is provided under the warranty and liability terms of Apache-2.0. P
 
 ## 10. Changes
 
-These terms may be updated as the project moves from pre-release distribution to a broader hosted service. Material hosted-service changes should be accompanied by updated public terms and privacy information.
+These terms may be updated as the Alpha and public plugin distribution evolve. Material data, identity, write-capability or model-execution changes must be accompanied by updated public terms and privacy information.

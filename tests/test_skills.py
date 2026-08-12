@@ -6,7 +6,7 @@ from pathlib import Path
 
 class SkillPackageTests(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[1]
-    SKILL_PATH = ROOT / "product-skills" / "ai-open-source-intelligence" / "SKILL.md"
+    SKILL_PATH = ROOT / "skills" / "ai-open-source-intelligence" / "SKILL.md"
 
     @classmethod
     def setUpClass(cls) -> None:

@@ -262,6 +262,18 @@ class PublicationWorkflowTests(unittest.TestCase):
             asset_ids,
         )
 
+    def test_workflows_install_jq_before_using_release_asset_queries(self) -> None:
+        release = self._workflow("release.yml")
+        ci = self._workflow("ci.yml")
+        install = "sudo apt-get update -qq && sudo apt-get install -y jq"
+        self.assertIn(install, release)
+        self.assertIn(install, ci)
+        build, promotion = release.split("  promotion-complete-and-publish-release:", 1)
+        self.assertIn(install, build)
+        self.assertLess(build.index(install), build.index("jq -c"))
+        self.assertIn(install, promotion)
+        self.assertLess(promotion.index(install), promotion.index("jq -r"))
+
     def test_release_contains_gated_ghcr_commit_promotion(self) -> None:
         content = self._workflow("release.yml")
         self.assertIn("ghcr-publish-and-verify:", content)

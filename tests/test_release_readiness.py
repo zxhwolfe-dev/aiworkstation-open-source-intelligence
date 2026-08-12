@@ -63,7 +63,7 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assertFalse(report["external_alpha_ready"])
         self.assertFalse(report["hosted_private_alpha_ready"])
         self.assertIn(
-            "Skills-only external-alpha gates are not complete",
+            "complete-Plugin external-alpha gates are not complete",
             report["hosted_alpha_blockers"],
         )
 
@@ -103,7 +103,7 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assertIn("README.md", required["details"]["missing"])
         self.assertIn("Dockerfile", required["details"]["missing"])
         self.assertIn(
-            "product-skills/ai-open-source-intelligence/SKILL.md",
+            "skills/ai-open-source-intelligence/SKILL.md",
             required["details"]["missing"],
         )
 

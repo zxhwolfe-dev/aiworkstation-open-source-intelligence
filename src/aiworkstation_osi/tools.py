@@ -287,7 +287,7 @@ def _mock_boundaries(data: Mapping[str, Any]) -> tuple[tuple[str, ...], tuple[Ri
     if not data.get("mock"):
         return (), ()
     return (
-        ("M0 is using deterministic fixture data; no live project fact has been verified.",),
+        ("The offline mock provider is using deterministic fixture data; no live project fact has been verified.",),
         (
             Risk(
                 code="MOCK_DATA",

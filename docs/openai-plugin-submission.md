@@ -1,6 +1,21 @@
 # OpenAI Plugin Submission Pack
 
-This document is maintained submission copy for the current **one-Skill + data-only Hosted MCP** product. Platform fields and review UI can change; verify the current OpenAI developer console at submission time.
+This document is maintained submission copy for the current **one-Skill + data-only Hosted MCP** product. It follows the OpenAI submission documentation checked on 2026-08-11. Recheck the live portal before submission because fields and review requirements can change.
+
+Current status: **prepared, not yet submitted or approved**.
+
+The repository package bundles the unified Skill and `.mcp.json` for a
+one-install Codex experience. For ChatGPT pre-submission testing, first register
+the production MCP in Developer mode and generate a local `.app.json` from that
+workspace's real app ID. Do not commit a fabricated or workspace-scoped app ID
+to the public package. The final directory submission must use **With MCP** and
+submit the production URL directly.
+
+Official references:
+
+- [Submit plugins](https://developers.openai.com/plugins/deploy/submission)
+- [Plugin review requirements](https://developers.openai.com/plugins/deploy/app-review)
+- [Build plugins](https://developers.openai.com/plugins/build/plugins)
 
 ## Product identity
 
@@ -42,7 +57,26 @@ https://useaistation.com/githubai/privacy/
 
 **Terms**
 
-https://useaistation.com/githubai/terms/
+https://useaistation.com/terms/
+
+## Submission shape
+
+Use these portal choices:
+
+```text
+Submission type: With MCP
+MCP URL type: Universal
+MCP URL: https://mcp.aiworkstation.cn/mcp
+Authentication: No Authentication
+Custom UI: none for the first public release
+Contents: one uploaded Skill + scanned nine-tool MCP server
+```
+
+Do not submit an existing integration reference. The portal must scan the
+production MCP URL as a new MCP-backed plugin submission. If domain verification
+is requested, place the exact portal token at the generated
+`/.well-known/openai-apps-challenge` URL on the MCP host or an accepted parent
+host; do not deploy a placeholder token in advance.
 
 ## Short description
 
@@ -121,11 +155,12 @@ The Skill may show these once at the end of an answer. They remain separate from
 
 ## Starter prompts
 
-1. Show me the current AI Open Source Radar and useful rankings or categories.
-2. Find a self-hosted RAG platform with Docker and a Web UI. Separate hard requirements from preferences.
-3. Compare Dify and RAGFlow for an enterprise knowledge-base use case and show which facts still require verification.
-4. Check what evidence I would need before relying on an open-source AI project's license for commercial adoption.
-5. Design a self-hosted open-source AI stack for internal document question answering and mark every unverified compatibility assumption.
+The directory manifest contains the current maximum of three single-line
+starter prompts, each no longer than 128 characters:
+
+1. Browse the current AI Open Source Radar and show the most relevant projects for my use case.
+2. Find a self-hosted RAG platform with Docker and a Web UI. Keep hard requirements separate from preferences.
+3. Compare Dify and RAGFlow for an enterprise knowledge base, separating evidence, assumptions, unknowns, and risks.
 
 ## Positive review cases
 
@@ -204,18 +239,26 @@ The Skill may show these once at the end of an answer. They remain separate from
 - official AI Workstation/Radar/repository resources in MCP results;
 - anonymous gateway abuse controls;
 - Apache-2.0 public distribution.
+- production `v0.3.0` Hosted MCP deployed from commit
+  `7b92e463a1da567afd5d1310601afdf1c6674646`;
+- English and Chinese hosted-public remote smoke passed with exact nine-tool
+  discovery and real search.
 
 ## Submission checklist
 
+- [ ] Apps Management write access confirmed for the submitting organization
 - [ ] Final publisher/developer verification complete
 - [ ] Logo uploaded and reviewed
-- [ ] Website and Radar URLs load publicly
-- [ ] Hosted MCP passes candidate-bound remote smoke
-- [ ] Support, Privacy and Terms URLs load without authentication
-- [ ] Plugin package contains exactly one active Skill
-- [ ] Positive and negative cases reproduced in a clean installation
-- [ ] Server-model/OAuth/Premium paths are not exposed by the release
+- [x] Website and Radar URLs load publicly
+- [x] Hosted MCP passes candidate-bound English and Chinese remote smoke
+- [x] Support, Privacy and Terms URLs load without authentication
+- [x] Plugin package contains exactly one active Skill and the reviewed Hosted MCP configuration
+- [ ] Five positive and at least three negative cases reproduced in a clean installation
+- [x] Server-model/OAuth/Premium paths are not exposed by the release
 - [ ] Starter prompts reviewed
 - [ ] Policy attestations reviewed by the publisher
-- [ ] Platform MCP connection identity uses the real production endpoint
-- [ ] Release notes match actual functionality
+- [x] Submission pack uses the real Universal production MCP endpoint
+- [x] Release notes match deployed `v0.3.0` functionality
+- [ ] MCP domain challenge completed with the portal-generated token
+- [ ] Country/region availability selected
+- [ ] Submission created, scan output reviewed, and review requested

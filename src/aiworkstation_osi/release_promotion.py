@@ -291,10 +291,11 @@ def validate_bundle_report(
     file_count = report.get("file_count")
     if (
         report.get("ok") is not True
-        or report.get("schema_version") != "osi.alpha-bundle.v1"
+        or report.get("schema_version") != "osi.alpha-bundle.v2"
         or report.get("name") != expected_name
         or report.get("version") != expected_version
-        or report.get("distribution_mode") != "skills-only"
+        or report.get("distribution_mode") != "skill-plus-hosted-mcp"
+        or report.get("hosted_mcp_config_bundled") is not True
         or report.get("live_mcp_bundled") is not False
         or type(file_count) is not int
         or file_count <= 0
@@ -325,10 +326,11 @@ def validate_bundle_report(
             if not isinstance(embedded, Mapping):
                 raise ReleasePromotionError("embedded bundle manifest must be an object")
             if (
-                embedded.get("schema_version") != "osi.alpha-bundle.v1"
+                embedded.get("schema_version") != "osi.alpha-bundle.v2"
                 or embedded.get("name") != expected_name
                 or embedded.get("version") != expected_version
-                or embedded.get("distribution_mode") != "skills-only"
+                or embedded.get("distribution_mode") != "skill-plus-hosted-mcp"
+                or embedded.get("hosted_mcp_config_bundled") is not True
                 or embedded.get("live_mcp_bundled") is not False
             ):
                 raise ReleasePromotionError("embedded bundle manifest identity is invalid")

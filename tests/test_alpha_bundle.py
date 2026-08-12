@@ -13,7 +13,7 @@ from aiworkstation_osi.alpha_bundle import BUNDLE_SCHEMA_VERSION, build_alpha_bu
 class AlphaBundleTests(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[1]
 
-    def test_bundle_contains_one_reviewed_skill_distribution_surface(self) -> None:
+    def test_bundle_contains_one_reviewed_complete_plugin_surface(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             report = build_alpha_bundle(self.ROOT, Path(temp_dir))
             archive = Path(report["archive"])
@@ -22,10 +22,13 @@ class AlphaBundleTests(unittest.TestCase):
                 manifest = json.loads(bundle.read("BUNDLE-MANIFEST.json"))
 
             self.assertEqual(report["schema_version"], BUNDLE_SCHEMA_VERSION)
-            self.assertEqual(report["distribution_mode"], "skills-only")
+            self.assertEqual(report["distribution_mode"], "skill-plus-hosted-mcp")
+            self.assertTrue(report["hosted_mcp_config_bundled"])
             self.assertFalse(report["live_mcp_bundled"])
             self.assertIn(".codex-plugin/plugin.json", names)
+            self.assertIn(".mcp.json", names)
             self.assertIn(".agents/plugins/marketplace.json", names)
+            self.assertIn("assets/plugin-icon.svg", names)
             self.assertIn("README.md", names)
             self.assertIn("README.zh-CN.md", names)
             self.assertIn("CHANGELOG.md", names)
@@ -37,14 +40,16 @@ class AlphaBundleTests(unittest.TestCase):
             self.assertIn("SUPPORT.md", names)
             self.assertIn("docs/QUICKSTART.md", names)
             self.assertIn("docs/FAQ.md", names)
-            self.assertIn("product-skills/ai-open-source-intelligence/SKILL.md", names)
+            self.assertIn("docs/production-monitoring-baseline.md", names)
+            self.assertIn("skills/ai-open-source-intelligence/SKILL.md", names)
             self.assertIn("docs/alpha-tester-guide.md", names)
             self.assertIn("schemas/tool-result.schema.json", names)
             self.assertIn("schemas/error.schema.json", names)
-            self.assertFalse(any(name.startswith("skills/") for name in names))
+            self.assertFalse(any(name.startswith("product-skills/") for name in names))
             self.assertNotIn("src/aiworkstation_osi/mcp_server.py", names)
             self.assertNotIn("pyproject.toml", names)
-            self.assertEqual(manifest["distribution_mode"], "skills-only")
+            self.assertEqual(manifest["distribution_mode"], "skill-plus-hosted-mcp")
+            self.assertTrue(manifest["hosted_mcp_config_bundled"])
             self.assertFalse(manifest["live_mcp_bundled"])
 
     def test_embedded_manifest_matches_every_packaged_file(self) -> None:

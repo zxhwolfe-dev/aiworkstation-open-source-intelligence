@@ -72,16 +72,17 @@ If a later version adds explicit member-only server inference, existing AI Works
 
 A reusable invite/activation code must never become an MCP bearer credential or ordinary tool argument.
 
-## Public launch gates still required
+## Public plugin launch gates still required
 
-Hosted Private Alpha readiness alone does not mean broad public launch.
+Successful production Hosted deployment alone does not mean the combined plugin
+is approved for the public Plugins Directory.
 
 Before broad promotion/platform publication, complete:
 
-1. final service-specific Privacy/Terms/support/retention review;
+1. final publisher sign-off on service-specific Privacy/Terms/support/retention;
 2. real-user anonymous traffic observation and abuse-threshold tuning;
 3. production error/latency/429 monitoring;
-4. actual platform MCP connection registration;
+4. actual platform plugin draft, MCP scan and domain verification;
 5. fresh-install validation of the combined one-Skill + Hosted MCP experience;
 6. platform/directory submission and review where applicable;
 7. staged rollout and rollback ownership.
@@ -102,7 +103,7 @@ For each production candidate:
 8. exact remote deployment identity;
 9. exactly nine read-only tools and no Premium tool;
 10. real standard-tool search invocation;
-11. final public Hosted readiness.
+11. final candidate-bound Hosted readiness.
 
 No OAuth/WorkOS/payment step is part of this sequence.
 

@@ -37,7 +37,7 @@ jobs:
           python -m unittest discover -s tests -v
           osi-validate-plugin --root .
 
-      - name: Build deterministic Skills-only bundle
+      - name: Build deterministic complete Plugin bundle
         run: |
           set -euo pipefail
           osi-build-alpha --root . --output-dir dist/alpha
@@ -66,7 +66,9 @@ jobs:
           expected = {
               "BUNDLE-MANIFEST.json",
               ".codex-plugin/plugin.json",
+              ".mcp.json",
               ".agents/plugins/marketplace.json",
+              "assets/plugin-icon.svg",
               "README.md",
               "README.zh-CN.md",
               "LICENSE",
@@ -79,7 +81,7 @@ jobs:
               "schemas/tool-manifest.json",
               "schemas/tool-result.schema.json",
               "schemas/error.schema.json",
-          "product-skills/ai-open-source-intelligence/SKILL.md",
+              "skills/ai-open-source-intelligence/SKILL.md",
               "SECURITY.md",
               "PRIVACY.md",
               "SUPPORT.md",
@@ -94,10 +96,12 @@ jobs:
           )
           if missing or forbidden:
               raise SystemExit(f"unsafe package surface: missing={missing} forbidden={forbidden}")
-          if manifest.get("distribution_mode") != "skills-only":
-              raise SystemExit("alpha bundle must declare skills-only distribution")
+          if manifest.get("distribution_mode") != "skill-plus-hosted-mcp":
+              raise SystemExit("alpha bundle must declare Skill plus Hosted MCP distribution")
+          if manifest.get("hosted_mcp_config_bundled") is not True:
+              raise SystemExit("alpha bundle must include the reviewed Hosted MCP configuration")
           if manifest.get("live_mcp_bundled") is not False:
-              raise SystemExit("alpha bundle must not claim a bundled live MCP server")
+              raise SystemExit("alpha bundle must not claim the remote MCP runtime is embedded")
           PY
 
       - name: Write package summary
@@ -111,7 +115,7 @@ jobs:
           report = json.loads(Path("dist/alpha/bundle-report.json").read_text(encoding="utf-8"))
           summary = "\n".join(
               [
-                  "# Skills-only alpha package",
+                  "# Complete Plugin alpha package",
                   "",
                   f"- Name: `{report['name']}`",
                   f"- Version: `{report['version']}`",
@@ -119,9 +123,10 @@ jobs:
                   f"- SHA-256: `{report['archive_sha256']}`",
                   f"- Packaged files: `{report['file_count']}`",
                   "- License: `Apache-2.0`",
-                  "- Live MCP bundled: `false`",
+                  "- Hosted MCP configuration bundled: `true`",
+                  "- Remote MCP runtime embedded: `false`",
                   "",
-                  "The package contains the reviewed unified Skill plus bilingual quickstart, license, terms, security, privacy and support documentation.",
+                  "The package contains the reviewed unified Skill, production Hosted MCP connection, and bilingual quickstart, license, terms, security, privacy and support documentation.",
               ]
           ) + "\n"
           Path("dist/alpha/SUMMARY.md").write_text(summary, encoding="utf-8")
@@ -133,7 +138,7 @@ jobs:
       - name: Upload reviewed alpha package
         uses: actions/upload-artifact@v4
         with:
-          name: ai-open-source-intelligence-skills-alpha-${{ github.run_id }}
+          name: ai-open-source-intelligence-plugin-alpha-${{ github.run_id }}
           path: dist/alpha
           if-no-files-found: error
           retention-days: 14

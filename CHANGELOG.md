@@ -2,6 +2,36 @@
 
 All notable pre-release changes are recorded here. Dates refer to repository changes, not public availability.
 
+## [Unreleased]
+
+## [0.3.1] - 2026-08-11
+
+### Changed
+
+- Replaced the repository's Skills-only Plugin package with a complete package
+  that bundles the unified Skill and the production Hosted MCP configuration.
+- Kept the remote MCP runtime independently deployed and preserved `v0.3.0` as
+  an immutable historical artifact; the complete package requires a new patch
+  release.
+- Aligned public listing copy and starter prompts with current directory limits
+  and added the required square Plugin logo/composer icon.
+
+### Fixed
+
+- Aligned the complete Plugin with the canonical Codex ingestion contract by
+  using the standard `skills/` root and the `.mcp.json` `mcpServers` shape,
+  removing an unsupported interface field, and separating marketplace
+  installation policy from the anonymous Hosted MCP authentication mode.
+- Aligned active onboarding, architecture, security, deployment and Alpha docs
+  with the released one-Skill, nine-tool `v0.3.0` product and its production
+  Hosted deployment.
+- Added current ChatGPT Developer mode, Codex Hosted MCP and PyPI installation
+  paths without claiming public plugin-directory approval.
+- Replaced the plugin Terms URL that returned `404` and added regression checks
+  for pre-`v0.3.0` tool-count copy.
+- Corrected the `osi-m0 list-tools` help text and Codex allowlist example from
+  six tools to nine.
+
 ## [0.3.0] - 2026-08-10
 
 ### Changed

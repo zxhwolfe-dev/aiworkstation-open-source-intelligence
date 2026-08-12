@@ -58,7 +58,7 @@ class MockProjectIntelligenceProvider:
             {
                 "project_id": "langgenius/dify",
                 "name": "Dify",
-                "summary": "Example workflow platform record for M0 tests.",
+                "summary": "Example workflow platform record for offline tests.",
                 "license": "OTHER",
                 "deployment": ["self-hosted", "docker"],
                 "capabilities": ["workflow", "rag", "web-ui"],
@@ -70,7 +70,7 @@ class MockProjectIntelligenceProvider:
             {
                 "project_id": "infiniflow/ragflow",
                 "name": "RAGFlow",
-                "summary": "Example RAG platform record for M0 tests.",
+                "summary": "Example RAG platform record for offline tests.",
                 "license": "Apache-2.0",
                 "deployment": ["self-hosted", "docker"],
                 "capabilities": ["rag", "document-processing", "web-ui"],

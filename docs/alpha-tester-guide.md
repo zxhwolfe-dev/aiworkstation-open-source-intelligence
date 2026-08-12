@@ -1,28 +1,36 @@
 # External Alpha Tester Guide
 
-This guide is for a small, invited alpha group testing the unified Skill and nine
-read-only MCP tools. The alpha is not a hosted public product and does not carry
-a service-level guarantee.
+This guide is for a small, invited cohort testing the unified Skill and the
+production Hosted MCP's nine read-only tools. The endpoint is publicly
+reachable, but the product remains an Alpha without a service-level guarantee.
 
 ## What testers receive
 
-The alpha may be tested in two modes:
+The alpha should cover these modes:
 
-### Skills-only package
+### Complete repository Plugin (recommended for Codex)
 
-Contains:
+Contains one active Skill and the reviewed Hosted MCP connection:
 
-- `open-source-project-research`
-- `open-source-project-comparison`
-- `open-source-stack-planner`
+- `ai-open-source-intelligence`
+- `https://mcp.aiworkstation.cn/mcp`
 
-This mode teaches the agent the workflow and safety boundaries. It does not
-provide live Radar tools by itself. The Skill must disclose that live facts are
-unavailable rather than fabricate results.
+After the packaging change reaches `main`, install this Plugin once from the
+repository Marketplace. Confirm that the Skill and all nine live tools become
+available without adding a separate global MCP entry. The immutable `v0.3.0`
+archive remains Skills-only and must not be rebuilt; use `v0.3.1` for the
+versioned complete-Plugin Alpha.
 
-### Local MCP mode
+### Hosted MCP mode (recommended for product testing)
 
-Adds six read-only tools:
+Connect to:
+
+```text
+https://mcp.aiworkstation.cn/mcp
+```
+
+The endpoint uses no authentication in the current data-only release and
+exposes nine read-only tools:
 
 - `search_ai_projects`
 - `get_project_facts`
@@ -30,32 +38,59 @@ Adds six read-only tools:
 - `compare_ai_projects`
 - `find_alternatives`
 - `compose_ai_stack`
+- `get_radar_overview`
+- `browse_radar_projects`
+- `browse_radar_skills`
+
+Follow [`QUICKSTART.md`](QUICKSTART.md) for ChatGPT Developer mode or the
+complete Codex Plugin. ChatGPT web still uses a standalone Developer-mode
+connection until the With-MCP public Plugin passes platform review.
+
+### Local MCP mode (developer validation)
 
 Start with the offline mock provider, then enable the public HTTP provider only
 after the tester understands the data and license limitations.
 
 ## Test environment
 
-Recommended:
+Recommended for every tester:
 
-- Python 3.12;
-- a fresh virtual environment;
 - a current Codex CLI or another MCP host;
 - no production credentials in the environment;
-- a disposable working directory.
+- a new conversation for each assigned scenario.
 
-Install from a reviewed repository checkout:
+For local developer validation, also use Python 3.12, a fresh virtual
+environment and a disposable working directory.
+
+Hosted-only testers do not need Python. Local developer testers should install
+the `v0.3.1` package in a fresh environment after it is published:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e ".[mcp]"
-python -m unittest discover -s tests -v
+python -m pip install \
+  "aiworkstation-open-source-intelligence[mcp]==0.3.1"
+osi-m0 list-tools
 ```
 
-Follow [`codex-setup.md`](codex-setup.md) to connect `osi-mcp`.
+Repository contributors may instead use a reviewed checkout and editable
+installation. Follow [`codex-setup.md`](codex-setup.md) to connect Hosted or
+local `osi-mcp`.
 
-## First test: offline mock
+## Required product test: Hosted MCP
+
+Install the complete Plugin or connect ChatGPT Developer mode using
+[`QUICKSTART.md`](QUICKSTART.md), then run the assigned scenarios below.
+Expected baseline:
+
+- the host discovers exactly nine tools;
+- no authentication or AI Workstation account is requested;
+- a real search returns `osi.tool-result.v2`;
+- tool annotations remain read-only, non-destructive, idempotent and open-world;
+- facts, recommendations, unknowns and risks remain visibly separate;
+- no Premium, checkout, credits or server-model tool appears.
+
+## Optional developer test 1: offline mock
 
 Run:
 
@@ -72,7 +107,7 @@ Expected behavior:
 - invalid arguments return stable model-readable errors;
 - no repository code is executed.
 
-## Second test: public read-only provider
+## Optional developer test 2: local public read-only provider
 
 After offline testing:
 
@@ -129,7 +164,7 @@ For every issue, provide:
 Commit SHA:
 Client and version:
 Operating system:
-Provider: mock or http
+Provider: hosted / mock / local-http
 Language: zh or en
 Skill or tool:
 Sanitized request summary:
@@ -161,7 +196,7 @@ a public issue.
 
 The invited alpha is successful when:
 
-- testers can install the Skills-only package;
+- testers can install the unified Skill and connect the Hosted MCP;
 - Codex discovers exactly nine tools in MCP mode;
 - all required scenarios complete without writes or execution;
 - no verified fact lacks evidence;

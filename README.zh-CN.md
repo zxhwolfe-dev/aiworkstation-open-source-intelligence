@@ -43,7 +43,7 @@ ai-open-source-intelligence
 唯一正式 Skill 来自：
 
 ```text
-product-skills/ai-open-source-intelligence/SKILL.md
+skills/ai-open-source-intelligence/SKILL.md
 ```
 
 之前拆开的“项目研究 / 项目对比 / 技术栈规划”三个 Skill 文件已从当前产品和分发包中彻底移除。
@@ -153,6 +153,26 @@ https://mcp.aiworkstation.cn/mcp
 - 专用 MCP 域名其他路径直接 `404`。
 
 这里按“请求次数”限制，而不是按网站 10 万/100 万 Token 限制，因为这 9 个数据工具不消耗 AI Workstation 模型 Token。
+
+## 现在如何使用
+
+仓库 Plugin 现在已经把统一 Skill 与生产 Hosted MCP 配置打在一起。该改动
+进入 `main` 后，Codex 与 ChatGPT 桌面版的 Codex Host 可从一个 Marketplace
+条目同时安装两者；ChatGPT 公共目录仍在等待审核。当前可用方式：
+
+- Codex / ChatGPT 桌面版：安装完整的仓库 Plugin；
+- ChatGPT 网页端：公共目录上架前，在 Developer mode 中把
+  `https://mcp.aiworkstation.cn/mcp` 注册为 **No Authentication** 应用；
+- Python/CLI：`v0.3.1` 发布后，安装同版本包：
+
+```bash
+python -m pip install \
+  "aiworkstation-open-source-intelligence[mcp]==0.3.1"
+```
+
+具体步骤见[快速开始](docs/QUICKSTART.md)。不可变的 `v0.3.0` 压缩包仍是旧的
+Skills-only 制品；完整 Plugin 使用 `v0.3.1` 补丁版本发布，不能覆盖重建
+`v0.3.0`。
 
 ## 本地开发
 

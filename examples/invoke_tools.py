@@ -1,4 +1,4 @@
-"""Run deterministic M0 examples after `python -m pip install -e .`."""
+"""Run deterministic offline examples after `python -m pip install -e .`."""
 
 from __future__ import annotations
 

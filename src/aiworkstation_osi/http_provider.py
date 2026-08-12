@@ -54,7 +54,7 @@ class UrllibJsonTransport:
         *,
         allow_insecure_http: bool = False,
         max_response_bytes: int = 2_000_000,
-        user_agent: str = "aiworkstation-open-source-intelligence/0.3.0",
+        user_agent: str = "aiworkstation-open-source-intelligence/0.3.1",
     ) -> None:
         normalized = base_url.rstrip("/")
         parsed = urllib.parse.urlparse(normalized)

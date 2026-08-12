@@ -2,251 +2,196 @@
 
 ## Product goal
 
-Convert AI Open Source Radar capabilities into reusable Skills and read-only
-tools for evidence-backed project research, comparison and technology-stack
-planning.
+AI Open Source Intelligence converts public AI Open Source Radar capabilities
+into one reusable Skill and nine read-only tools for evidence-backed project
+research, comparison and technology-stack planning.
 
-The distributable product is intentionally narrower than AI Workstation. It does
-not reproduce the full website, private data-production pipeline,
-administration system or user-account layer.
+It is intentionally narrower than AI Workstation. It does not reproduce the
+private data-production pipeline, account system, payments, administration or
+server-side model products.
 
-## Current layered design
+## Current product shape
 
 ```text
-User / ChatGPT / Codex / MCP client
-                 |
-                 v
-Skills: trigger rules, workflow, tool ordering, output policy
-                 |
-                 v
-       +---------+------------------+
-       |                            |
-MCP stdio transport        Guarded Streamable HTTP transport
-(local development)        (local/private hosted alpha)
-       |                            |
-       +-------------+--------------+
-                     v
-ToolRegistry: strict validation + unified result envelope
-                     |
-                     v
-ProjectIntelligenceProvider protocol
-          /                              \
-Deterministic mock             Hardened public HTTP provider
-                                           |
-                                           v
-AI Workstation public list/detail/selector endpoints
-                                           |
-                                           v
-Current healthy validated Radar release
+User in ChatGPT / Codex / compatible MCP host
+                    |
+                    v
+        ai-open-source-intelligence Skill
+                    |
+                    v
+              9 MCP tools
+          /                    \
+ local stdio MCP        public Hosted MCP
+ mock or HTTP provider  mcp.aiworkstation.cn
+          \                    /
+                    v
+       hardened public Radar provider
+                    |
+                    v
+        AI Workstation public Radar APIs
 ```
 
-A reverse proxy/private-network boundary sits in front of non-local Streamable
-HTTP deployments. It is outside the MCP application process and must provide
-real authentication/private-network protection before hosted alpha access.
+The host model performs natural-language reasoning and final synthesis. The
+current AI Workstation path supplies data/evidence only and fixes selector
+requests to `use_model=false`.
 
-## Responsibilities
+## Unified Skill
 
-### Skills
+The only active product Skill is:
 
-Skills define when to run a workflow, what information to collect, which tools
-to call, how to handle empty/conflicting evidence and how to present the answer.
-They contain no live project database.
+```text
+ai-open-source-intelligence
+```
 
-First Skills:
+It routes Radar browsing, project discovery, fact/license verification,
+comparison, alternatives and stack planning. The Skill contains no live project
+database and must not substitute model memory when current evidence is
+unavailable.
 
-- `open-source-project-research`
-- `open-source-project-comparison`
-- `open-source-stack-planner`
+## Nine-tool surface
 
-### MCP tool registration
+`src/aiworkstation_osi/mcp_server.py` registers exactly nine MCP tools:
 
-`src/aiworkstation_osi/mcp_server.py` defines exactly six read-only tools and
-owns:
+| Tool | Purpose | Writes business data |
+| --- | --- | ---: |
+| `search_ai_projects` | Find candidates from typed requirements. | No |
+| `get_project_facts` | Get current facts for one stable project ID. | No |
+| `get_license_evidence` | Inspect direct license evidence without legal conclusions. | No |
+| `compare_ai_projects` | Compare two to five projects in one decision context. | No |
+| `find_alternatives` | Find alternatives while preserving hard requirements. | No |
+| `compose_ai_stack` | Build a candidate architecture and expose unknown compatibility. | No |
+| `get_radar_overview` | Discover current Radar views and navigation dimensions. | No |
+| `browse_radar_projects` | Browse rankings, collections, categories and filtered projects. | No |
+| `browse_radar_skills` | Browse or inspect the public Radar Skills library. | No |
 
-- MCP tool registration and typed signatures;
-- server-wide workflow and safety instructions;
-- read-only/non-destructive/idempotent/open-world annotations;
-- conversion of stable product errors into model-readable tool failures.
+All tools advertise read-only, non-destructive, idempotent and open-world MCP
+annotations. They never install or execute third-party repository code.
+Requirement selection may create, poll or cancel a short-lived upstream task;
+that control-plane effect is disclosed and is not a user/third-party business
+data write.
 
-It does not own project search, evidence, comparison or provider logic.
+## Transport entrypoints
 
-### Transport entrypoints
+### Local stdio
 
-`osi-mcp` runs the tool set over stdio and opens no network listener.
+`osi-mcp` opens no network listener. It uses deterministic mock data unless
+`OSI_PROVIDER=http` is selected explicitly.
 
-`osi-mcp-http` runs the same server over stateless JSON Streamable HTTP. It owns
-only deployment configuration and fail-closed bind policy:
+### Local / self-hosted Streamable HTTP
 
-- safe default `127.0.0.1:8000`;
-- non-loopback binds require explicit private-network/reverse-proxy
-  acknowledgement;
-- non-loopback mode requires the live HTTP provider;
-- live Radar origin is restricted to allow-listed HTTPS origins;
-- the bind acknowledgement is explicitly not authentication.
+`osi-mcp-http` defaults to `127.0.0.1:8000`. Non-loopback binds require explicit
+Host policy, an approved public Radar origin and a deployment acknowledgement.
+The acknowledgement is not authentication.
 
-No business logic is duplicated between transports.
+### Production Hosted MCP
 
-### Tool core
+`osi-mcp-hosted` runs the anonymous data-only server at the canonical public
+endpoint:
 
-`src/aiworkstation_osi/tools.py` and adjacent contract modules own:
+```text
+https://mcp.aiworkstation.cn/mcp
+```
 
-- stable tool names;
-- strict top-level and nested input validation;
-- error normalization;
-- the provider boundary;
-- the unified result envelope;
-- deterministic mock behavior for tests.
+The container listens only through host loopback `127.0.0.1:8001` behind
+Nginx/TLS. The dedicated hostname proxies `/mcp`, returns `404` elsewhere,
+enforces strict Host behavior, limits request bodies and applies per-IP short,
+sustained and concurrent-connection controls.
 
-There is no implicit live network access. Live Radar reads occur only when
-`OSI_PROVIDER=http` is explicitly selected.
+The current Hosted access mode is only:
 
-### Provider adapters
+```text
+OSI_HOSTED_ACCESS_MODE=public
+```
 
-The provider protocol permits multiple read-only data sources without changing
-Skills or MCP definitions.
+OAuth/Premium configuration fails closed. There is no checkout, credits,
+membership lookup or AI Workstation server-model tool in this release.
 
-#### Mock provider
+## Provider boundary
+
+`FullToolRegistry` extends the six selection/evidence operations with three
+Radar browsing operations. Both registry layers depend on a read-only
+`ProjectIntelligenceProvider` protocol.
+
+### Mock provider
 
 - deterministic and offline;
 - clearly marked `MOCK_DATA`;
-- suitable for development/protocol tests only.
+- suitable only for development and protocol tests.
 
-#### Public HTTP provider
+### Public HTTP provider
 
-- calls public AI Workstation Radar endpoints only;
+- calls anonymous public Radar routes only;
 - never imports private `akaiagents` modules;
-- requires public snapshot identity;
-- rejects mixed snapshots and unsafe selector states;
-- keeps near matches separate;
+- validates project and snapshot identity;
+- rejects mixed snapshots and internal-field leakage;
+- requires safe selector evidence states;
+- keeps formal matches separate from near matches;
 - converts missing/sentinel licenses into unknowns;
-- rejects malformed/oversized/internal-field responses.
+- rejects malformed, deep, oversized or unsafe responses.
 
-### Validation and replay layer
+## Result contract
 
-`osi-probe` checks live facts/license/search behavior.
-
-`osi-capture-contracts` creates bounded sanitized public response fixtures.
-
-`osi-validate-contracts` verifies fixture invariants without network access.
-
-`osi-replay-contracts` feeds those exact captured contracts through the same
-hardened provider used by runtime entrypoints. Locale and project identity come
-from the capture manifest.
-
-`osi-remote-smoke` connects through a real MCP client to a deployed Streamable
-HTTP endpoint, verifies the six-tool surface and annotations, and can optionally
-perform one read-only search. Remote endpoints require credential-free HTTPS.
-
-## Unified result contract
-
-Every successful tool returns `osi.tool-result.v2` with first-class fields:
+Every success uses `osi.tool-result.v2` and keeps these boundaries first-class:
 
 - `data`: tool-specific structured output;
-- `verified_facts`: facts with confidence and evidence;
+- `verified_facts`: source-backed facts with observation context;
 - `recommendations`: analysis with rationale and assumptions;
 - `unknowns`: missing or unverified conditions;
-- `risks`: explicit adoption, license, security or integration limits.
+- `risks`: license, maintenance, deployment, security or integration limits.
 
-A transport cannot collapse these boundaries into an undifferentiated answer.
+Every expected product error uses `osi.error.v2`. Transports must not collapse
+these structures into an undifferentiated answer.
 
-## Tool set
+## Trust and evidence rules
 
-| Tool | Purpose | Writes |
-| --- | --- | ---: |
-| `search_ai_projects` | Find candidates from requirements and constraints. | No |
-| `get_project_facts` | Get current facts for one stable project ID. | No |
-| `get_license_evidence` | Get observed license evidence without legal conclusions. | No |
-| `compare_ai_projects` | Compare two to five projects in one decision context. | No |
-| `find_alternatives` | Find constrained alternatives to a project. | No |
-| `compose_ai_stack` | Compose a candidate architecture from verified components. | No |
+- user input and retrieved repository/web text are untrusted;
+- provider output is untrusted until adapter validation passes;
+- missing license evidence is unknown, not permission;
+- hard requirements are not silently weakened;
+- near matches never become formal matches;
+- compatibility remains unverified until evidence or controlled testing exists;
+- contract captures are sanitized before retention;
+- operator deployment attestations must map to real infrastructure evidence.
 
-## Snapshot and evidence rules
+## Release and deployment identity
 
-Time-sensitive comparisons and hydrated candidates use one current public
-snapshot. The system fails closed rather than combining incompatible project
-generations.
+Every production candidate binds:
 
-A public response becomes a verified fact only after the adapter establishes
-stable project identity, compatible snapshot identity, public observation source
-and time, adequate coverage and a non-conflicting evidence/license state.
+```text
+source commit
+  = release target commit
+  = OCI revision / OSI_IMAGE_COMMIT
+  = OSI_RELEASE_COMMIT
+  = remote serverInfo.version commit
+```
 
-Recommendations, architecture choices and cross-project compatibility remain
-analysis even when individual component facts are valid.
+Candidate-bound CI, bilingual contract validation, Codex nine-tool acceptance,
+human artifact review, exact-image deployment and bilingual remote smoke must be
+repeated for a changed runtime candidate.
 
-## Trust model
+The `v0.3.1` Plugin/package candidate does not mutate the existing `v0.3.0` tag
+or deployed image. If operators later deploy a `v0.3.1` runtime image, the full
+candidate-bound runtime evidence chain above must be repeated first.
 
-- user input is untrusted;
-- repository/web text is untrusted data;
-- provider output is untrusted until validated;
-- third-party code is never executed;
-- missing license is unknown, not permission;
-- compatibility is unknown until verified/tested;
-- near matches are not formal recommendations;
-- production response fixtures are sanitized before retention;
-- a network bind is not authentication;
-- hosted gateway/private-network attestations are operator claims that must map
-  to real infrastructure.
+## Current scope and deferred work
 
-## Container/deployment boundary
+Included now:
 
-The runtime image includes only the Python package and MCP dependency. It runs as
-a non-root user. The example Compose deployment uses a read-only filesystem,
-bounded tmpfs, dropped capabilities, `no-new-privileges`, resource limits and a
-host-loopback port mapping.
+- one unified Skill;
+- nine anonymous read-only tools;
+- mock and hardened public HTTP providers;
+- stdio and guarded Streamable HTTP transports;
+- public production Hosted MCP with gateway controls;
+- deterministic Skill archive and Python package;
+- bilingual validation, replay and release evidence tooling.
 
-Those controls are defense in depth. TLS, identity, rate limiting, abuse
-blocking, production logging and public DNS remain infrastructure concerns.
+Deferred until real usage justifies a new reviewed version:
 
-## Current M1 Alpha scope
+- server-side model inference, login, membership and billing;
+- saved projects, alerts, teams and write-capable tools;
+- compatibility guarantees for independent third-party projects;
+- multi-region/SLA infrastructure.
 
-Included:
-
-- three complete Skills;
-- six bounded read-only tools;
-- unified contracts and error model;
-- deterministic mock provider;
-- hardened public Radar provider;
-- stdio MCP transport;
-- guarded Streamable HTTP transport;
-- non-root container/private-alpha Compose scaffold;
-- local and remote MCP compatibility tests;
-- bilingual evals and public-contract validation/replay;
-- Skills-only plugin and deterministic alpha archive;
-- four-level readiness report;
-- security, privacy, support, deployment and release documentation.
-
-Not included:
-
-- native per-user OAuth/authorization and revocation;
-- production quotas, billing, rate limits and abuse control;
-- final hosted MCP platform connection mapping;
-- public plugin-directory submission;
-- production SLA/multi-region observability infrastructure;
-- write tools, saved projects, alerts or teams;
-- compatibility guarantees between third-party projects.
-
-## Validation path
-
-Before invited Skills-only alpha:
-
-1. run local and GitHub CI;
-2. run/review bilingual production contracts;
-3. test the Skills package and stdio MCP from Codex;
-4. generate `external_alpha_ready=true` with real evidence.
-
-Before invited hosted private alpha:
-
-5. deploy the guarded container behind an authenticated gateway or trusted
-   private network;
-6. run bilingual remote MCP smoke tests;
-7. generate `hosted_private_alpha_ready=true` with real evidence.
-
-Before broad public hosting:
-
-8. implement the selected identity/OAuth, revocation, quota, rate-limit and
-   abuse model;
-9. publish final legal/support URLs and select the software license;
-10. register/review the final platform connection.
-
-Any missing upstream Radar field becomes a documented minimal additive request
-for `akaiagents`; this repository does not modify that project's main branch.
+Public plugin-directory approval, fresh-install user acceptance and External
+Alpha retention measurement are release/operations work, not hidden runtime
+capabilities.

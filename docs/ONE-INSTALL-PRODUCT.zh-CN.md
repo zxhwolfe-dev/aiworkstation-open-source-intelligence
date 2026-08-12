@@ -6,6 +6,16 @@ AI Open Source Intelligence 0.3 由一个统一 Skill 和九个匿名、只读�
 
 当前版本没有 OAuth、会员、支付、Credits、Checkout、Premium 工具或 AI Workstation 服务器模型调用，也不存在可重新开启这些能力的环境变量。
 
+仓库 Plugin 已通过 `.mcp.json` 把统一 Skill 与生产 Hosted MCP 配置放进同一
+安装包。该改动进入 `main` 后，Codex 与 ChatGPT 桌面版的 Codex Host 可以从
+一个 Marketplace 条目安装完整 Plugin。已发布的 `v0.3.0` 压缩包仍是不可变
+的 Skills-only 历史制品，完整包使用 `v0.3.1` 补丁版本，不能覆盖重建。
+
+ChatGPT 网页端在公共目录审核前仍需先注册 Developer-mode MCP 连接；正式
+提交必须选择 **With MCP / Universal / No Authentication**。因此可以对
+Codex Alpha 宣传“一次安装”，但在公共目录审核通过前，不能对所有 ChatGPT
+普通用户宣传已经实现公共一键安装。
+
 ## 九个工具
 
 `search_ai_projects`、`get_project_facts`、`get_license_evidence`、`compare_ai_projects`、`find_alternatives`、`compose_ai_stack`、`get_radar_overview`、`browse_radar_projects`、`browse_radar_skills`。

@@ -73,15 +73,16 @@ Upload it in repository Settings → General → Social preview.
 
 Keep the language switch at the top of both files.
 
-## First GitHub Release
+## Historical v0.3.0 Release
 
 Use the guarded `github-release` workflow after the final release candidate passes CI/live/Codex validation. This single workflow builds and creates the GitHub Release, validates and promotes the exact wheel/sdist to PyPI with Trusted Publishing, and builds the exact commit-addressed image in GHCR. The former split release-event workflows are retired; no `release: published` fan-out is used.
 
-Recommended first release:
+The first production Hosted runtime and historical Skills-only archive are
+already published. Do not rebuild, overwrite or move this release:
 
 ```text
 Tag: v0.3.0
-Commit: the full 40-character SHA of the reviewed release candidate
+Commit: 7b92e463a1da567afd5d1310601afdf1c6674646
 Title: v0.3.0 — AI Open Source Intelligence
 Pre-release: Yes
 ```
@@ -154,7 +155,7 @@ environment `pypi`. Configure a required reviewer on the `pypi` GitHub
 environment for production release control.
 
 - [ ] Cohort 1 critical/high feedback triaged
-- [ ] release candidate CI 3.10/3.12 green
+- [ ] release candidate CI 3.10/3.11/3.12 green
 - [ ] bilingual live validation green
 - [ ] current-commit Codex acceptance green
 - [ ] public artifact privacy review green
@@ -165,10 +166,33 @@ environment for production release control.
 - [ ] release notes match actual functionality
 - [ ] release is marked pre-release
 
+## Next complete-Plugin patch release
+
+The repository now contains a complete one-Skill + Hosted MCP Plugin candidate
+with version `0.3.1`. It is a new package identity because the published
+`v0.3.0` archive is immutable; it must never be rebuilt in place.
+
+Do not run this workflow until PR #26 is merged to `main`, the live policy copy
+has been approved by the publisher, and the required Alpha/platform gates are
+complete. Then dispatch the guarded `github-release` workflow with:
+
+```text
+Tag: v0.3.1
+Commit: the full 40-character SHA of the merged `main` candidate
+Title: v0.3.1 — AI Open Source Intelligence complete Plugin
+Pre-release: Yes (the product remains Alpha)
+```
+
+The workflow must build the exact commit, create the GitHub Release and all
+assets, promote the same wheel/sdist to PyPI with Trusted Publishing, and push
+the exact commit-addressed GHCR image. Publishing the complete Plugin does not
+require redeploying the already verified v0.3.0 Hosted runtime. A runtime
+change requires a separate candidate-bound deployment and rollback review.
+
 ## After publishing
 
 - pin the release announcement in Discussions;
 - update the product website with the release link;
 - share one concrete use case rather than a generic “we launched an MCP” announcement;
 - monitor Issue templates for installation/evidence regressions;
-- do not describe the hosted MCP as public-production-ready until its separate gates pass.
+- describe Hosted status from exact deployment evidence, not package publication alone; for `v0.3.0`, production deployment and post-cutover validation completed separately on 2026-08-11.

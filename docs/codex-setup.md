@@ -1,12 +1,64 @@
-# Connect the Local MCP Server to Codex
+# Connect AI Open Source Intelligence to Codex
 
-This guide connects the repository's **local stdio MCP server** to Codex CLI,
-the Codex IDE extension, or the ChatGPT desktop app on the same Codex host.
+This guide covers both the production Hosted MCP and the repository's local
+stdio MCP server for Codex CLI, the Codex IDE extension, or the ChatGPT desktop
+app on the same Codex host.
 
-The server remains read-only. Start with the offline mock provider, verify tool
-discovery, and then opt into the public AI Workstation HTTP provider.
+Both modes remain read-only. Use the complete repository Plugin for the
+shortest real-data path. Use local stdio mode when developing or validating the
+provider boundary.
 
-## 1. Install the project
+## 1. Install the complete repository Plugin
+
+After the packaging change reaches `main`:
+
+```bash
+codex plugin marketplace add \
+  zxhwolfe-dev/aiworkstation-open-source-intelligence \
+  --ref main
+codex plugin marketplace list
+```
+
+Open the Plugins Directory and install **AI Open Source Intelligence** from the
+added Marketplace. The Plugin bundles the unified Skill and `.mcp.json`, so no
+separate global MCP entry is required. Restart the client and confirm the nine
+tools with `codex mcp list` or `/mcp`.
+
+The published `v0.3.0` tag remains the immutable Skills-only artifact. Use
+`main` for candidate testing and `v0.3.1` after the complete Plugin is released.
+
+## 1b. Manual Hosted MCP fallback
+
+Use this only when testing the immutable `v0.3.0` package or diagnosing Plugin
+loading. Codex clients on the same host share `~/.codex/config.toml`. Add:
+
+```toml
+[mcp_servers.ai_open_source_intelligence]
+url = "https://mcp.aiworkstation.cn/mcp"
+enabled = true
+required = false
+default_tools_approval_mode = "auto"
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+```
+
+No bearer token or OAuth login is required for the current anonymous,
+data-only release. Restart the client, run `codex mcp list`, and use `/mcp` in
+the Codex TUI to inspect the connection.
+
+The production server must expose exactly these nine tools:
+
+- `search_ai_projects`
+- `get_project_facts`
+- `get_license_evidence`
+- `compare_ai_projects`
+- `find_alternatives`
+- `compose_ai_stack`
+- `get_radar_overview`
+- `browse_radar_projects`
+- `browse_radar_skills`
+
+## 2. Install the project for local stdio development
 
 From the repository root:
 
@@ -26,7 +78,7 @@ realpath .venv/bin/osi-mcp
 Use the returned absolute path in the commands below. A relative path can fail
 when Codex starts the MCP process from a different working directory.
 
-## 2. Add the offline server first
+## 3. Add the offline server first
 
 ```bash
 codex mcp add ai-open-source-intelligence \
@@ -56,8 +108,11 @@ Expected tool names:
 - `compare_ai_projects`
 - `find_alternatives`
 - `compose_ai_stack`
+- `get_radar_overview`
+- `browse_radar_projects`
+- `browse_radar_skills`
 
-## 3. Switch to the public AI Workstation provider
+## 4. Switch to the public AI Workstation provider
 
 Remove or edit the previous entry, then add the live read-only variant:
 
@@ -81,7 +136,7 @@ osi-probe --base-url https://aiworkstation.cn --locale zh
 A failed probe is a contract or connectivity problem, not permission to bypass
 the fail-closed checks.
 
-## 4. Run the automated Codex Live acceptance
+## 5. Run the automated Codex Live acceptance
 
 For release evidence, prefer the one-command acceptance runner instead of a long
 manual conversation:
@@ -108,7 +163,7 @@ conversation are not written to the ledger.
 A passing report requires:
 
 - the `codex exec` process to exit successfully; and
-- at least one actual `success` ledger event for every one of the six declared
+- at least one actual `success` ledger event for every one of the nine declared
   MCP tools.
 
 This is stronger evidence than relying on Codex's final prose to claim which
@@ -121,7 +176,7 @@ ephemeral sessions, read-only sandboxing and inline `-c` configuration overrides
 If the installed Codex version rejects those options, update Codex or run the
 manual MCP workflow instead; do not weaken the MCP server's read-only contract.
 
-## 5. Configure with TOML instead of the CLI
+## 6. Configure local stdio with TOML instead of the CLI
 
 Codex reads MCP configuration from `~/.codex/config.toml`. For a trusted project,
 you can also place it in `.codex/config.toml` to keep the server scoped to that
@@ -135,7 +190,7 @@ Important settings used by the example:
 - `command`: absolute path to `.venv/bin/osi-mcp`;
 - `cwd`: absolute repository path;
 - `env`: explicit provider variables;
-- `enabled_tools`: allowlist limited to the six read-only tools;
+- `enabled_tools`: allowlist limited to the nine read-only tools;
 - `startup_timeout_sec`: server startup budget;
 - `tool_timeout_sec`: maximum time for one public Radar request workflow;
 - `required = false`: Codex can still start if this pre-release server fails;
@@ -145,7 +200,7 @@ Important settings used by the example:
 After the provider and tool annotations have been validated in the target Codex
 version, approval settings can be tightened without changing business logic.
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 ### Server does not appear
 
