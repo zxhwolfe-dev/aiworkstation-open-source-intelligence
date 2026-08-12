@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -47,6 +48,29 @@ class PublicHostedNginxTests(unittest.TestCase):
             "ssl_certificate_key /etc/letsencrypt/live/mcp.aiworkstation.cn/privkey.pem;",
             self.content,
         )
+
+    def test_metrics_log_is_service_specific_and_privacy_minimized(self) -> None:
+        self.assertIn("log_format osi_mcp_metrics", self.content)
+        self.assertIn("status=$status", self.content)
+        self.assertIn("rt=$request_time", self.content)
+        self.assertIn("urt=$upstream_response_time", self.content)
+        self.assertIn(
+            "access_log /var/log/nginx/osi-mcp.access.log osi_mcp_metrics;",
+            self.content,
+        )
+        self.assertIn("error_log /var/log/nginx/osi-mcp.error.log warn;", self.content)
+        metrics_block = self.content.split("log_format osi_mcp_metrics", 1)[1].split(";", 1)[0]
+        for sensitive in (
+            "$remote_addr",
+            "$request_uri",
+            "$request",
+            "$request_body",
+            "$args",
+            "$query_string",
+            "$http_user_agent",
+            "$http_referer",
+        ):
+            self.assertNotRegex(metrics_block, rf"{re.escape(sensitive)}(?![A-Za-z0-9_])")
 
 
 if __name__ == "__main__":

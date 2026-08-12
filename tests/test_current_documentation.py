@@ -68,6 +68,18 @@ class CurrentDocumentationTests(unittest.TestCase):
         self.assertIn("Yes. `v0.3.0` is deployed", faq)
         self.assertIn("not yet submitted or approved", submission)
 
+    def test_publishing_history_uses_exact_production_identity_and_ci_matrix(self) -> None:
+        publishing = (self.ROOT / "docs/GITHUB-PUBLISHING.md").read_text(encoding="utf-8")
+        self.assertIn("Commit: 7b92e463a1da567afd5d1310601afdf1c6674646", publishing)
+        self.assertIn("CI 3.10/3.11/3.12 green", publishing)
+
+    def test_hosted_privacy_copy_states_actual_logging_and_deletion_boundary(self) -> None:
+        privacy = (self.ROOT / "PRIVACY.md").read_text(encoding="utf-8")
+        self.assertIn("omits IP", privacy)
+        self.assertIn("rotate daily and retain 14 rotations", privacy)
+        self.assertIn("five 10 MiB", privacy)
+        self.assertIn("privacy or deletion request", privacy)
+
 
 if __name__ == "__main__":
     unittest.main()

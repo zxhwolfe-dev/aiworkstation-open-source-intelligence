@@ -23,6 +23,12 @@ class PublicHostedComposeTests(unittest.TestCase):
         self.assertIn("tmpfs:", self.content)
         self.assertIn("resources:", self.content)
 
+    def test_container_logs_are_bounded(self) -> None:
+        self.assertIn("logging:", self.content)
+        self.assertIn("driver: json-file", self.content)
+        self.assertIn('max-size: "10m"', self.content)
+        self.assertIn('max-file: "5"', self.content)
+
     def test_hosted_mode_is_fixed_to_public_data_only(self) -> None:
         self.assertIn("OSI_HOSTED_ACCESS_MODE: public", self.content)
         self.assertNotIn("${OSI_HOSTED_ACCESS_MODE", self.content)

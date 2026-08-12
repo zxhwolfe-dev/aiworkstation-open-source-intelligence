@@ -75,6 +75,21 @@ The gateway policy response identifies itself as:
 X-OSI-Hosted-Gateway-Policy: tls-ip-rate-limited
 ```
 
+The production vhost writes privacy-minimized service metrics to
+`/var/log/nginx/osi-mcp.access.log`. Records contain only timestamp, HTTP
+status, total request duration and upstream response duration; they omit client
+IP, query string, referrer, User-Agent and request body. The host's Nginx
+logrotate policy rotates logs daily and retains 14 rotations. Operators should
+review status counts, p50/p95 latency, `429`, `5xx`, upstream failures and
+container restart count at least daily during External Alpha.
+
+The public Compose configuration bounds privacy-minimized application telemetry
+to five 10 MiB Docker `json-file` logs. Apply this as a configuration-only
+container recreation after the change reaches `main`, while retaining the exact
+verified image digest and rollback record. These limits prevent an idle or
+degraded service from consuming unbounded host storage; they do not replace the
+Nginx service metrics or an incident owner.
+
 These controls fit the current public, read-only, no-account product. If a
 future release adds private data, member features or server inference, it must
 introduce a separately reviewed identity, authorization, quota and privacy
@@ -211,3 +226,9 @@ Runtime deployment is complete. Remaining work is product/distribution work:
 - verify publisher identity and submit the combined public plugin;
 - retain an explicit rollback owner and procedure for every future runtime
   deployment.
+
+For the initial production monitoring baseline, record the observation window
+and use the dedicated metrics log rather than raw prompts or client identity.
+An empty or very small sample is valid evidence of low traffic, not evidence
+that the threshold is correctly tuned. Keep the current abuse thresholds until
+real traffic demonstrates a concrete false-positive or capacity problem.

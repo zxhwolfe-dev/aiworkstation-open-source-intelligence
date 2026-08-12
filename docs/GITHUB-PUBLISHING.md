@@ -82,7 +82,7 @@ already published. Do not rebuild, overwrite or move this release:
 
 ```text
 Tag: v0.3.0
-Commit: the full 40-character SHA of the reviewed release candidate
+Commit: 7b92e463a1da567afd5d1310601afdf1c6674646
 Title: v0.3.0 — AI Open Source Intelligence
 Pre-release: Yes
 ```
@@ -155,7 +155,7 @@ environment `pypi`. Configure a required reviewer on the `pypi` GitHub
 environment for production release control.
 
 - [ ] Cohort 1 critical/high feedback triaged
-- [ ] release candidate CI 3.10/3.12 green
+- [ ] release candidate CI 3.10/3.11/3.12 green
 - [ ] bilingual live validation green
 - [ ] current-commit Codex acceptance green
 - [ ] public artifact privacy review green
