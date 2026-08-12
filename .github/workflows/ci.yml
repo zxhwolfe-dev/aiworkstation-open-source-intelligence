@@ -112,7 +112,7 @@ jobs:
               "SUPPORT.md",
           }
           missing = sorted(required - names)
-          legacy_skills = sorted(name for name in names if name.startswith("skills/"))
+          legacy_skills = sorted(name for name in names if name.startswith("product-skills/"))
           forbidden = sorted(
               name for name in names
               if name.startswith("src/") or name == "pyproject.toml"
