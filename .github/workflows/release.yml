@@ -360,7 +360,7 @@ jobs:
           PY
           echo "wheel_sha=$(sha256sum "tmp/release-assets/$WHEEL_NAME" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "sdist_sha=$(sha256sum "tmp/release-assets/$SDIST_NAME" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pypi-validated-assets
           overwrite: true
