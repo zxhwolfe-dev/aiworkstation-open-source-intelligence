@@ -41,7 +41,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.commit }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -288,7 +288,7 @@ jobs:
         with:
           fetch-depth: 1
           ref: ${{ inputs.commit }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Download exact Draft Release assets
@@ -383,7 +383,7 @@ jobs:
       sdist_name: ${{ needs.pypi-validate.outputs.sdist_name }}
       release_state: ${{ steps.before-upload.outputs.release_state }}
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: actions/checkout@v4
@@ -719,7 +719,7 @@ jobs:
         with:
           fetch-depth: 1
           ref: ${{ inputs.commit }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
